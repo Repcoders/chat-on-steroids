@@ -67,6 +67,20 @@ describe('voice commands while dictating', () => {
     button.click(); await flush(); stopped();
   });
 
+  it('applies a command said again as its own phrase, not as a repeat of the last one', async () => {
+    await listen('en-US');
+    emit({ type: 'final', text: 'First' });
+    emit({ type: 'final', text: 'New line.' });
+    emit({ type: 'final', text: 'New line.' });
+    emit({ type: 'final', text: 'Second' });
+    emit({ type: 'final', text: 'Third' });
+    expect(input.value).toBe('First\n\nSecond Third');
+    emit({ type: 'final', text: 'Scratch that.' });
+    emit({ type: 'final', text: 'Scratch that.' });
+    expect(input.value).toBe('First\n\n');
+    button.click(); await flush(); stopped();
+  });
+
   it('stops listening on "send" and sends only after the person confirms', async () => {
     await listen('en-US');
     emit({ type: 'final', text: 'Ship it today' });

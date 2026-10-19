@@ -583,9 +583,12 @@ function onDictationEvent(event: DictationEvent): void {
     // Accept both cumulative final transcripts and segment-by-segment final chunks.
     const chunk = event.text;
     const previous = session.heard;
-    session.heard = chunk === previous || previous && chunk.startsWith(previous) ? chunk :
-      previous.endsWith(chunk) ? previous : joinedDictation(previous, chunk);
     const commands = session.commands && hasDictationCommands(session.language);
+    // A command said twice ("New line." "New line.") is two commands, not a repeated transcript.
+    const onlyCommands = commands && dictationPieces(chunk, session.language).every(piece => 'command' in piece);
+    session.heard = onlyCommands ? joinedDictation(previous, chunk) :
+      chunk === previous || previous && chunk.startsWith(previous) ? chunk :
+        previous.endsWith(chunk) ? previous : joinedDictation(previous, chunk);
     const send = commands && spokenEdits(session, session.heard.slice(previous.length));
     if (!commands) session.committed = session.heard;
     dictatedText(session, session.committed);
