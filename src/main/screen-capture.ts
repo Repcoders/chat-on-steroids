@@ -34,15 +34,26 @@ export function selectionToImageRect(selection: Rectangle, display: { width: num
   return { x: left, y: top, width: right - left, height: bottom - top };
 }
 
+type Size = { width: number; height: number };
+
 /**
  * Each display's screen source. Windows and macOS name the display in `display_id`; Linux may
- * leave it empty, and then the sources are taken in display order when the counts match.
+ * leave it empty, and then the sources are taken in display order when the counts match. The
+ * PipeWire portal returns the one screen the person picked there: it goes to the display whose
+ * shape matches its picture, so the overlay covers the screen it shows.
  */
-export function pairScreenSources<S extends { display_id: string }>(displays: ReadonlyArray<{ id: number }>, sources: readonly S[]): Array<S | undefined> {
+export function pairScreenSources<S extends { display_id: string; thumbnail: { getSize(): Size } }>(
+  displays: ReadonlyArray<{ id: number; bounds: Size }>, sources: readonly S[]): Array<S | undefined> {
   const byId = displays.map(display => sources.find(source => source.display_id === String(display.id)));
   if (byId.every(Boolean)) return byId;
-  if (sources.length === displays.length && sources.every(source => !source.display_id)) return [...sources];
-  return byId;
+  if (!sources.length || sources.some(source => source.display_id)) return byId;
+  if (sources.length === displays.length) return [...sources];
+  if (sources.length !== 1) return byId;
+  const ratio = (size: Size) => size.width / Math.max(1, size.height);
+  const shown = ratio(sources[0]!.thumbnail.getSize());
+  const closest = displays.reduce((best, display, index) =>
+    Math.abs(ratio(display.bounds) - shown) < Math.abs(ratio(displays[best]!.bounds) - shown) ? index : best, 0);
+  return displays.map((_display, index) => index === closest ? sources[0] : undefined);
 }
 
 /** The overlay's answer, checked: a rectangle in its own page coordinates, or nothing. */

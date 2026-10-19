@@ -147,12 +147,52 @@ it('adds nothing when the person cancels or closes an overlay, and brings the wi
   expect(state.owner).toMatchObject({ hidden: 2, shown: 2, visible: true });
 });
 
+/** Runs `body` as if on another platform, whatever this machine is. */
+const onPlatform = async (platform: NodeJS.Platform, body: () => Promise<void>) => {
+  const real = Object.getOwnPropertyDescriptor(process, 'platform')!;
+  Object.defineProperty(process, 'platform', { ...real, value: platform });
+  try { await body(); } finally { Object.defineProperty(process, 'platform', real); }
+};
+
 it('says the screen could not be captured when no display gave a picture', async () => {
   state.displays = [{ id: 1, bounds: { x: 0, y: 0, width: 800, height: 600 }, scaleFactor: 1 }];
   state.sources = [{ display_id: '1', thumbnail: picture(0, 0, 'empty') }];
-  await expect(captureScreenRegion(owner())).rejects.toThrow('The screen could not be captured');
+  await onPlatform('win32', async () => {
+    await expect(captureScreenRegion(owner())).rejects.toThrow('The screen could not be captured');
+  });
   expect(state.windows).toHaveLength(0);
   expect(state.owner).toMatchObject({ hidden: 1, shown: 1, visible: true });
+});
+
+it('asks for Screen Recording on macOS, before hiding the window when it is denied', async () => {
+  state.displays = [{ id: 1, bounds: { x: 0, y: 0, width: 800, height: 600 }, scaleFactor: 1 }];
+  state.sources = [{ display_id: '1', thumbnail: picture(0, 0, 'empty') }];
+  const status = vi.spyOn(electron.systemPreferences, 'getMediaAccessStatus');
+  await onPlatform('darwin', async () => {
+    status.mockReturnValueOnce('denied');
+    await expect(captureScreenRegion(owner())).rejects.toThrow('Allow Screen Recording for Chat On Steroids in System Settings, then try again');
+    expect(state.owner.hidden).toBe(0);
+    // Not asked yet: macOS answers the capture with empty pictures instead of an error.
+    status.mockReturnValueOnce('not-determined');
+    await expect(captureScreenRegion(owner())).rejects.toThrow('Allow Screen Recording for Chat On Steroids in System Settings, then try again');
+  });
+  status.mockRestore();
+  expect(state.windows).toHaveLength(0);
+  expect(state.owner).toMatchObject({ hidden: 1, shown: 1, visible: true });
+});
+
+it('covers the display a PipeWire portal capture shows when two displays get one unnamed source', async () => {
+  const shot = picture(1080, 1920, 'portrait');
+  state.displays = [
+    { id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 }, scaleFactor: 1 },
+    { id: 2, bounds: { x: 1920, y: 0, width: 1080, height: 1920 }, scaleFactor: 1 }
+  ];
+  state.sources = [{ display_id: '', thumbnail: shot }];
+  const result = captureScreenRegion(owner());
+  await overlaysOpen(1);
+  expect(state.windows[0]!.bounds).toEqual({ x: 1920, y: 0, width: 1080, height: 1920 });
+  state.windows[0]!.pick({ x: 5, y: 6, width: 70, height: 80 });
+  expect(Buffer.from((await result)!.bytes).toString()).toBe('png portrait 5,6,70,80');
 });
 
 it('maps a selection into the captured picture, clamped to its edges', () => {
@@ -164,9 +204,13 @@ it('maps a selection into the captured picture, clamped to its edges', () => {
 });
 
 it('pairs sources without display ids in display order, as Linux reports them', () => {
-  const a = { display_id: '' }, b = { display_id: '' };
-  expect(pairScreenSources([{ id: 5 }, { id: 6 }], [a, b])).toEqual([a, b]);
-  expect(pairScreenSources([{ id: 5 }, { id: 6 }], [a])).toEqual([undefined, undefined]);
-  const named = { display_id: '6' };
-  expect(pairScreenSources([{ id: 5 }, { id: 6 }], [named])).toEqual([undefined, named]);
+  const source = (display_id: string, width = 1920, height = 1080) => ({ display_id, thumbnail: { getSize: () => ({ width, height }) } });
+  const displays = [{ id: 5, bounds: { width: 1920, height: 1080 } }, { id: 6, bounds: { width: 1280, height: 1024 } }];
+  const a = source(''), b = source('');
+  expect(pairScreenSources(displays, [a, b])).toEqual([a, b]);
+  const square = source('', 1280, 1024);
+  expect(pairScreenSources(displays, [square])).toEqual([undefined, square]);
+  const named = source('6');
+  expect(pairScreenSources(displays, [named])).toEqual([undefined, named]);
+  expect(pairScreenSources(displays, [])).toEqual([undefined, undefined]);
 });
