@@ -2752,5 +2752,8 @@
   "{0} characters": "{0} ký tự",
   "from {0} events": "từ {0} sự kiện",
   "(~{0} tokens)": "(~{0} token)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Answers": "Câu trả lời",
+  "Worker reports": "Báo cáo của worker",
+  "{0} of the {1} characters one message can hold": "{0} trên {1} ký tự mà một tin nhắn chứa được"
 }

@@ -6,13 +6,13 @@ const electron = vi.hoisted(() => ({
   dialog: { showSaveDialog: vi.fn() },
   app: { getPath: vi.fn(() => '/downloads') }
 }));
-const store = vi.hoisted(() => ({ getSession: vi.fn(), readEvents: vi.fn(), readOverflowText: vi.fn() }));
+const store = vi.hoisted(() => ({ getSession: vi.fn(), listSessionPage: vi.fn(), readEvents: vi.fn(), readOverflowText: vi.fn() }));
 const files = vi.hoisted(() => ({ writeFile: vi.fn(async () => undefined) }));
 vi.mock('electron', () => electron);
 vi.mock('../src/main/session/store.js', () => store);
 vi.mock('node:fs', () => ({ promises: files }));
 
-const { exportSessionMarkdown } = await import('../src/main/session/markdown-export.js');
+const { exportSessionMarkdown, quoteCandidates } = await import('../src/main/session/markdown-export.js');
 
 const events: SessionEvent[] = [
   { seq: 1, time: 1, source: 'extension', kind: 'user_message', turnId: 't1', messageId: 'u1', message: { text: 'Explain it', truncated: false, chars: 10 } },
@@ -88,4 +88,28 @@ it('copies an answer recorded without a turn by its message id, and only such an
   // A turn's own answer is exported by its turn; an unknown or turn-owned id is refused.
   await expect(exportSessionMarkdown({ id: 'session-1', scope: 'answer', messageId: 'a1', target: 'clipboard' }, null)).rejects.toThrow('no answer to export');
   await expect(exportSessionMarkdown({ id: 'session-1', scope: 'answer', target: 'clipboard' }, null)).rejects.toThrow('has not completed');
+});
+
+// The composer's @ menu: each recent chat's latest answer, whole, with workers told apart.
+it('offers the latest answer of the project\'s other chats and workers, whole, for quoting', async () => {
+  store.listSessionPage.mockResolvedValue({ sessions: [
+    { id: 'session-here', title: 'This chat', origin: null },
+    { id: 'session-1', title: 'Explain: it?', origin: null },
+    { id: 'worker-1', title: 'worker-1: tests', origin: { kind: 'worker' } },
+    { id: 'session-empty', title: 'No answer yet', origin: null },
+    { id: 'session-broken', title: 'Unreadable', origin: null },
+    { id: 'session-long', title: 'Too long', origin: null }
+  ] });
+  store.readEvents.mockImplementation(async (id: string) => {
+    if (id === 'session-broken') throw new Error('unreadable journal');
+    if (id === 'session-empty') return [events[0]];
+    if (id === 'session-long') return [{ ...events[1], message: { text: 'x'.repeat(96_001), truncated: false, chars: 96_001 } }, events[2]];
+    return events;
+  });
+  await expect(quoteCandidates('00000000-0000-4000-8000-000000000001', 'session-here')).resolves.toEqual([
+    { sessionId: 'session-1', title: 'Explain: it?', worker: false, text: 'The first part, and the rest of the answer.' },
+    { sessionId: 'worker-1', title: 'worker-1: tests', worker: true, text: 'The first part, and the rest of the answer.' }
+  ]);
+  expect(store.listSessionPage).toHaveBeenCalledWith({ projectId: '00000000-0000-4000-8000-000000000001', limit: 13 });
+  expect(store.readEvents).not.toHaveBeenCalledWith('session-here', expect.anything());
 });

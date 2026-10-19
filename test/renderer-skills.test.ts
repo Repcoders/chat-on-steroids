@@ -1,14 +1,15 @@
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { invokedSkills } from '../src/shared/skill-invocation.js';
-import { skillCompletion } from '../src/renderer/skills.js';
+import { draftSize, skillCompletion } from '../src/renderer/skills.js';
 import type { LibrarySkill, SkillLibrary } from '../src/shared/skills.js';
 import type { ProjectDirectoryListing } from '../src/shared/project-files.js';
+import type { QuoteCandidate } from '../src/shared/markdown-export.js';
 
 let dom: JSDOM;
 beforeEach(() => {
   vi.resetModules();
-  dom = new JSDOM('<textarea id="input"></textarea><details open><button id="skills" type="button">Skills</button><button id="add" type="button">+</button></details><div id="picker" hidden></div><div id="selected" hidden></div>', { url: 'https://local.test' });
+  dom = new JSDOM('<textarea id="input"></textarea><details open><button id="skills" type="button">Skills</button><button id="add" type="button">+</button></details><div id="picker" hidden></div><div id="selected" hidden></div><span id="size" hidden></span>', { url: 'https://local.test' });
   Object.assign(globalThis, { window: dom.window, document: dom.window.document, Event: dom.window.Event, Node: dom.window.Node });
   dom.window.HTMLDialogElement.prototype.showModal = function () { this.open = true; };
   dom.window.HTMLDialogElement.prototype.close = function () { this.open = false; };
@@ -33,14 +34,16 @@ async function fixture(skills: LibrarySkill[] = [skill], withCommands = false) {
       { name: 'README.md', path: 'README.md', kind: 'file', bytes: 20 }
     ], truncated: false
   }));
+  const listQuotes = vi.fn(async (_projectId: string): Promise<QuoteCandidate[]> => []);
+  const size = document.getElementById('size')!;
   const command = vi.fn();
   const picker = initSkills({ input, host, selectedHost: document.getElementById('selected')!, owner: () => owner,
     openButton: button, addButton: document.getElementById('add')!, ...(withCommands ? { command: (name: string) => command(name) } : {}),
-    scope: () => ({ sessionId: key(), projectId }), draft: () => drafts.get(key()), saveDraft: text => drafts.set(key(), text), list, listFiles });
+    scope: () => ({ sessionId: key(), projectId }), draft: () => drafts.get(key()), saveDraft: text => drafts.set(key(), text), list, listFiles, listQuotes, sizeHost: size });
   const type = (value: string) => { input.value = value; input.setSelectionRange(value.length, value.length); input.dispatchEvent(new Event('input')); };
   const press = (value: string) => picker.keydown(new dom.window.KeyboardEvent('keydown', { key: value, cancelable: true }));
   const replace = (value: string) => { drafts.set(key(), value); input.value = value; picker.restore(); };
-  return { input, button, host, list, listFiles, command, picker, type, key: press, replace,
+  return { input, button, host, list, listFiles, listQuotes, size, command, picker, type, key: press, replace,
     project: (value: string | null) => { projectId = value; },
     owner: (value: string) => { owner = value; input.value = drafts.get(key()) ?? ''; picker.restore(); } };
 }
@@ -359,4 +362,51 @@ it('finds an app command by the name the menu shows in the interface language', 
   expect(f.command).toHaveBeenCalledWith('rename');
   f.type('/rena'); await settle();
   expect([...f.host.querySelectorAll<HTMLElement>('.slash-menu-option')].map(row => row.title)).toEqual(['/rename']);
+});
+
+const quotes: QuoteCandidate[] = [
+  { sessionId: 'session-b', title: 'Login fix', worker: false, text: 'Use the token.\n\nThen retry.' },
+  { sessionId: 'worker-1', title: 'worker-1: tests', worker: true, text: 'All 12 tests pass.' }
+];
+
+it('offers other chats\' answers and workers\' reports under a bare @ and quotes the chosen one', async () => {
+  const f = await fixture();
+  f.listQuotes.mockResolvedValue(quotes);
+  f.type('Compare @'); await settle();
+  expect(f.listQuotes).toHaveBeenCalledWith('project-a');
+  expect([...f.host.querySelectorAll('.slash-menu-section-title')].map(node => node.textContent)).toEqual(['Files', 'Answers', 'Worker reports']);
+  const block = '> **Login fix**\n>\n> Use the token.\n>\n> Then retry.';
+  expect(f.host.querySelector('[data-quote-session="session-b"] .slash-menu-meta')!.textContent).toBe(`${block.length} characters`);
+  f.type('Compare @retry'); await settle();
+  expect([...f.host.querySelectorAll<HTMLElement>('[data-quote-session]')].map(row => row.dataset.quoteSession)).toEqual(['session-b']);
+  expect(f.size.hidden).toBe(true);
+  expect(f.key('Enter')).toBe(true);
+  expect(f.input.value).toBe(`Compare\n${block}\n\n`);
+  expect(f.input.selectionStart).toBe(f.input.value.length);
+  // The draft now holds a quote, so its length against one message's limit is on show.
+  expect(f.size.hidden).toBe(false);
+  expect(f.size.textContent).toBe(`${f.input.value.length} / 96,000`);
+  expect(f.size.hasAttribute('data-over')).toBe(false);
+  f.type(`${f.input.value}${'x'.repeat(96_000)}`);
+  expect(f.size.hasAttribute('data-over')).toBe(true);
+  f.type('');
+  expect(f.size.hidden).toBe(true);
+});
+
+it('shows the files without waiting for the answers, and keeps answers out of a folder', async () => {
+  const f = await fixture();
+  f.listQuotes.mockReturnValue(new Promise(() => undefined));
+  f.type('@'); await settle();
+  expect(f.host.querySelector('[data-file-path="README.md"]')).not.toBeNull();
+  f.listQuotes.mockResolvedValue(quotes);
+  f.type('@src/'); await settle();
+  expect(f.host.querySelector('[data-file-path="src/main.ts"]')).not.toBeNull();
+  expect(f.host.querySelector('[data-quote-session]')).toBeNull();
+  expect(f.listQuotes).toHaveBeenCalledTimes(1);
+});
+
+it('flags a draft with a quote only when it is longer than one message can hold', () => {
+  expect(draftSize('No quote here')).toBeNull();
+  expect(draftSize('Look:\n> quoted')).toEqual({ chars: 14, over: false });
+  expect(draftSize(`> ${'x'.repeat(96_000)}`)).toEqual({ chars: 96_002, over: true });
 });

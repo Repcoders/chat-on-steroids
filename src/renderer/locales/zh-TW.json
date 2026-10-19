@@ -2752,5 +2752,8 @@
   "{0} characters": "{0} 個字元",
   "from {0} events": "來自 {0} 個事件",
   "(~{0} tokens)": "（約 {0} Token）",
-  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}",
+  "Answers": "回答",
+  "Worker reports": "子代理報告",
+  "{0} of the {1} characters one message can hold": "已用 {0} / 單則訊息最多 {1} 個字元"
 }

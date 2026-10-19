@@ -1,8 +1,8 @@
 import { expect, it } from 'vitest';
 import type { SessionEvent } from '../src/shared/session.js';
 import {
-  answerAnchors, answerMarkdown, completedTurnIds, markdownFileName, messageAnswerAnchors, messageAnswerEntries, sessionMarkdown,
-  transcriptEntries, turnAnswerEntries
+  answerAnchors, answerMarkdown, completedTurnIds, latestAnswerEntries, markdownFileName, messageAnswerAnchors, messageAnswerEntries,
+  quotedAnswer, sessionMarkdown, transcriptEntries, turnAnswerEntries
 } from '../src/shared/markdown-export.js';
 
 const text = (value: string) => ({ text: value, truncated: false, chars: value.length });
@@ -93,4 +93,23 @@ it('names files safely from chat titles', () => {
   expect(markdownFileName(`${prefix}🧪 test`)).toBe(`${prefix}.md`);
   expect(markdownFileName(`${'x'.repeat(78)}🧪 test`)).toBe(`${'x'.repeat(78)}🧪.md`);
   expect(markdownFileName(`${prefix}🧪 test`, ' - answer')).toBe(`${prefix} - answer.md`);
+});
+
+// The composer's @ menu quotes each chat's latest answer: a turn's whole answer once it completed.
+it('finds a chat\'s latest answer: the last completed turn, or a later answer outside any turn', () => {
+  seq = 0;
+  const events = [
+    user('t1', 'First'), answer('t1', 'a1', 'Part one'), answer('t1', 'a2', 'Part two'), end('t1'),
+    user('t2', 'Second'), answer('t2', 'a3', 'Still writing', false), answer('t2', 'a4', 'Stopped half way'), end('t2', 'interrupted')
+  ];
+  expect(latestAnswerEntries(events).map(entry => entry.stored.text)).toEqual(['Part one', 'Part two']);
+  const later = [...events, { seq: ++seq, time: seq, source: 'extension', kind: 'assistant_message', messageId: 'tab-1', final: true, state: 'final',
+    message: text('Typed in the tab') } as SessionEvent];
+  expect(latestAnswerEntries(later).map(entry => entry.stored.text)).toEqual(['Typed in the tab']);
+  expect(latestAnswerEntries([user('t3', 'Only a question')])).toEqual([]);
+});
+
+it('quotes an answer under the chat\'s name, keeping its blank lines inside the quote', () => {
+  expect(quotedAnswer('  Fix *the*\nlogin  ', '## Result\r\n\r\nDone.\n')).toBe('> **Fix \\*the\\* login**\n>\n> ## Result\n>\n> Done.');
+  expect(quotedAnswer('', 'Text')).toBe('> **Chat**\n>\n> Text');
 });

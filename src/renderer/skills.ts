@@ -1,8 +1,10 @@
 import type { LibrarySkill, SkillLibrary, SkillsDraftScope } from '../shared/skills.js';
 import type { ProjectDirectoryListing, ProjectFileEntry } from '../shared/project-files.js';
 import { el, icon } from './dom.js';
-import { t, ui } from './i18n.js';
+import { currentLanguage, t, tn, ui } from './i18n.js';
 import { skillDirectives } from '../shared/skill-invocation.js';
+import { quotedAnswer, type QuoteCandidate } from '../shared/markdown-export.js';
+import { MAX_CHATGPT_MESSAGE_CHARS } from '../shared/user-prompt.js';
 
 type Completion = { start: number; end: number; query: string; kind: 'command' | 'skill' | 'file'; directory?: string };
 
@@ -73,10 +75,19 @@ type Options = {
   saveDraft: (authored: string) => void;
   list: (scope: SkillsDraftScope) => Promise<Reply<SkillLibrary>>;
   listFiles: (projectId: string, directory: string) => Promise<ProjectDirectoryListing>;
+  /** The latest answers of the project's other chats and workers, offered under a bare `@`. */
+  listQuotes?: (projectId: string) => Promise<QuoteCandidate[]>;
+  /** Shows the draft's length against one message's limit while the draft holds a quote. */
+  sizeHost?: HTMLElement;
   command?: (name: string) => void;
   commandAvailable?: (name: string) => boolean;
   deferCommand?: (name: string) => boolean;
 };
+
+/** The draft's length against one message's limit, once it holds a Markdown quote; null hides it. */
+export function draftSize(text: string): { chars: number; over: boolean } | null {
+  return /^ {0,3}>/m.test(text) ? { chars: text.length, over: text.length > MAX_CHATGPT_MESSAGE_CHARS } : null;
+}
 
 /** Marks a textarea projection that consumed a composer control, not authored text. */
 export const COMPOSER_COMMAND_PROJECTION = Symbol('composer-command-projection');
@@ -123,9 +134,11 @@ export function initSkills(options: Options) {
   type CommandChoice = { command: string; name: string; description: string; glyph: string };
   type FileChoice = { file: ProjectFileEntry };
   type IndexedFile = { entry: ProjectFileEntry; normalizedName: string };
+  type QuoteChoice = { quote: QuoteCandidate; block: string };
   let library: SkillLibrary | null = null, files: ProjectDirectoryListing | null = null;
   let indexedFiles: IndexedFile[] = [];
-  let choices: Array<LibrarySkill | CommandChoice | FileChoice> = [], selected = 0, painted = '';
+  let quotes: { projectId: string; rows: Array<QuoteChoice & { normalized: string }> } | null = null;
+  let choices: Array<LibrarySkill | CommandChoice | FileChoice | QuoteChoice> = [], selected = 0, painted = '';
   // This is only the current textarea projection. The existing draft map holds the
   // complete authored command block across navigation, failures and retries.
   let displayedPrefix = '', prefixOwner = options.owner();
@@ -134,6 +147,14 @@ export function initSkills(options: Options) {
   const authoredText = (): string => (prefixOwner === options.owner() ? displayedPrefix : '') + input.value;
   const fragment = () => skillCompletion(input.value, input.selectionStart, input.selectionEnd);
   const current = (): boolean => surfaceOwner === options.owner();
+  const count = (value: number): string => value.toLocaleString(currentLanguage());
+  const paintSize = (): void => {
+    const host = options.sizeHost; if (!host) return;
+    const size = draftSize(authoredText());
+    host.hidden = !size; host.toggleAttribute('data-over', !!size?.over);
+    host.textContent = size ? `${count(size.chars)} / ${count(MAX_CHATGPT_MESSAGE_CHARS)}` : '';
+    if (size) host.title = t('{0} of the {1} characters one message can hold', [count(size.chars), count(MAX_CHATGPT_MESSAGE_CHARS)]);
+  };
   const hideInline = (): void => {
     host.hidden = true; choices = []; input.removeAttribute('aria-controls'); input.removeAttribute('aria-expanded'); input.removeAttribute('aria-activedescendant');
   };
@@ -170,7 +191,7 @@ export function initSkills(options: Options) {
     close();
     const draft = split(options.draft() ?? input.value);
     displayedPrefix = draft.prefix; prefixOwner = options.owner(); input.value = draft.body;
-    renderSelected();
+    renderSelected(); paintSize();
   };
   const project = (authored: string, source: 'authored' | 'command' = 'authored', caret?: number): void => {
     options.saveDraft(authored);
@@ -183,6 +204,15 @@ export function initSkills(options: Options) {
       : new view.Event('input', { bubbles: true }));
   };
   const choose = (skill: typeof choices[number]): void => {
+    if ('quote' in skill) {
+      const range = fragment();
+      if (!current() || !range || range.kind !== 'file' || range.directory !== undefined || quotes?.projectId !== options.scope().projectId || painted !== selectionKey() || composing) { close(); return; }
+      // The quote takes its own lines, with a blank line after it so what follows is not quoted too.
+      const before = input.value.slice(0, range.start).replace(/[ \t]+$/, '');
+      const block = `${before && !before.endsWith('\n') ? '\n' : ''}${skill.block}\n\n`;
+      const text = before + block + input.value.slice(range.end).replace(/^[ \t]+/, '');
+      close(); project((prefixOwner === options.owner() ? displayedPrefix : '') + text, 'authored', before.length + block.length); input.focus(); return;
+    }
     if ('file' in skill) {
       const range = fragment(), projectId = options.scope().projectId;
       const key = `files:${projectId ?? ''}:${range?.directory ?? ''}`;
@@ -243,7 +273,10 @@ export function initSkills(options: Options) {
     const matchingSkills = range.kind !== 'file' && !(loading && !library) ? filtered(query).slice(0, 64) : [];
     const matchingFiles = range.kind === 'file' && files !== null && files.projectId === options.scope().projectId && files.directory === (range.directory ?? '')
       ? filteredFiles(query).slice(0, 64).map(file => ({ file })) : [];
-    choices = [...commands, ...matchingSkills, ...matchingFiles];
+    const matchingQuotes = range.kind === 'file' && range.directory === undefined && quotes && quotes.projectId === options.scope().projectId
+      ? quotes.rows.filter(row => row.normalized.includes(query)) : [];
+    const quoteSection = (worker: boolean): QuoteChoice[] => matchingQuotes.filter(row => row.quote.worker === worker).slice(0, 8);
+    choices = [...commands, ...matchingSkills, ...matchingFiles, ...quoteSection(false), ...quoteSection(true)];
     selected = Math.min(selected, Math.max(0, choices.length - 1)); painted = selectionKey();
     const exact = range.kind !== 'file' && query && !loading && !commands.some(row => row.command === query)
       ? library?.skills.find(skill => skill.id.toLocaleLowerCase() === query)
@@ -261,10 +294,26 @@ export function initSkills(options: Options) {
     };
     host.replaceChildren(); host.hidden = false;
     input.setAttribute('aria-expanded', 'true'); input.setAttribute('aria-controls', host.id);
+    let section = '';
     for (const [index, skill] of choices.entries()) {
+      if ('quote' in skill) {
+        if (section !== String(skill.quote.worker)) {
+          section = String(skill.quote.worker);
+          host.append(el('div', 'slash-menu-section-title', () => t(skill.quote.worker ? 'Worker reports' : 'Answers')));
+        }
+        const row = control('', 'skill-choice skill-autocomplete-option slash-menu-option');
+        row.replaceChildren(); row.id = `skill-option-${index}`; row.setAttribute('role', 'option'); row.setAttribute('aria-selected', String(index === selected));
+        row.dataset.quoteSession = skill.quote.sessionId; row.title = skill.quote.title;
+        const copy = el('span', 'slash-menu-copy');
+        copy.append(el('strong', '', skill.quote.title), el('small', '', skill.quote.text.replace(/\s+/g, ' ').trim().slice(0, 160)));
+        row.append(icon(skill.quote.worker ? 'i-agents' : 'i-chat', 'ico slash-menu-icon'), copy,
+          el('span', 'slash-menu-meta', () => tn('{0} character', '{0} characters', skill.block.length, [count(skill.block.length)])));
+        row.addEventListener('pointerdown', event => event.preventDefault()); row.addEventListener('click', () => chooseCurrent(skill)); host.append(row);
+        continue;
+      }
       const command = 'command' in skill, file = 'file' in skill;
-      if (index === 0 || index === commands.length && !command && !file || index === commands.length + matchingSkills.length && file)
-        host.append(el('div', 'slash-menu-section-title', () => t(command ? 'Commands' : file ? 'Files' : 'Skills')));
+      const kind = command ? 'command' : file ? 'file' : 'skill';
+      if (section !== kind) { section = kind; host.append(el('div', 'slash-menu-section-title', () => t(command ? 'Commands' : file ? 'Files' : 'Skills'))); }
       const row = control('', 'skill-choice skill-autocomplete-option slash-menu-option');
       row.replaceChildren(); row.id = `skill-option-${index}`; row.setAttribute('role', 'option'); row.setAttribute('aria-selected', String(index === selected));
       if (file) row.dataset.filePath = skill.file.path;
@@ -290,8 +339,11 @@ export function initSkills(options: Options) {
     surfaceOwner = owner; loading = true; error = '';
     if (range?.kind === 'file') {
       const projectId = scope.projectId, directory = range.directory ?? '', key = `files:${projectId ?? ''}:${directory}`;
-      loadedKey = key; files = null; indexedFiles = []; paintInline();
+      loadedKey = key; files = null; indexedFiles = []; quotes = null; paintInline();
       if (!projectId) { loading = false; paintInline(); return; }
+      // Answers are offered beside the project's top-level entries, without holding up the files;
+      // an unreadable list only leaves them out.
+      const quoted = range.directory === undefined && options.listQuotes ? options.listQuotes(projectId).catch(() => null) : null;
       try {
         const result = await options.listFiles(projectId, directory);
         if (request !== epoch || owner !== options.owner() || scopeKey() !== JSON.stringify(scope) || fragment()?.kind !== 'file' || (fragment()?.directory ?? '') !== (range.directory ?? '')) return;
@@ -301,6 +353,10 @@ export function initSkills(options: Options) {
           .map(entry => ({ entry, normalizedName: entry.name.toLocaleLowerCase() }));
       } catch (failure) { if (request === epoch && current()) error = failure instanceof Error ? failure.message : String(failure); }
       finally { if (request === epoch && current() && scopeKey() === JSON.stringify(scope) && fragment()?.kind === 'file' && (fragment()?.directory ?? '') === (range.directory ?? '') && options.scope().projectId) { loading = false; paintInline(); } }
+      const rows = await quoted;
+      if (!rows || request !== epoch || owner !== options.owner() || scopeKey() !== JSON.stringify(scope) || fragment()?.kind !== 'file' || fragment()?.directory !== undefined) return;
+      quotes = { projectId, rows: rows.map(quote => ({ quote, block: quotedAnswer(quote.title, quote.text), normalized: `${quote.title}\n${quote.text}`.toLocaleLowerCase() })) };
+      if (!host.hidden) paintInline();
       return;
     }
     const key = `skills:${JSON.stringify(scope)}`;
@@ -317,7 +373,7 @@ export function initSkills(options: Options) {
     finally { if (request === epoch && current()) { loading = false; paintInline(); renderSelected(); } }
   };
   const update = (): void => {
-    options.saveDraft(authoredText());
+    options.saveDraft(authoredText()); paintSize();
     if (composing) return;
     const range = fragment();
     if (!range) { hideInline(); loadedKey = null; return; }

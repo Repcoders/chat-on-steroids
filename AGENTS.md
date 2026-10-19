@@ -475,8 +475,16 @@ slash text in paths, links and code stays literal. App commands remain available
 leading command block. The attachment popup's Skills button inserts that leading slash and focuses
 the input while preserving existing draft text. `@` completion browses entries under the current
 Local Project via the existing project-files listing authority and inserts a project-relative text
-reference; it does not upload a file or broaden filesystem access. Commands, Skills and project
-files are separate compact sections; there is no sidebar entry, modal library or native import/remove UI.
+reference; it does not upload a file or broaden filesystem access. A bare `@` (no folder typed) also
+offers Answers and Worker reports: `sessions:quoteCandidates { projectId, excludeId? }` →
+`QuoteCandidate[]` (`main/session/markdown-export.ts`) reads the latest answer (`latestAnswerEntries`:
+the last completed turn's answer, or a later turnless one) of the project's 12 most recent other chats,
+whole as Markdown export reads it, split by `origin.kind === 'worker'`, and leaves out an answer longer
+than `MAX_CHATGPT_MESSAGE_CHARS`. Choosing one inserts it as a Markdown quote under the chat's name
+(`quotedAnswer`) on its own lines, followed by a blank line; it is draft text, not an attachment. While the
+draft holds a quote line, `#composerDraftSize` shows its length against `MAX_CHATGPT_MESSAGE_CHARS`
+(`draftSize`). Commands, Skills, project files, Answers and Worker reports are separate compact sections;
+there is no sidebar entry, modal library or native import/remove UI.
 Commands: `/plan`, `/goal`, `/loop`, `/compact`, plus Codex's `/model` and `/reasoning` (open the model picker), `/new`, `/rename`, `/pin`, `/status` (the context meter's panel), `/review` and `/init` (put a review or AGENTS.md request in front of the draft, unsent), `/usage`, `/plugins`, `/pet` and `/feedback` (Settings → Activity, the diagnostics report). `/rename`, `/pin`, `/status` and `/compact` are offered only while a chat is open (`commandAvailable`); popups open after the choosing click has passed the outside-click handlers.
 The same commands typed at the start of a message and sent without the menu (`APP_COMMANDS` in `renderer/skills.ts`) run as if picked, unless a Skill has that id; `/plan`, `/goal` and `/loop` then send the rest of the text as their mode would, any other command leaves the rest in the composer.
 A small plus icon to the right of that Skills button inserts `Please add the following skills to my COS skills:`

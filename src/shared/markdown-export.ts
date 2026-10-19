@@ -86,6 +86,24 @@ export function messageAnswerEntries(events: readonly SessionEvent[], messageId:
   return transcriptEntries(events).filter(entry => entry.role === 'assistant' && !entry.turnId && entry.messageId === messageId);
 }
 
+/** A chat's latest answer: its last completed turn's answer, or an answer recorded after it outside any turn. */
+export function latestAnswerEntries(events: readonly SessionEvent[]): TranscriptEntry[] {
+  const done = completedTurnIds(events);
+  const answers = transcriptEntries(events).filter(entry => entry.role === 'assistant' && (entry.turnId ? done.has(entry.turnId) : entry.messageId));
+  const last = answers.at(-1);
+  if (!last) return [];
+  return last.turnId ? answers.filter(entry => entry.turnId === last.turnId) : [last];
+}
+
+/** One chat's latest answer, offered by the composer's @ menu for quoting (`sessions:quoteCandidates`). */
+export type QuoteCandidate = { sessionId: string; title: string; worker: boolean; text: string };
+
+/** An answer as a Markdown quote under the name of its chat, the way the @ menu puts it in a draft. */
+export function quotedAnswer(title: string, text: string): string {
+  const name = title.replace(/\s+/g, ' ').trim().replace(/[\\`*_[\]]/g, '\\$&') || 'Chat';
+  return [`> **${name}**`, '>', ...text.trim().split(/\r?\n/).map(line => line.trim() ? `> ${line}` : '>')].join('\n');
+}
+
 /** One answer as Markdown: its messages as written, separated by blank lines. */
 export function answerMarkdown(texts: readonly string[]): string {
   return `${texts.map(text => text.trim()).filter(Boolean).join('\n\n')}\n`;

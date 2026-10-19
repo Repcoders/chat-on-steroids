@@ -2797,5 +2797,8 @@
   "from {0} events|one": "{0} olaydan",
   "(~{0} tokens)": "(~{0} token)",
   "(~{0} tokens)|one": "(~{0} token)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Answers": "Yanıtlar",
+  "Worker reports": "Yardımcı ajan raporları",
+  "{0} of the {1} characters one message can hold": "Bir mesajın alabileceği {1} karakterin {0} kadarı"
 }

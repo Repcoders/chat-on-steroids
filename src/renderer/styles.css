@@ -2431,6 +2431,8 @@ input[readonly] {
 .composer-toolbar { display: contents; }
 .composer-primary-controls { grid-column: 1; grid-row: 2; display: flex; align-items: center; gap: 4px; min-width: 0; }
 .composer #contextMeter { grid-column: 2; grid-row: 2; }
+.composer-draft-size { margin-inline-start: auto; padding: 0 6px; color: var(--soft); font-size: calc(12px * var(--text-scale, 1)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.composer-draft-size[data-over] { color: var(--red); }
 .composer #modelMenu { grid-column: 3; grid-row: 2; }
 .composer .send-control { grid-column: 4; grid-row: 2; }
 .composer:has(.composer-selected-skills:not([hidden])) textarea { grid-row: 2; }

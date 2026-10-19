@@ -2842,5 +2842,8 @@
   "(~{0} tokens)": "(~{0} tokens)",
   "(~{0} tokens)|one": "(~{0} token)",
   "(~{0} tokens)|many": "(~{0} de tokens)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Answers": "Respuestas",
+  "Worker reports": "Informes de subagentes",
+  "{0} of the {1} characters one message can hold": "{0} de los {1} caracteres que admite un mensaje"
 }

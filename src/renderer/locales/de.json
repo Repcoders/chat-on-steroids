@@ -2797,5 +2797,8 @@
   "from {0} events|one": "aus {0} Ereignis",
   "(~{0} tokens)": "(ca. {0} Tokens)",
   "(~{0} tokens)|one": "(ca. {0} Token)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Answers": "Antworten",
+  "Worker reports": "Worker-Berichte",
+  "{0} of the {1} characters one message can hold": "{0} der {1} Zeichen, die eine Nachricht fassen kann"
 }
