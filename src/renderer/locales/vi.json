@@ -2338,6 +2338,7 @@
   "Templates": "Mẫu",
   "Template “{0}” saved. Type / to insert it.": "Đã lưu mẫu “{0}”. Gõ / để chèn.",
   "Template “{0}” saved for this window only: the app could not store it.": "Đã lưu mẫu “{0}” chỉ cho cửa sổ này: ứng dụng không thể lưu trữ nó.",
+  "Template “{0}” removed for this window only: the app could not store it.": "Đã xóa mẫu “{0}” chỉ cho cửa sổ này: ứng dụng không thể lưu thay đổi.",
   "This draft is too long for a template.": "Bản nháp này quá dài để làm mẫu.",
   "Type the template first, then save it with /template.": "Hãy viết mẫu trước, rồi lưu bằng /template.",
   "Open usage and token statistics.": "Mở mức sử dụng và thống kê token.",

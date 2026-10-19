@@ -2338,6 +2338,7 @@
   "Templates": "範本",
   "Template “{0}” saved. Type / to insert it.": "已儲存範本「{0}」。輸入 / 即可插入。",
   "Template “{0}” saved for this window only: the app could not store it.": "範本「{0}」僅在此視窗中儲存：應用程式無法儲存它。",
+  "Template “{0}” removed for this window only: the app could not store it.": "範本「{0}」僅在此視窗中移除：應用程式無法儲存此變更。",
   "This draft is too long for a template.": "此草稿太長，無法儲存為範本。",
   "Type the template first, then save it with /template.": "請先輸入範本內容，再用 /template 儲存。",
   "Open usage and token statistics.": "開啟用量與權杖統計。",

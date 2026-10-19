@@ -2446,6 +2446,7 @@
   "Templates": "Шаблоны",
   "Template “{0}” saved. Type / to insert it.": "Шаблон «{0}» сохранён. Введите /, чтобы вставить его.",
   "Template “{0}” saved for this window only: the app could not store it.": "Шаблон «{0}» сохранён только для этого окна: приложению не удалось его записать.",
+  "Template “{0}” removed for this window only: the app could not store it.": "Шаблон «{0}» удалён только для этого окна: приложению не удалось записать изменение.",
   "This draft is too long for a template.": "Этот черновик слишком длинный для шаблона.",
   "Type the template first, then save it with /template.": "Сначала напишите шаблон, затем сохраните его командой /template.",
   "Open usage and token statistics.": "Открыть использование и статистику токенов.",

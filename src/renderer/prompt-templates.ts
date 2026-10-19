@@ -134,9 +134,10 @@ export function createPromptTemplates() {
       templates = [saved, ...templates.filter(row => row.name !== saved.name)].slice(0, MAX_TEMPLATES);
       return { saved, stored: store() };
     },
-    remove(name: string): void {
+    /** Removes a template and says whether storage has the change. */
+    remove(name: string): boolean {
       templates = templates.filter(row => row.name !== name);
-      store();
+      return store();
     }
   };
 }

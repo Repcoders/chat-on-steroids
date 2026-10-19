@@ -2410,6 +2410,7 @@
   "Templates": "Modelos",
   "Template “{0}” saved. Type / to insert it.": "Modelo “{0}” guardado. Escreva / para o inserir.",
   "Template “{0}” saved for this window only: the app could not store it.": "Modelo “{0}” guardado só para esta janela: a aplicação não o conseguiu armazenar.",
+  "Template “{0}” removed for this window only: the app could not store it.": "Modelo “{0}” removido só para esta janela: a aplicação não conseguiu armazenar a alteração.",
   "This draft is too long for a template.": "Este rascunho é demasiado longo para um modelo.",
   "Type the template first, then save it with /template.": "Escreva primeiro o modelo e depois guarde-o com /template.",
   "Open usage and token statistics.": "Abrir a utilização e as estatísticas de tokens.",

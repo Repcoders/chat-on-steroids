@@ -8190,7 +8190,8 @@ export function initChat(next: Deps): void {
     scope: () => ({ sessionId: selectedId, projectId: selectedLocalProject()?.id ?? selectedProjectId }),
     draft: () => inputDrafts.get(draftKey()), saveDraft: text => inputDrafts.set(draftKey(), text),
     list: scope => api.skillLibrary(scope), command: runComposerCommand,
-    templates: () => promptTemplates?.list() ?? [], removeTemplate: name => promptTemplates?.remove(name),
+    templates: () => promptTemplates?.list() ?? [],
+    removeTemplate: name => { if (promptTemplates?.remove(name) === false) toast(t('Template “{0}” removed for this window only: the app could not store it.', [name])); },
     commandAvailable: name => !CHAT_COMMANDS.has(name) || openChatSummary() !== null,
     listFiles: async (projectId, directory) => {
       const result = await api.listProjectFiles(projectId, directory);

@@ -2410,6 +2410,7 @@
   "Templates": "Plantillas",
   "Template “{0}” saved. Type / to insert it.": "Plantilla «{0}» guardada. Escribe / para insertarla.",
   "Template “{0}” saved for this window only: the app could not store it.": "Plantilla «{0}» guardada solo para esta ventana: la aplicación no pudo almacenarla.",
+  "Template “{0}” removed for this window only: the app could not store it.": "Plantilla «{0}» eliminada solo para esta ventana: la aplicación no pudo almacenar el cambio.",
   "This draft is too long for a template.": "Este borrador es demasiado largo para una plantilla.",
   "Type the template first, then save it with /template.": "Escribe primero la plantilla y luego guárdala con /template.",
   "Open usage and token statistics.": "Abrir el uso y las estadísticas de tokens.",

@@ -2410,6 +2410,7 @@
   "Templates": "Modèles",
   "Template “{0}” saved. Type / to insert it.": "Modèle « {0} » enregistré. Tapez / pour l’insérer.",
   "Template “{0}” saved for this window only: the app could not store it.": "Modèle « {0} » enregistré pour cette fenêtre uniquement : l’application n’a pas pu le stocker.",
+  "Template “{0}” removed for this window only: the app could not store it.": "Modèle « {0} » supprimé pour cette fenêtre uniquement : l’application n’a pas pu stocker la modification.",
   "This draft is too long for a template.": "Ce brouillon est trop long pour un modèle.",
   "Type the template first, then save it with /template.": "Écrivez d’abord le modèle, puis enregistrez-le avec /template.",
   "Open usage and token statistics.": "Ouvrir l'utilisation et les statistiques de jetons.",

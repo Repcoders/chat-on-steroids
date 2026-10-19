@@ -2338,6 +2338,7 @@
   "Templates": "テンプレート",
   "Template “{0}” saved. Type / to insert it.": "テンプレート「{0}」を保存しました。/ で挿入できます。",
   "Template “{0}” saved for this window only: the app could not store it.": "テンプレート「{0}」はこのウィンドウでのみ保存されました。アプリが保存できませんでした。",
+  "Template “{0}” removed for this window only: the app could not store it.": "テンプレート「{0}」はこのウィンドウでのみ削除されました。アプリが変更を保存できませんでした。",
   "This draft is too long for a template.": "この下書きはテンプレートには長すぎます。",
   "Type the template first, then save it with /template.": "先にテンプレートを入力してから /template で保存してください。",
   "Open usage and token statistics.": "使用状況とトークン統計を開きます。",

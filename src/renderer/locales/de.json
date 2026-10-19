@@ -2374,6 +2374,7 @@
   "Templates": "Vorlagen",
   "Template “{0}” saved. Type / to insert it.": "Vorlage „{0}“ gespeichert. Mit / einfügen.",
   "Template “{0}” saved for this window only: the app could not store it.": "Vorlage „{0}“ nur für dieses Fenster gespeichert: Die App konnte sie nicht dauerhaft speichern.",
+  "Template “{0}” removed for this window only: the app could not store it.": "Vorlage „{0}“ nur für dieses Fenster entfernt: Die App konnte die Änderung nicht dauerhaft speichern.",
   "This draft is too long for a template.": "Dieser Entwurf ist zu lang für eine Vorlage.",
   "Type the template first, then save it with /template.": "Zuerst die Vorlage schreiben, dann mit /template speichern.",
   "Open usage and token statistics.": "Nutzung und Token-Statistik öffnen.",
