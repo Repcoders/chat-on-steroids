@@ -78,6 +78,21 @@ it('saves the newest first, replaces a template of the same name and keeps them 
   expect(createPromptTemplates().list().map(row => row.name)).toEqual(['Review {{file}}']);
 });
 
+it('keeps two templates whose long first lines differ only past the shown name', () => {
+  const templates = createPromptTemplates();
+  const start = 'Review the uncommitted changes in this project and list every';
+  templates.save(`${start} regression\n{{file}}`);
+  templates.save(`${start} security issue\n{{file}}`);
+  const list = templates.list();
+  expect(list.map(row => row.text.split('\n')[0])).toEqual([`${start} security issue`, `${start} regression`]);
+  expect(new Set(list.map(row => row.name)).size).toBe(2);
+  expect(list.every(row => row.name.length <= 60)).toBe(true);
+  // The same first line still replaces its template, under the name it already has.
+  templates.save(`${start} security issue\n{{file}} and {{area}}`);
+  expect(templates.list().map(row => row.name)).toEqual([list[0]!.name, list[1]!.name]);
+  expect(createPromptTemplates().list()).toHaveLength(2);
+});
+
 it('says when a template could not be stored and lasts only in this window', () => {
   const templates = createPromptTemplates();
   expect(templates.save('Stored {{x}}')).toMatchObject({ stored: true });

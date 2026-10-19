@@ -90,9 +90,11 @@ export function nextTemplateField(text: string, start: number, end: number, back
   return (backwards ? fields.filter(field => field.end <= start).at(-1) : fields.find(field => field.start >= end)) ?? null;
 }
 
+const firstLine = (text: string): string => text.split('\n').map(row => row.replace(/\s+/g, ' ').trim()).find(Boolean) ?? '';
+
 /** A template is named after its first line, which the slash menu shows and filters by. */
 export function templateName(text: string): string {
-  const line = text.split('\n').map(row => row.replace(/\s+/g, ' ').trim()).find(Boolean) ?? '';
+  const line = firstLine(text);
   return line.length > MAX_NAME_CHARS ? `${line.slice(0, MAX_NAME_CHARS - 1).trimEnd()}…` : line;
 }
 
@@ -124,14 +126,21 @@ export function createPromptTemplates() {
   return {
     /** The newest first. */
     list: (): readonly PromptTemplate[] => templates,
-    /** Saves a draft under its first line, replacing a template of the same name. */
+    /** Saves a draft under its first line, replacing the template with the same first line. */
     save(text: string): { saved: PromptTemplate; stored: boolean } | { error: 'empty' | 'long' } {
       const body = text.replace(/^\s*\n/, '').trimEnd();
       if (!body.trim()) return { error: 'empty' };
       if (body.length > MAX_TEMPLATE_CHARS) return { error: 'long' };
-      const saved = { name: templateName(body), text: body };
+      const line = firstLine(body), same = templates.find(row => firstLine(row.text) === line);
+      // Long first lines that differ only past the shown name are numbered, so neither replaces the other.
+      let name = same?.name ?? templateName(body);
+      for (let n = 2; !same && templates.some(row => row.name === name); n++) {
+        const suffix = ` (${n})`;
+        name = `${line.slice(0, MAX_NAME_CHARS - suffix.length - 1).trimEnd()}…${suffix}`;
+      }
+      const saved = { name, text: body };
       // The oldest template gives way at the bound; a save is never refused for it.
-      templates = [saved, ...templates.filter(row => row.name !== saved.name)].slice(0, MAX_TEMPLATES);
+      templates = [saved, ...templates.filter(row => row !== same)].slice(0, MAX_TEMPLATES);
       return { saved, stored: store() };
     },
     /** Removes a template and says whether storage has the change. */
