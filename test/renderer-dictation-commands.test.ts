@@ -97,6 +97,16 @@ describe('voice commands while dictating', () => {
     stopped();
   });
 
+  it('takes "send" that only completes a growing transcript as a word, not as the command', async () => {
+    await listen('en-US');
+    emit({ type: 'final', text: 'Please' });
+    emit({ type: 'final', text: 'Please send' });
+    expect(input.value).toBe('Please send');
+    expect(sendDialog()).toBeNull();
+    expect(button.getAttribute('data-state')).toBe('listening');
+    button.click(); await flush(); stopped();
+  });
+
   it('keeps the draft unsent when the person keeps editing', async () => {
     sends = [];
     await listen('en-US');

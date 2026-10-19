@@ -521,10 +521,15 @@ function joinedDictation(previous: string, next: string): string {
   return `${previous} ${next}`;
 }
 
-/** Applies a newly heard final chunk to `committed`; true when it said "send". */
-function spokenEdits(session: DictationSession, added: string): boolean {
+/**
+ * Applies a newly heard final chunk to `committed`; true when it said "send". `standalone` is false
+ * when `added` only extends a growing transcript, so "send" there ends a sentence and stays a word.
+ */
+function spokenEdits(session: DictationSession, added: string, standalone: boolean): boolean {
   let send = false;
-  for (const piece of dictationPieces(added, session.language)) {
+  let pieces = dictationPieces(added, session.language);
+  if (!standalone && pieces.some(piece => 'command' in piece && piece.command === 'send')) pieces = [{ text: added.trim() }];
+  for (const piece of pieces) {
     if ('text' in piece) {
       session.phrases.push(session.committed.length);
       session.committed = joinedDictation(session.committed, piece.text);
@@ -589,7 +594,7 @@ function onDictationEvent(event: DictationEvent): void {
     session.heard = onlyCommands ? joinedDictation(previous, chunk) :
       chunk === previous || previous && chunk.startsWith(previous) ? chunk :
         previous.endsWith(chunk) ? previous : joinedDictation(previous, chunk);
-    const send = commands && spokenEdits(session, session.heard.slice(previous.length));
+    const send = commands && spokenEdits(session, session.heard.slice(previous.length), onlyCommands);
     if (!commands) session.committed = session.heard;
     dictatedText(session, session.committed);
     if (send && dictation === session) { retireDictation(); confirmDictatedSend(session.owner); }
