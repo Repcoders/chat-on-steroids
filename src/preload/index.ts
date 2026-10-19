@@ -1,6 +1,6 @@
 import type { WorkspaceTerminalEvent, WorkspaceTerminalInfo } from '../shared/workspace-terminal.js';
 import type { ApprovalCardView } from '../shared/approval-wait.js';
-import type { DictationEvent } from '../shared/dictation.js';
+import type { DictationEvent, DictationLanguage } from '../shared/dictation.js';
 import type { ChatModelCatalog } from '../shared/chat-models.js';
 import type { GoalModel } from '../shared/goal-reasoning.js';
 import type { TaskProgress } from '../shared/task-progress.js';
@@ -112,6 +112,9 @@ const api = {
   /** Start microphone access only on explicit user action; audio stays in Windows recognizer. */
   startDictation: () => call<{ status: 'starting' }>('dictation:start'),
   stopDictation: () => call<void>('dictation:stop'),
+  /** Installed Windows speech languages and the remembered choice ('' is Windows' own). */
+  dictationLanguages: () => call<{ languages: DictationLanguage[]; selected: string }>('dictation:languages'),
+  setDictationLanguage: (tag: string) => call<void>('dictation:language', tag),
   onDictationEvent: (listener: (event: DictationEvent) => void): (() => void) => {
     const wrapped = (_event: unknown, value: DictationEvent): void => listener(value);
     ipcRenderer.on('dictation:event', wrapped);

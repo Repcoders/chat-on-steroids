@@ -31,3 +31,30 @@ export function parseDictationEvent(line: string): DictationEvent | null {
   }
   return null;
 }
+
+/** A speech language Windows has installed, as `dictation:languages` lists it. */
+export type DictationLanguage = { tag: string; name: string };
+
+/** BCP 47 shape only (`en-US`, `zh-Hant-TW`); it is also spliced into the recognizer script. */
+export function isDictationLanguageTag(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8}){0,3}$/.test(value);
+}
+
+/**
+ * The child's JSON list of installed speech languages: well-formed tags only, the first
+ * of each tag (the modern engine lists first), sorted by name, at most 64.
+ */
+export function parseDictationLanguages(output: string): DictationLanguage[] {
+  let value: unknown;
+  try { value = JSON.parse(output.trim()); } catch { return []; }
+  if (!Array.isArray(value)) return [];
+  const seen = new Map<string, DictationLanguage>();
+  for (const row of value) {
+    if (!row || typeof row !== 'object') continue;
+    const { tag, name } = row as Record<string, unknown>;
+    if (!isDictationLanguageTag(tag) || seen.has(tag.toLowerCase())) continue;
+    const label = typeof name === 'string' ? name.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 80) : '';
+    seen.set(tag.toLowerCase(), { tag, name: label || tag });
+  }
+  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name)).slice(0, 64);
+}

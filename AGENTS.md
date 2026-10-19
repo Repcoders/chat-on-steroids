@@ -3972,7 +3972,15 @@ dictates with Windows' own `Windows.Media.SpeechRecognition` engine (online, wit
 punctuation) and falls back to offline `System.Speech` when that cannot run;
 `status: 'listening'` carries `engine: 'modern' | 'legacy'`, and the renderer tells
 the person when only the basic engine listens. Its fixed error sentences are catalog
-keys. Only an explicit microphone click starts it;
+keys. A chip beside the microphone picks the speech language: `dictationLanguages`
+(`dictation:languages`) runs a separate PowerShell read, which opens no microphone, of
+`SpeechRecognizer.SupportedTopicLanguages` and System.Speech's installed recognizers, and returns
+them as validated `shared/dictation.ts` `DictationLanguage` rows with the saved choice;
+`setDictationLanguage` (`dictation:language`) saves a BCP 47 tag, or `''` for Windows' own speech
+language, as `ui.dictationLanguage`. Start reads that saved tag: the modern engine uses it when
+Windows lists it, the fallback picks the matching installed recognizer culture, and either
+otherwise keeps Windows' default. The renderer reads the list only when the chip opens.
+Only an explicit microphone click starts the recognizer;
 the renderer owns the current composer draft, stops on manual edits/navigation,
 and never sends recognized text automatically. Stop creates a per-session stop file
 that the child polls; it then finishes the phrase in progress and exits, with 4 s

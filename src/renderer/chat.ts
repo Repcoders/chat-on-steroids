@@ -42,7 +42,7 @@ import { answerAnchors, messageAnswerAnchors } from '../shared/markdown-export.j
 import type { InputImage, InputAttachment, InputAutomation } from '../shared/input.js';
 import { authoredTextOf, injectableAttachments, queuedFollowup, MAX_INPUT_IMAGES } from '../shared/input.js';
 import type { InputArgs, InputEntry } from '../main/session/input.js';
-import type { DictationEvent } from '../shared/dictation.js';
+import { isDictationLanguageTag, type DictationEvent, type DictationLanguage } from '../shared/dictation.js';
 import { PROJECT_COLORS, type LocalProject, type ProjectColor } from '../shared/projects.js';
 import type { TaskProgress } from '../shared/task-progress.js';
 import type { RunningExecProcess } from '../shared/background-exec.js';
@@ -384,6 +384,8 @@ type DictationBridge = {
   startDictation?: () => Promise<unknown> | unknown;
   stopDictation?: () => Promise<unknown> | unknown;
   onDictationEvent?: (listener: (event: DictationEvent) => void) => (() => void) | void;
+  dictationLanguages?: () => Promise<unknown> | unknown;
+  setDictationLanguage?: (tag: string) => Promise<unknown> | unknown;
 };
 type DictationSession = {
   owner: ComposerDraftOwner;
@@ -447,6 +449,71 @@ function paintDictation(): void {
   // existing locale catalog with English fallback until translations are merged.
   status.textContent = dictationNotice ? t(dictationNotice) : '';
   status.hidden = !dictationNotice;
+  paintDictationLanguage();
+}
+
+// The chip beside the microphone picks the speech language of the next dictation. Main keeps
+// the choice; a pick made in this window wins over a saved one an older state still carries.
+let savedDictationLanguage = '';
+let pickedDictationLanguage: string | null = null;
+let dictationLanguages: DictationLanguage[] | null = null;
+let dictationLanguageRead = 0;
+const sameLanguage = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
+
+function paintDictationLanguage(): void {
+  const menu = $<HTMLDetailsElement>('dictationLanguageMenu');
+  menu.hidden = $<HTMLButtonElement>('dictationButton').hidden ||
+    typeof dictationBridge.dictationLanguages !== 'function' || typeof dictationBridge.setDictationLanguage !== 'function';
+  const chosen = pickedDictationLanguage ?? savedDictationLanguage;
+  // A saved language Windows no longer has falls back to Windows' own, as the recognizer does.
+  const shown = dictationLanguages && !dictationLanguages.some(row => sameLanguage(row.tag, chosen)) ? '' : chosen;
+  const label = $('dictationLanguageLabel');
+  label.textContent = shown;
+  label.hidden = !shown;
+  const summary = menu.querySelector('summary')!;
+  const name = dictationLanguages?.find(row => sameLanguage(row.tag, shown))?.name ?? shown;
+  summary.title = t('Dictation language: {0}', [name || t('Windows default')]);
+  summary.setAttribute('aria-label', summary.title);
+  const list = $('dictationLanguageChoices');
+  const focused = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>('[data-language]')?.dataset.language;
+  list.replaceChildren(...[{ tag: '', name: t('Windows default') }, ...dictationLanguages ?? []].map(row => {
+    const choice = el('button', '');
+    choice.setAttribute('type', 'button');
+    choice.setAttribute('role', 'radio');
+    choice.setAttribute('aria-checked', String(sameLanguage(row.tag, shown)));
+    choice.dataset.language = row.tag;
+    choice.append(el('span', 'dictation-language-name', row.name), el('small', '', row.tag), icon('i-check', 'ico dictation-language-check'));
+    return choice;
+  }));
+  if (!dictationLanguages) list.append(el('p', 'muted', t('Loading…')));
+  if (focused !== undefined) [...list.querySelectorAll<HTMLElement>('[data-language]')].find(row => row.dataset.language === focused)?.focus();
+}
+
+/** Installed languages can change while the app runs, so every opening reads them again. */
+async function readDictationLanguages(): Promise<void> {
+  const read = ++dictationLanguageRead;
+  let reply: unknown;
+  try { reply = await dictationBridge.dictationLanguages?.(); } catch { reply = null; }
+  if (read !== dictationLanguageRead) return;
+  const data = reply && typeof reply === 'object' && (reply as { ok?: unknown }).ok === true
+    ? (reply as { data?: { languages?: unknown; selected?: unknown } }).data : undefined;
+  dictationLanguages = (Array.isArray(data?.languages) ? data.languages as unknown[] : []).filter((row): row is DictationLanguage =>
+    !!row && typeof row === 'object' && isDictationLanguageTag((row as DictationLanguage).tag) && typeof (row as DictationLanguage).name === 'string');
+  const selected = data?.selected;
+  if (selected === '' || isDictationLanguageTag(selected)) savedDictationLanguage = selected;
+  paintDictationLanguage();
+}
+
+function pickDictationLanguage(tag: string): void {
+  const previous = pickedDictationLanguage;
+  pickedDictationLanguage = tag;
+  paintDictationLanguage();
+  // Unsaved, the next start would still use the old language: show that one again.
+  const undo = (): void => { if (pickedDictationLanguage === tag) { pickedDictationLanguage = previous; paintDictationLanguage(); } };
+  try {
+    void Promise.resolve(dictationBridge.setDictationLanguage?.(tag))
+      .then(reply => { if (dictationReplyError(reply)) undo(); }, undo);
+  } catch { undo(); }
 }
 
 function dictationMessage(error: unknown): string {
@@ -621,6 +688,12 @@ async function toggleDictation(): Promise<void> {
 export function initComposerDictation(): void {
   paintDictation();
   $<HTMLButtonElement>('dictationButton').addEventListener('click', () => { void toggleDictation(); });
+  const languageMenu = $<HTMLDetailsElement>('dictationLanguageMenu');
+  languageMenu.addEventListener('toggle', () => { if (languageMenu.open) void readDictationLanguages(); });
+  $('dictationLanguageChoices').addEventListener('click', event => {
+    const choice = (event.target as HTMLElement).closest<HTMLElement>('[data-language]');
+    if (choice) pickDictationLanguage(choice.dataset.language ?? '');
+  });
   $('chatInput').addEventListener('input', () => { if (!writingDictation && dictation) retireDictation(); });
   $('chatInput').addEventListener('keydown', event => {
     if (event.key === 'Escape' && dictation) { event.preventDefault(); retireDictation(); }
@@ -7116,6 +7189,10 @@ export function chatApply(state: AppState, previous?: Config): void {
   if (visible && selectedId) void refreshSessionControls();
   paintContextMeter(sessions.find(session => session.id === selectedId) ?? null, config, confirmedComposerModel());
   applyChatModels(config, previous);
+  if (savedDictationLanguage !== (config.ui.dictationLanguage ?? '')) {
+    savedDictationLanguage = config.ui.dictationLanguage ?? '';
+    paintDictationLanguage();
+  }
 
   applyChatChecked($<HTMLInputElement>('autoCompact'), config.compaction.auto, previous?.compaction.auto);
   applyChatValue(

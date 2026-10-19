@@ -11,15 +11,21 @@ let emit: (event: DictationEvent) => void;
 const start = vi.fn(async () => ({ ok: true as const, data: { status: 'starting' } }));
 const stop = vi.fn(async () => ({ ok: true as const, data: undefined }));
 const unsubscribe = vi.fn();
+const languages = vi.fn(async () => ({ ok: true as const, data: { selected: '', languages: [
+  { tag: 'de-DE', name: 'Deutsch (Deutschland)' }, { tag: 'en-US', name: 'English (United States)' }] } }));
+const setLanguage = vi.fn(async (tag: string) => tag === 'en-US' ? { ok: false as const, error: 'Could not save' } : { ok: true as const, data: undefined });
 
 beforeAll(async () => {
   dom = new JSDOM(`<!doctype html><html><body>
     <form id="composer"><textarea id="chatInput"></textarea>
       <button id="dictationButton" type="button" disabled aria-pressed="false"></button>
+      <details id="dictationLanguageMenu" hidden><summary><span id="dictationLanguageLabel" hidden></span></summary>
+        <div id="dictationLanguageChoices" role="radiogroup"></div></details>
       <p id="dictationStatus" role="status" hidden></p></form>
   </body></html>`, { url: 'https://local.test/' });
   dom.window.HTMLCanvasElement.prototype.getContext = (() => null) as typeof dom.window.HTMLCanvasElement.prototype.getContext;
   const api = { dictationSupported: true, startDictation: start, stopDictation: stop,
+    dictationLanguages: languages, setDictationLanguage: setLanguage,
     onDictationEvent: (listener: (event: DictationEvent) => void) => { emit = listener; return unsubscribe; } };
   Object.defineProperty(dom.window, 'api', { value: api });
   Object.assign(globalThis, { window: dom.window, document: dom.window.document,
@@ -52,6 +58,12 @@ describe('renderer microphone draft ownership', () => {
     expect(page.window.document.getElementById('dictationStatus')?.getAttribute('aria-live')).toBe('polite');
     expect(html).toContain('./dictation.css');
     expect(css).toMatch(/\.ph\.ph-microphone::before\s*\{\s*content:/);
+    // The language chip sits right beside the microphone, hidden until the microphone shows.
+    const chip = page.window.document.getElementById('dictationLanguageMenu') as HTMLDetailsElement;
+    expect(mic.nextElementSibling).toBe(chip);
+    expect(chip.hidden).toBe(true);
+    expect(chip.querySelector('summary .ph-translate')).not.toBeNull();
+    expect(css).toMatch(/\.ph\.ph-translate::before\s*\{\s*content:/);
     page.window.close();
   });
   it('does not record on page load and uses an accessible, non-submit button', () => {
@@ -135,6 +147,39 @@ describe('renderer microphone draft ownership', () => {
     emit({ type: 'status', status: 'listening', engine: 'modern' });
     expect(status.textContent).toBe('Listening…');
     emit({ type: 'status', status: 'stopped' });
+  });
+
+  it('picks the speech language from a chip beside the microphone, listing only installed ones', async () => {
+    const doc = dom.window.document;
+    const menu = doc.getElementById('dictationLanguageMenu') as HTMLDetailsElement;
+    const summary = menu.querySelector('summary')!;
+    const label = doc.getElementById('dictationLanguageLabel')!;
+    const choices = () => [...doc.querySelectorAll<HTMLElement>('#dictationLanguageChoices [role="radio"]')];
+    expect(menu.hidden).toBe(false);
+    expect(label.hidden).toBe(true);
+    expect(summary.title).toBe('Dictation language: Windows default');
+    // Nothing asks Windows for its languages until the person opens the chip.
+    expect(languages).not.toHaveBeenCalled();
+    menu.open = true;
+    menu.dispatchEvent(new dom.window.Event('toggle'));
+    await vi.waitFor(() => expect(choices()).toHaveLength(3));
+    expect(choices().map(row => [row.dataset.language, row.getAttribute('aria-checked')])).toEqual([
+      ['', 'true'], ['de-DE', 'false'], ['en-US', 'false']]);
+    expect(choices()[1]!.textContent).toContain('Deutsch (Deutschland)');
+
+    choices()[1]!.click();
+    expect(setLanguage).toHaveBeenLastCalledWith('de-DE');
+    expect(label.hidden).toBe(false);
+    expect(label.textContent).toBe('de-DE');
+    expect(summary.title).toBe('Dictation language: Deutsch (Deutschland)');
+    expect(choices()[1]!.getAttribute('aria-checked')).toBe('true');
+    await flush();
+    expect(label.textContent).toBe('de-DE');
+
+    // A choice main could not save would not be used: the chip goes back to the one it would use.
+    choices()[2]!.click();
+    expect(label.textContent).toBe('en-US');
+    await vi.waitFor(() => expect(label.textContent).toBe('de-DE'));
   });
 
   it('unsubscribes on page unload without sending a message', () => {

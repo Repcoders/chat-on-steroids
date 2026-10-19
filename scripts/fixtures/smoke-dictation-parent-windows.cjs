@@ -44,9 +44,10 @@ if (!compiledOutput.includes('compiled')) throw new Error('The recognizer did no
 function loopScript(parentPid, stopFile) {
   const script = original.replace(/  # BEGIN recognizer[\s\S]*?  # END recognizer\r\n/,
     "  $engine = 'fixture'\r\n  Send 'status' 'listening'\r\n")
-    .replace('__COS_PARENT_PID__', String(parentPid)).replace('__COS_STOP_FILE__', () => stopFile.replaceAll("'", "''"));
+    .replace('__COS_PARENT_PID__', String(parentPid)).replace('__COS_STOP_FILE__', () => stopFile.replaceAll("'", "''"))
+    .replace('__COS_LANGUAGE__', '');
   if (script === original || script.includes('__COS_') || script.includes('SetInputToDefaultAudioDevice') ||
-      script.includes('[CosDictation]::Start()') || script.includes('RecognizeAsync(') || !script.includes('Wait-Event -Timeout 1') ||
+      script.includes('[CosDictation]::Start(') || script.includes('RecognizeAsync(') || !script.includes('Wait-Event -Timeout 1') ||
       !script.includes('Get-Process -Id $cosParentPid') || !script.includes('Test-Path -LiteralPath $cosStopFile')) {
     throw new Error('Unsafe or invalid recognizer-loop smoke script');
   }
