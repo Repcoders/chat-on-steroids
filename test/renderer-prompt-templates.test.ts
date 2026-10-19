@@ -23,6 +23,10 @@ it('reads each {{name}} of a draft as a field, but not braces in code', () => {
 it('reads code spans and fences the way Markdown does', () => {
   // A double-backtick span may hold a single backtick; only a run of the same length closes it.
   expect(names('``{{inside}} ` still code`` then {{outside}}')).toEqual(['outside']);
+  // A run with no partner of its length is a literal backtick, and a span ends at a blank line.
+  expect(names('Review ` and {{file}}')).toEqual(['file']);
+  expect(names('Review `` and {{file}} ` here')).toEqual(['file']);
+  expect(names('One `tick\n\n{{field}} and `{{code}}`')).toEqual(['field']);
   // A fence closes only on the same character, at least as long, with nothing after it.
   expect(names('~~~\n```\n{{literal}}\n~~~\n{{actual}}')).toEqual(['actual']);
   expect(names('````\n```\n{{literal}}\n````\n{{actual}}')).toEqual(['actual']);
@@ -30,7 +34,7 @@ it('reads code spans and fences the way Markdown does', () => {
 });
 
 it('reads a pasted page of braces in one pass', () => {
-  const text = `\`\`\`\n${'{{x}} '.repeat(20_000)}\n\`\`\`\n${'{{y}} '.repeat(20_000)}`;
+  const text = `\`\`\`\n${'{{x}} '.repeat(20_000)}\n\`\`\`\n${'{{y}} '.repeat(20_000)}${' ` '.repeat(20_000)}`;
   const started = performance.now();
   expect(templateFields(text)).toHaveLength(20_000);
   expect(performance.now() - started).toBeLessThan(1_000);

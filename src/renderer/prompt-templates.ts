@@ -16,36 +16,56 @@ export type TemplateField = { start: number; end: number; name: string };
 const FIELD = /\{\{[ \t]*([^{}\s][^{}\r\n]{0,59}?)[ \t]*\}\}/g;
 
 /**
- * The inline code span still open after this text, as the length of its backtick run (0: none). A
- * span closes only on a run of the same length, so ``a ` b`` is one span (CommonMark).
+ * The inline code spans of one paragraph, as [start, end) offsets. As in CommonMark, a backtick
+ * run opens a span only when a later run of the same length closes it, so ``a ` b`` is one span
+ * and a run with no partner is literal text. Each run is looked at once.
  */
-function openSpan(text: string, open: number): number {
-  for (const [run] of text.matchAll(/(?<!\\)`+/g)) open = !open ? run.length : run.length === open ? 0 : open;
-  return open;
+function codeSpans(text: string): Array<[number, number]> {
+  const runs = [...text.matchAll(/(?<!\\)`+/g)].map(match => ({ at: match.index, length: match[0].length }));
+  const byLength = new Map<number, number[]>();
+  runs.forEach((run, index) => { const same = byLength.get(run.length); if (same) same.push(index); else byLength.set(run.length, [index]); });
+  const next = new Map<number, number>();
+  const spans: Array<[number, number]> = [];
+  for (let index = 0; index < runs.length; index++) {
+    const { at, length } = runs[index]!, same = byLength.get(length)!;
+    let partner = next.get(length) ?? 0;
+    while (partner < same.length && same[partner]! <= index) partner++;
+    next.set(length, partner);
+    if (partner === same.length) continue;
+    const close = runs[same[partner]!]!;
+    spans.push([at, close.at + close.length]);
+    index = same[partner]!;
+  }
+  return spans;
 }
 
 /**
  * The fields of a draft, in order. Braces in code are code the user is writing (a Jinja or
  * Handlebars snippet), so a field inside a fenced block or an inline code span is not one. A fence
- * closes only on the same character, at least as long and with nothing after it, as in Markdown.
- * One pass, however many braces were pasted.
+ * closes only on the same character, at least as long and with nothing after it, and a code span
+ * never runs past a blank line, as in Markdown. Linear, however many braces were pasted.
  */
 export function templateFields(text: string): TemplateField[] {
-  const fields: TemplateField[] = [];
-  let fence = '', open = 0, offset = 0;
+  // The paragraphs outside fences, as [start, end) offsets.
+  const paragraphs: Array<[number, number]> = [];
+  let fence = '', offset = 0, from = 0;
   for (const line of text.split('\n')) {
     const marker = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
-    if (marker && !fence) { fence = marker[1]!; open = 0; }
-    else if (marker && marker[1]![0] === fence[0] && marker[1]!.length >= fence.length && !marker[2]!.trim()) fence = '';
-    else if (!fence) {
-      let from = 0;
-      for (const match of line.matchAll(FIELD)) {
-        open = openSpan(line.slice(from, match.index), open); from = match.index;
-        if (!open) fields.push({ start: offset + match.index, end: offset + match.index + match[0].length, name: match[1]!.trim() });
-      }
-      open = openSpan(line.slice(from), open);
-    }
+    if (marker && !fence) { paragraphs.push([from, offset]); fence = marker[1]!; }
+    else if (marker && marker[1]![0] === fence[0] && marker[1]!.length >= fence.length && !marker[2]!.trim()) { fence = ''; from = offset + line.length + 1; }
+    else if (!fence && !line.trim()) { paragraphs.push([from, offset]); from = offset + line.length + 1; }
     offset += line.length + 1;
+  }
+  if (!fence) paragraphs.push([from, text.length]);
+  const fields: TemplateField[] = [];
+  for (const [start, end] of paragraphs) {
+    const paragraph = text.slice(start, end), spans = codeSpans(paragraph);
+    let span = 0;
+    for (const match of paragraph.matchAll(FIELD)) {
+      while (span < spans.length && spans[span]![1] <= match.index) span++;
+      if (span < spans.length && spans[span]![0] <= match.index) continue;
+      fields.push({ start: start + match.index, end: start + match.index + match[0].length, name: match[1]!.trim() });
+    }
   }
   return fields;
 }
