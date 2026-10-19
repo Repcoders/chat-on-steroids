@@ -71,6 +71,31 @@ it('asks for both a name and a command, and keeps the main process explanation i
   expect(onSaved).not.toHaveBeenCalled();
 });
 
+it('keeps rows as sent while saving, and a late reply never closes the dialog reopened since', async () => {
+  const { initProjectScriptsDialog } = await import('../src/renderer/project-scripts-dialog.js');
+  let finish!: (value: unknown) => void;
+  const setProjectScripts = vi.fn(() => new Promise(resolve => { finish = resolve; }));
+  const onSaved = vi.fn();
+  const dialog = initProjectScriptsDialog({ setProjectScripts } as any, onSaved);
+  dialog.open(project);
+  type(rows()[0]!, 'dev', 'npm run dev');
+  await submit();
+  expect([...document.querySelectorAll<HTMLInputElement>('#projectScriptsList input')].every(input => input.disabled)).toBe(true);
+  expect($<HTMLButtonElement>('projectScriptsAdd').disabled).toBe(true);
+  $('projectScriptsCancel').click();
+  const other = { ...project, id: '00000000-0000-4000-8000-000000000003', name: 'other' };
+  dialog.open(other);
+  type(rows()[0]!, 'lint', 'npm run lint');
+  const saved = { ...project, scripts: [{ name: 'dev', command: 'npm run dev' }] };
+  finish({ ok: true, data: saved }); await flush();
+  expect(onSaved).toHaveBeenCalledWith(saved);
+  expect($<HTMLDialogElement>('projectScriptsDialog').open).toBe(true);
+  expect($('projectScriptsTitle').textContent).toBe('Scripts for other');
+  expect(rows()[0]!.querySelector<HTMLInputElement>('.project-script-name')!.value).toBe('lint');
+  expect(rows()[0]!.querySelector<HTMLInputElement>('.project-script-name')!.disabled).toBe(false);
+  expect($<HTMLButtonElement>('projectScriptsSubmit').disabled).toBe(false);
+});
+
 it("runs a script in a new terminal of the script's own project and types its command once", async () => {
   const terminalCreate = vi.fn(async () => ({ ok: true as const, data: { shell: 'pwsh', cwd: project.path } }));
   const terminalWrite = vi.fn(async () => ({ ok: true as const, data: true }));

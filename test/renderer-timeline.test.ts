@@ -1874,7 +1874,7 @@ it('offers a new chat beside a project\'s menu, and its color as a submenu and r
 
 it("runs a project's script in a terminal of that project, and edits its scripts from the same submenu", async () => {
   const scripts = [{ name: 'dev', command: 'npm run dev' }, { name: 'test', command: 'npm test' }];
-  const project = { id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', name: 'Workspace', path: 'C:\workspace\primary', createdAt: 1, scripts };
+  const project = { id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', name: 'Workspace', path: 'C:\\workspace\\primary', createdAt: 1, scripts };
   const { w } = await boot([], false, [], [project]);
   terminalRuns.length = 0;
   projectMenu(w, project.id);

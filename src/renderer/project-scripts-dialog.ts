@@ -18,7 +18,8 @@ export function initProjectScriptsDialog(
   const add = document.getElementById('projectScriptsAdd') as HTMLButtonElement;
   const error = document.getElementById('projectScriptsError')!;
   const submit = document.getElementById('projectScriptsSubmit') as HTMLButtonElement;
-  let projectId: string | null = null, busy = false;
+  // Each open() starts a new session; a save's reply only closes or reports in the session that sent it.
+  let projectId: string | null = null, busy = false, session = 0;
 
   const close = () => { if (typeof dialog.close === 'function') dialog.close(); else dialog.removeAttribute('open'); };
   const showError = (message: string | null) => { error.hidden = !message; error.textContent = message ?? ''; };
@@ -48,6 +49,9 @@ export function initProjectScriptsDialog(
   const setBusy = (next: boolean) => {
     busy = next; submit.disabled = next;
     submit.textContent = next ? t('Saving…') : t('Save');
+    // Rows stay as sent until the reply, so the dialog never closes over edits it did not save.
+    for (const control of list.querySelectorAll<HTMLInputElement | HTMLButtonElement>('input, button')) control.disabled = next;
+    if (next) add.disabled = true; else paintAdd();
   };
 
   add.addEventListener('click', () => addRow().focus());
@@ -61,21 +65,25 @@ export function initProjectScriptsDialog(
     if (scripts.some(script => !script.name || !script.command)) { showError(t('Give every script a name and a command')); return; }
     showError(null);
     setBusy(true);
+    const mine = session;
     try {
       const reply = await api.setProjectScripts(projectId, scripts);
+      // Saved after the dialog was closed or reopened: the list still updates, the newer session stays.
+      if (mine !== session) { if (reply.ok) onSaved(reply.data); return; }
       if (!reply.ok) { showError(reply.error); return; }
       close();
       onSaved(reply.data);
     } catch (failure) {
-      showError(failure instanceof Error ? failure.message : String(failure));
+      if (mine === session) showError(failure instanceof Error ? failure.message : String(failure));
     } finally {
-      setBusy(false);
+      if (mine === session) setBusy(false);
     }
   });
   for (const id of ['projectScriptsCancel', 'projectScriptsClose']) document.getElementById(id)!.addEventListener('click', () => close());
 
   return {
     open(project) {
+      session++;
       projectId = project.id;
       title.textContent = t('Scripts for {0}', [project.name]);
       list.replaceChildren();
