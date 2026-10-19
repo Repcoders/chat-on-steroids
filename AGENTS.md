@@ -1126,7 +1126,10 @@ recorded before it under that parent in the current chat (`session/edits.ts`); a
 is marked at the page's acknowledgement (`noteEditReplacement`), before any versions control. The
 timeline folds the replaced question and everything after it up to the edit (and their late re-scans)
 into one "Earlier version(s) · N messages" row under the newest version, which says "Edited version";
-chains fold into one row. The app's Edit action (newest version of a native question in the chat's
+chains fold into one row. Once the replaced question and the edit both have a final answer, the opened
+row offers Compare answers: the two answers side by side as plain text, words that differ marked
+(`renderer/word-diff.ts`; Chinese and Japanese per character). A chain compares with the version the
+edit replaced directly. The app's Edit action (newest version of a native question in the chat's
 current conversation, never worker/helper chats or Compact & Resume prompts) puts the authored text in
 the composer with a dock notice counting the later messages it replaces; Cancel and switching chats give
 back the earlier draft. It sends `edit { messageId }`: main admits it only into that existing chat as one

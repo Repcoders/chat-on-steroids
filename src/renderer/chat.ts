@@ -37,6 +37,7 @@ import { initContextMeter, paintContextMeter } from './context-meter.js';
 import { installComposerDockMotion, installComposerHeightMotion } from './composer-motion.js';
 import { sanitizeHtmlTree } from './sanitize-html.js';
 import { drawMath, mathExtensions, separateDisplayMath, type MathSlots } from './math.js';
+import { wordDiff, type WordPiece } from './word-diff.js';
 import { DEFAULT_HELPER_CHAT_MODEL, isAstraModel } from '../shared/chat-models.js';
 import { supportsFinishAutomation } from '../shared/finish.js';
 import { answerAnchors, messageAnswerAnchors } from '../shared/markdown-export.js';
@@ -4779,8 +4780,11 @@ interface CompactionBlock {
   notes: Array<Extract<SessionEvent, { kind: 'note' }>>;
 }
 
-/** Edit & resubmit (#365): the versions an edit replaced, and what followed them, as one row. */
-interface EarlierVersions { replacing: string; versions: number; time: number; events: SessionEvent[] }
+/**
+ * Edit & resubmit (#365): the versions an edit replaced, and what followed them, as one row.
+ * `answers` holds the finished answer to the replaced question and the one to the edit, once both exist.
+ */
+interface EarlierVersions { replacing: string; versions: number; time: number; events: SessionEvent[]; answers?: { before: string; after: string } }
 
 type TimelineItem = { kind: 'event'; event: SessionEvent } | { kind: 'compaction'; block: CompactionBlock } | { kind: 'earlier'; fold: EarlierVersions };
 
@@ -4821,9 +4825,38 @@ function earlierVersions(source: readonly SessionEvent[]): { hidden: Set<number>
       ((('messageId' in event) && event.messageId && ids.has(event.messageId)) || (event.turnId && turns.has(event.turnId))));
     const events = [...folded, ...late];
     for (const event of events) hidden.add(event.seq);
-    after.set(anchor.seq, { replacing: current, versions, time: anchor.time, events });
+    const inFold = new Set(events);
+    const before = answerAfter(source, firstAt.get(previous)!, event => Boolean(ownTurn && event.turnId === ownTurn));
+    const answer = answerAfter(source, end, event => inFold.has(event));
+    after.set(anchor.seq, { replacing: current, versions, time: anchor.time, events, ...(before && answer ? { answers: { before, after: answer } } : {}) });
   }
   return { hidden, after };
+}
+
+/**
+ * The finished answer to the question at `index`: the final assistant messages up to the next
+ * question, each at its latest revision, including revisions a page re-scan recorded later.
+ */
+function answerAfter(source: readonly SessionEvent[], index: number, skip: (event: SessionEvent) => boolean): string {
+  const question = source[index]!;
+  const latest = new Map<string, Extract<SessionEvent, { kind: 'assistant_message' }>>();
+  const take = (event: Extract<SessionEvent, { kind: 'assistant_message' }>) => {
+    const id = event.messageId ?? `seq:${event.seq}`;
+    if ((latest.get(id)?.seq ?? -1) < event.seq) latest.set(id, event);
+  };
+  let at = index + 1;
+  for (; at < source.length; at++) {
+    const event = source[at]!;
+    if (skip(event)) continue;
+    if (event.kind === 'user_message' && !('messageId' in question && event.messageId === question.messageId)) break;
+    if (event.kind === 'assistant_message') take(event);
+  }
+  for (; at < source.length; at++) {
+    const event = source[at]!;
+    if (event.kind === 'assistant_message' && event.messageId && latest.has(event.messageId) && !skip(event)) take(event);
+  }
+  return [...latest.values()].filter(event => event.final || event.state === 'final')
+    .map(event => event.message.text.trim()).filter(Boolean).join('\n\n');
 }
 
 function continuationMarker(event: SessionEvent): { kind: 'HANDOFF' | 'RESUME'; token: string } | null {
@@ -5068,6 +5101,8 @@ function compactionRow(block: CompactionBlock, previous?: HTMLElement, latest = 
 
 /** Folds opened by the reader, by the edit they belong to; kept across repaints. */
 const openEarlierVersions = new Set<string>();
+/** Folds whose answer comparison the reader opened, the same way. */
+const openAnswerComparisons = new Set<string>();
 
 /**
  * The row an edit's earlier versions fold into, drawn like an activity disclosure. Its messages,
@@ -5092,16 +5127,56 @@ function earlierVersionsRow(fold: EarlierVersions, key: string): HTMLElement {
     : tn('Earlier version · {0} message', 'Earlier version · {0} messages', messages.length)), disclosureChevron('ico activity-chevron'));
   const body = el('div', 'tool-group-body');
   group.append(summary, body);
-  const fill = () => { if (group.open && !body.childElementCount) body.append(...messages.map(event => eventRow(event))); };
+  const fill = () => {
+    if (!group.open || body.childElementCount) return;
+    if (fold.answers) body.append(answerComparison(fold.answers, key));
+    body.append(...messages.map(event => eventRow(event)));
+  };
   group.open = openEarlierVersions.has(key);
   fill();
   group.addEventListener('toggle', () => { if (group.open) openEarlierVersions.add(key); else openEarlierVersions.delete(key); fill(); });
   return group;
 }
 
+/**
+ * Compare answers, at the top of an opened fold: the answer to the replaced question beside the
+ * answer to the edit, with the words that differ marked on each side. Plain text, never HTML.
+ */
+function answerComparison(answers: { before: string; after: string }, key: string): HTMLElement {
+  const wrap = el('div', 'answer-compare');
+  const toggle = el('button', 'btn btn-quiet answer-compare-toggle', () => openAnswerComparisons.has(key) ? t('Hide comparison') : t('Compare answers')) as HTMLButtonElement;
+  toggle.type = 'button';
+  const panel = el('div', 'answer-compare-panel');
+  const paint = () => {
+    const open = openAnswerComparisons.has(key);
+    toggle.textContent = open ? t('Hide comparison') : t('Compare answers');
+    toggle.setAttribute('aria-expanded', String(open));
+    panel.hidden = !open;
+    if (!open || panel.childElementCount) return;
+    if (answers.before === answers.after) { panel.append(el('p', 'meta', () => t('The two answers are the same.'))); return; }
+    const pieces = wordDiff(answers.before, answers.after);
+    const side = (label: () => string, kind: 'before' | 'after', parts: WordPiece[]) => {
+      const column = el('section', `answer-compare-side is-${kind}`);
+      const text = el('div', 'answer-compare-text');
+      for (const part of parts) text.append(part.kind === 'same' ? part.text : el(part.kind === 'removed' ? 'del' : 'ins', `diff-word is-${part.kind}`, part.text));
+      column.append(el('div', 'answer-compare-label', label), text);
+      return column;
+    };
+    panel.append(side(() => t('Earlier answer'), 'before', pieces.before), side(() => t('New answer'), 'after', pieces.after));
+  };
+  toggle.addEventListener('click', () => {
+    if (openAnswerComparisons.has(key)) openAnswerComparisons.delete(key); else openAnswerComparisons.add(key);
+    paint();
+  });
+  wrap.append(toggle, panel);
+  paint();
+  return wrap;
+}
+
 /** What a row was drawn from; a different signature is a different row. */
 function itemSignature(item: TimelineItem): string {
-  if (item.kind === 'earlier') return `earlier|${item.fold.versions}|${item.fold.events.map(event => `${event.seq}:${'message' in event ? event.message.chars : ''}`).join(',')}`;
+  if (item.kind === 'earlier') return `earlier|${item.fold.versions}|${item.fold.events.map(event => `${event.seq}:${'message' in event ? event.message.chars : ''}`).join(',')}` +
+    `|${item.fold.answers ? `${item.fold.answers.before.length}:${item.fold.answers.after.length}:${item.fold.answers.after.slice(-64)}` : ''}`;
   if (item.kind === 'compaction') {
     const { block } = item;
     return [
