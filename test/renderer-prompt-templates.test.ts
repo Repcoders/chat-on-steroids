@@ -27,6 +27,10 @@ it('reads code spans and fences the way Markdown does', () => {
   expect(names('Review ` and {{file}}')).toEqual(['file']);
   expect(names('Review `` and {{file}} ` here')).toEqual(['file']);
   expect(names('One `tick\n\n{{field}} and `{{code}}`')).toEqual(['field']);
+  // A backslash escapes only an opening backtick; inside a span it is literal, so `code\` closes.
+  expect(names('`code\\` {{field}} `')).toEqual(['field']);
+  expect(names('\\\\`{{code}}` {{field}}')).toEqual(['field']);
+  expect(names('\\`{{escaped}}` {{field}}')).toEqual(['escaped', 'field']);
   // A fence closes only on the same character, at least as long, with nothing after it.
   expect(names('~~~\n```\n{{literal}}\n~~~\n{{actual}}')).toEqual(['actual']);
   expect(names('````\n```\n{{literal}}\n````\n{{actual}}')).toEqual(['actual']);
@@ -80,6 +84,17 @@ it('says when a template could not be stored and lasts only in this window', () 
   dom.window.Storage.prototype.setItem = () => { throw new Error('QuotaExceededError'); };
   expect(templates.save('Not stored {{x}}')).toMatchObject({ saved: { name: 'Not stored {{x}}' }, stored: false });
   expect(templates.list().map(row => row.name)).toEqual(['Not stored {{x}}', 'Stored {{x}}']);
+});
+
+it('stores no more than it reads back, so 50 long templates of quotes survive a reload', () => {
+  const templates = createPromptTemplates();
+  // Each serializes to about 20,000 characters: 50 of them would pass the stored bound.
+  for (let index = 0; index < 50; index++) templates.save(`Quotes ${index}\n${'"'.repeat(9_980)}`);
+  expect(templates.list()[0]!.name).toBe('Quotes 49');
+  const reloaded = createPromptTemplates().list();
+  expect(reloaded.length).toBeGreaterThan(40);
+  expect(reloaded.map(row => row.name)).toEqual(templates.list().map(row => row.name));
+  expect(reloaded[0]!.name).toBe('Quotes 49');
 });
 
 it('keeps at most 50 templates and ignores a corrupt or oversized store', () => {

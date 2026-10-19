@@ -8,6 +8,8 @@ const STORAGE_KEY = 'chat-on-steroids.prompt-templates';
 const MAX_TEMPLATES = 50;
 export const MAX_TEMPLATE_CHARS = 10_000;
 const MAX_NAME_CHARS = 60;
+/** The most stored JSON that is read back, and so the most that is written. */
+const MAX_STORED_CHARS = 1_000_000;
 
 export type PromptTemplate = { name: string; text: string };
 export type TemplateField = { start: number; end: number; name: string };
@@ -18,16 +20,25 @@ const FIELD = /\{\{[ \t]*([^{}\s][^{}\r\n]{0,59}?)[ \t]*\}\}/g;
 /**
  * The inline code spans of one paragraph, as [start, end) offsets. As in CommonMark, a backtick
  * run opens a span only when a later run of the same length closes it, so ``a ` b`` is one span
- * and a run with no partner is literal text. Each run is looked at once.
+ * and a run with no partner is literal text. A backslash escapes only an opening backtick (an odd
+ * number of them before it); inside a span it is literal, so `a\` closes. Each run is looked at once.
  */
 function codeSpans(text: string): Array<[number, number]> {
-  const runs = [...text.matchAll(/(?<!\\)`+/g)].map(match => ({ at: match.index, length: match[0].length }));
+  const runs = [...text.matchAll(/`+/g)].map(match => {
+    let slashes = 0;
+    while (text[match.index - 1 - slashes] === '\\') slashes++;
+    return { at: match.index, length: match[0].length, escaped: slashes % 2 === 1 };
+  });
   const byLength = new Map<number, number[]>();
   runs.forEach((run, index) => { const same = byLength.get(run.length); if (same) same.push(index); else byLength.set(run.length, [index]); });
   const next = new Map<number, number>();
   const spans: Array<[number, number]> = [];
   for (let index = 0; index < runs.length; index++) {
-    const { at, length } = runs[index]!, same = byLength.get(length)!;
+    const run = runs[index]!;
+    // An escaped first backtick is a character; the rest of its run may still open a span.
+    const at = run.escaped ? run.at + 1 : run.at, length = run.escaped ? run.length - 1 : run.length;
+    const same = byLength.get(length);
+    if (!length || !same) continue;
     let partner = next.get(length) ?? 0;
     while (partner < same.length && same[partner]! <= index) partner++;
     next.set(length, partner);
@@ -89,7 +100,7 @@ export function createPromptTemplates() {
   let templates: PromptTemplate[] = [];
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    const saved: unknown = raw && raw.length <= 1_000_000 ? JSON.parse(raw) : [];
+    const saved: unknown = raw && raw.length <= MAX_STORED_CHARS ? JSON.parse(raw) : [];
     if (Array.isArray(saved)) {
       templates = saved.filter((row): row is PromptTemplate => !!row && typeof row.name === 'string' && typeof row.text === 'string' &&
         !!row.name && row.name.length <= MAX_NAME_CHARS && !!row.text.trim() && row.text.length <= MAX_TEMPLATE_CHARS).slice(0, MAX_TEMPLATES);
@@ -98,6 +109,14 @@ export function createPromptTemplates() {
 
   /** Whether the templates reached storage; when it is full or blocked they last only in this window. */
   function store(): boolean {
+    // What is written must load again: escaped quotes or control characters can make 50 templates
+    // longer than the stored bound, so the oldest give way until the list fits it.
+    const sizes = templates.map(row => JSON.stringify(row).length + 1);
+    let total = sizes.reduce((sum, size) => sum + size, 1);
+    while (templates.length > 1 && total > MAX_STORED_CHARS) {
+      total -= sizes[templates.length - 1]!;
+      templates = templates.slice(0, -1);
+    }
     try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(templates)); return true; }
     catch { return false; }
   }
