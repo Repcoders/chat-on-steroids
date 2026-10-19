@@ -13,6 +13,17 @@ it('drops a writing block\'s fence but keeps its words, closed or still open', (
   expect(answerPlainText('Here it is:\n\n:::writing{title="Note"}\nDear team,\n\nThanks.\n:::\n\nDone.')).toBe('Here it is:\n\nDear team,\n\nThanks.\n\nDone.');
   expect(answerPlainText(':::writing{title="Note"}\nStill writing\nmore')).toBe('Still writing\nmore');
   expect(answerHtml(':::writing\nDear team,\n:::')).toBe('<p>Dear team,</p>');
+  // The same lines in a code example are the example, and stay in it.
+  const example = 'Write it like this:\n\n```md\n:::writing{title="Note"}\nDear team,\n:::\n```';
+  expect(answerPlainText(example)).toBe('Write it like this:\n\n:::writing{title="Note"}\nDear team,\n:::');
+  expect(answerHtml(example)).toContain('<code class="language-md">:::writing{title=&quot;Note&quot;}\nDear team,\n:::\n</code>');
+});
+
+it('keeps a nested list in one piece and an image as its description', () => {
+  expect(answerPlainText('- parent\n  - child\n- next')).toBe('- parent\n  - child\n- next');
+  expect(answerPlainText('![chart of sales](https://example.com/c.png)')).toBe('chart of sales');
+  // Find still reads only what is drawn as words.
+  expect(markdownVisibleText('![chart](https://example.com/c.png)')).toBe('\n');
 });
 
 it('pastes markup in an answer as its words, and links only to web and mail addresses', () => {

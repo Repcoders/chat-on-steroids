@@ -7,10 +7,27 @@ import { markdownVisibleText } from './markdown-text.js';
 
 export type CopyFormat = 'markdown' | 'text' | 'text-no-code' | 'html';
 
-/** A ChatGPT writing block shows its words as a panel; outside the timeline only the words remain. */
+// A ChatGPT writing block, read as the timeline reads it (chat.ts writingBlock): a block ChatGPT
+// never closed runs to the end of the answer. The lexer finds it only where a block can start, so
+// the same lines inside a code example stay as written.
+const writing = new Marked({ extensions: [{
+  name: 'writingBlock', level: 'block',
+  start: value => value.match(/^:::writing\b/m)?.index,
+  tokenizer(value) {
+    const match = value.match(/^:::writing(\{[^}\n]*\})?[ \t]*\n([\s\S]*?)(?:\n:::[ \t]*(?:\n|$)|$)/);
+    return match ? { type: 'writingBlock', raw: match[0], text: match[2] ?? '' } : undefined;
+  },
+  renderer: () => ''
+}] });
+
+/** A writing block shows its words as a panel; outside the timeline only the words remain. */
 function unwrapWritingBlocks(markdown: string): string {
-  // As the timeline reads it: a block ChatGPT never closed runs to the end of the answer.
-  return markdown.replace(/^:::writing(?:\{[^}\n]*\})?[ \t]*\n([\s\S]*?)(?:\n:::[ \t]*$|(?![\s\S]))/gm, '$1');
+  if (!/^:::writing\b/m.test(markdown)) return markdown;
+  try {
+    return writing.lexer(markdown).map(token => token.type === 'writingBlock' ? `${token.text}\n${token.raw.endsWith('\n') ? '\n' : ''}` : token.raw).join('');
+  } catch {
+    return markdown;
+  }
 }
 
 /** The answer as plain text; `codeBlocks: false` leaves fenced code out. */

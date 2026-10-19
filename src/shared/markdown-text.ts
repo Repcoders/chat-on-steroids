@@ -16,7 +16,8 @@ const BLOCKS = new Set(['paragraph', 'heading', 'blockquote', 'code', 'list_item
  * The words a Markdown message shows once drawn: no emphasis markers, backticks, link targets or
  * HTML tags. Find in chat matches what the person reads ("File: /src" in "**File:** `/src`").
  * `layout` also keeps what a list and a table draw around the words, for text a person pastes:
- * each item's bullet or number (indented by depth), task boxes, and tabs between table cells.
+ * each item's bullet or number (indented by depth), task boxes, tabs between table cells and
+ * image descriptions.
  */
 export function markdownVisibleText(markdown: string, options: { codeBlocks?: boolean; layout?: boolean } = {}): string {
   let tokens: Token[];
@@ -26,7 +27,9 @@ export function markdownVisibleText(markdown: string, options: { codeBlocks?: bo
   const walk = (list: readonly Token[]): void => { for (const token of list) visit(token); };
   const visit = (token: Token): void => {
     switch (token.type) {
-      case 'html': case 'image': break;
+      case 'html': break;
+      // A pasted copy keeps an image's description; Find reads only the words drawn.
+      case 'image': if (options.layout) parts.push(decodeEntities((token as Tokens.Image).text)); break;
       case 'br': parts.push('\n'); break;
       case 'code': if (options.codeBlocks !== false) parts.push((token as Tokens.Code).text); break;
       case 'codespan': parts.push((token as Tokens.Codespan).text); break;
@@ -62,7 +65,8 @@ export function markdownVisibleText(markdown: string, options: { codeBlocks?: bo
         else if (typeof (token as { text?: unknown }).text === 'string') parts.push(decodeEntities((token as { text: string }).text));
       }
     }
-    if (BLOCKS.has(token.type)) parts.push('\n');
+    // In a pasted list, an item whose nested list already ended the line adds no empty line.
+    if (BLOCKS.has(token.type) && !(options.layout && token.type === 'list_item' && parts.at(-1)?.endsWith('\n'))) parts.push('\n');
   };
   walk(tokens);
   return parts.join('');
