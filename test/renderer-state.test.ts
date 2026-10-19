@@ -4000,6 +4000,11 @@ it.each(['redact', 'send anyway', 'edit'] as const)('holds a send whose draft lo
   expect(field.value).toBe(`Push with ${token} please`);
   const [redact, anyway] = [...notice.querySelectorAll<HTMLButtonElement>('.secret-draft-action')];
   expect([redact!.textContent, anyway!.textContent]).toEqual(['Redact and send', 'Send anyway']);
+  // A repaint of the same hold keeps the buttons, so a keyboard user's focus stays on them.
+  anyway!.focus();
+  field.dispatchEvent(new w.Event('input', { bubbles: true }));
+  expect(notice.querySelectorAll('.secret-draft-action')[1]).toBe(anyway);
+  expect(doc.activeElement).toBe(anyway);
   if (choice === 'edit') {
     // Any edit drops the hold; the next send checks the new draft again.
     field.value = 'Push please'; field.dispatchEvent(new w.Event('input', { bubbles: true }));
@@ -4013,6 +4018,8 @@ it.each(['redact', 'send anyway', 'edit'] as const)('holds a send whose draft lo
   expect(sendInput).toHaveBeenCalledWith(expect.objectContaining({ sessionId: null,
     text: choice === 'redact' ? 'Push with [redacted] please' : `Push with ${token} please` }));
   expect(notice.hidden).toBe(true);
+  // The notice closed under the focused button; the focus goes back to the composer.
+  expect(doc.activeElement).toBe(field);
 });
 
 it('does not steal a newer New Chat draft when an older admission response arrives', async () => {

@@ -2753,7 +2753,7 @@
   "from {0} events": "來自 {0} 個事件",
   "(~{0} tokens)": "（約 {0} Token）",
   "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}",
-  "Possible secret in this message: {0}": "此訊息中可能有金鑰：{0}",
+  "Possible secret in this message: {0}": "此訊息中可能有敏感資訊：{0}",
   "Redact and send": "遮蓋後傳送",
   "Send anyway": "仍要傳送"
 }

@@ -2164,13 +2164,23 @@ function paintEditNotice(): void {
  * A send held because the draft holds what looks like a credential (`shared/secret-shapes.ts`).
  * It belongs to that exact draft: any edit, or another chat, drops it, and the next send checks again.
  */
-let secretHold: { key: string; text: string; found: string[]; delivery?: 'finish' | 'auto' | 'after-turn' } | null = null;
+type SecretHold = { key: string; text: string; found: string[]; delivery?: 'finish' | 'auto' | 'after-turn' };
+let secretHold: SecretHold | null = null;
+let paintedSecretHold: SecretHold | null = null;
 function paintSecretNotice(): void {
   const notice = $('secretDraft');
   if (secretHold && (secretHold.key !== draftKey() || secretHold.text !== authoredComposerText())) secretHold = null;
   const hold = secretHold;
+  // The same hold keeps its buttons, so a repaint never takes the focus from one of them.
+  if (hold && hold === paintedSecretHold) return;
+  const focused = notice.contains(document.activeElement);
+  paintedSecretHold = hold;
   notice.hidden = !hold;
-  if (!hold) { notice.replaceChildren(); return; }
+  if (!hold) {
+    notice.replaceChildren();
+    if (focused) $<HTMLTextAreaElement>('chatInput').focus();
+    return;
+  }
   const action = (label: () => string, click: () => void) => {
     const button = el('button', 'secret-draft-action', label) as HTMLButtonElement;
     button.type = 'button'; button.onclick = click; return button;
