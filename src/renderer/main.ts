@@ -25,6 +25,7 @@ import { initPets } from './pets.js';
 import { initSkillsLibrary } from './skills-library.js';
 import { initWhatsNew } from './whats-new.js';
 import { initSettingsSearch } from './settings-search.js';
+import { onReadAloudChange, readAloudAvailable, readAloudVoices } from './read-aloud.js';
 import type { AppearanceSettings } from '../shared/appearance.js';
 import type { BrowserBridgePort } from '../shared/browser-bridge.js';
 import { parseCommandAllowlistText } from '../shared/command-allowlist.js';
@@ -189,6 +190,32 @@ function applyChecked(control: HTMLInputElement, next: boolean, previous?: boole
   const dirty = document.activeElement === control && previous !== undefined && control.checked !== previous;
   if (!dirty) control.checked = next;
 }
+
+/**
+ * Read aloud's voice and speed, shown once the system's voices load. A saved voice that is no
+ * longer installed keeps an option of its own, so saving another setting does not drop it.
+ */
+function paintReadAloudSettings(config: Config, previous?: Config): void {
+  $('readAloudVoiceRow').hidden = $('readAloudRateRow').hidden = !readAloudAvailable();
+  const select = $<HTMLSelectElement>('readAloudVoice');
+  const chosen = config.ui.readAloudVoice ?? '';
+  const voices = readAloudVoices().map(voice => [voice.voiceURI, `${voice.name} (${voice.lang})`]);
+  if (chosen && !voices.some(([uri]) => uri === chosen)) voices.push([chosen, chosen]);
+  const listed = JSON.stringify(voices);
+  // Rebuilt only when the list changes: rebuilding closes a select the reader has open.
+  if (select.dataset.voices !== listed) {
+    select.dataset.voices = listed;
+    select.replaceChildren(select.options[0]!, ...voices.map(([uri, label]) => {
+      const option = document.createElement('option');
+      option.value = uri!; option.textContent = label!; option.translate = false;
+      return option;
+    }));
+    select.value = chosen;
+  }
+  applyValue(select, chosen, previous ? previous.ui.readAloudVoice ?? '' : undefined);
+  applyValue($<HTMLSelectElement>('readAloudRate'), String(config.ui.readAloudRate ?? 1), previous ? String(previous.ui.readAloudRate ?? 1) : undefined);
+}
+onReadAloudChange(() => { if (state) paintReadAloudSettings(state.config, state.config); });
 /** The one expanded permission group, or null. One at a time keeps the layout still. */
 let openGroup: string | null = null;
 /** Null follows setup completion; an explicit guide choice survives status pushes. */
@@ -743,6 +770,8 @@ function save(over: { readOnly?: boolean; theme?: 'light' | 'dark'; appearance?:
       backgroundPlacement: $<HTMLSelectElement>('backgroundPlacement').value === 'group' ? 'group' : 'window',
       followUp: $<HTMLSelectElement>('followUp').value === 'queue' ? 'queue' : 'steer',
       enterSends: $<HTMLSelectElement>('enterSends').value !== 'modifier',
+      readAloudVoice: $<HTMLSelectElement>('readAloudVoice').value || undefined,
+      readAloudRate: Number($<HTMLSelectElement>('readAloudRate').value) || 1,
       browserBridgePort: (selectedBridgePort === 'auto' ? 'auto' : Number(selectedBridgePort)) as BrowserBridgePort,
       autoContinue: $<HTMLInputElement>('autoContinue').checked,
       browserOnly: $<HTMLInputElement>('browserOnly').checked,
@@ -1675,6 +1704,7 @@ function apply(next: AppState): void {
   applyValue($<HTMLSelectElement>('backgroundPlacement'), config.ui.backgroundPlacement ?? 'window', previousState?.config.ui.backgroundPlacement ?? 'window');
   applyValue($<HTMLSelectElement>('followUp'), config.ui.followUp ?? 'steer', previousState?.config.ui.followUp ?? 'steer');
   applyValue($<HTMLSelectElement>('enterSends'), config.ui.enterSends === false ? 'modifier' : 'enter', previousState ? (previousState.config.ui.enterSends === false ? 'modifier' : 'enter') : undefined);
+  paintReadAloudSettings(config, previousState?.config);
   const bridgePortControl = $<HTMLSelectElement>('browserBridgePort');
   applyValue(bridgePortControl, String(config.ui.browserBridgePort ?? 'auto'), String(previousState?.config.ui.browserBridgePort ?? 'auto'));
   bridgePortControl.disabled = next.bridge.portOverridden === true;
@@ -2790,6 +2820,8 @@ for (const id of [
   'followOutput',
   'followUp',
   'enterSends',
+  'readAloudVoice',
+  'readAloudRate',
   'turnNotifications',
   'mentionCore',
   'mentionPlugins',
