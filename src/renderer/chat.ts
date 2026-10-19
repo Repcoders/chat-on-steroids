@@ -334,6 +334,8 @@ async function removeProjectFromSidebar(id: string): Promise<void> {
         else imageDrafts.delete(draftKey());
         imageDrafts.delete(oldKey);
         ui($<HTMLTextAreaElement>('chatInput'), 'placeholder', () => t('Ask anything…'));
+        // The draft is unfiled now, so its new chat starts on the Settings default again.
+        applyComposerSessionModel(null, null, newChatProjectDefaults());
       } else selectedProjectId = null;
     }
     paintSessions(); void refreshInputQueue();

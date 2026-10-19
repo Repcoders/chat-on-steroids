@@ -1904,6 +1904,27 @@ it('starts a project\'s new chats on the model saved from its menu, and other ne
   expect(api.setProjectChatDefaults).toHaveBeenLastCalledWith(project.id, null);
 });
 
+it('starts the new chat on the Settings default once its project with its own pair is removed', async () => {
+  const project = { id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', name: 'Workspace', path: 'C:\workspace\primary', createdAt: 1,
+    chatDefaults: { model: 'gpt-5.6-sol', reasoningEffort: 'none' as const } };
+  const { w, live } = await boot([], false, [], [project], { defaultChatModel: 'gpt-5.6-sol' });
+  (w as any).api.removeProject = vi.fn(async () => ({ ok: true, data: { ...project, ungrouped: true } }));
+  (w.document.querySelector(`.project-heading > [data-new-project="${project.id}"]`) as HTMLButtonElement).click(); await settle();
+  expect(w.document.getElementById('composerModelLabel')!.textContent).toBe('GPT-5.6 Sol · Instant');
+  const input = w.document.getElementById('chatInput') as HTMLTextAreaElement;
+  input.value = 'Kept while the project goes';
+  // The outbox read that follows the removal (and repaints the chat) has not answered yet.
+  const listInputs = (w as any).api.listInputs;
+  let answer!: () => void;
+  (w as any).api.listInputs = () => new Promise(resolve => { answer = () => resolve(listInputs()); });
+  projectMenu(w, project.id); menuItem(w, 'remove').click(); await settle();
+  expect(input.value).toBe('Kept while the project goes');
+  expect(w.document.getElementById('composerModelLabel')!.textContent).toBe('GPT-5.6 Sol · High');
+  (w.document.getElementById('chatSend') as HTMLButtonElement).click();
+  answer(); await settle();
+  expect(live.sent.at(-1)).toMatchObject({ text: 'Kept while the project goes', projectId: null, model: 'gpt-5.6-sol', reasoningEffort: 'high' });
+});
+
 it('picks and clears project color without changing project membership', async () => {
   const project = {
     id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', name: 'Workspace', path: 'C:\\workspace\\primary', createdAt: 1
