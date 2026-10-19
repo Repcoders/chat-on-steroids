@@ -1274,7 +1274,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     return true;
   });
 
-  // Copy or save a completed turn's answer, or the session transcript, as Markdown. Main reads
+  // Copy or save a completed turn's answer, or the session transcript, as Markdown (a copy can
+  // also be plain text or formatted text, `format`). Main reads
   // the full text of answers that were cut in the log, so neither comes out truncated.
   handle('sessions:exportMarkdown', async (payload) => {
     const request = z.object({
@@ -1282,7 +1283,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
       scope: z.enum(['answer', 'session']),
       turnId: z.string().min(1).max(200).optional(),
       messageId: z.string().min(1).max(200).optional(),
-      target: z.enum(['clipboard', 'file'])
+      target: z.enum(['clipboard', 'file']),
+      format: z.enum(['markdown', 'text', 'text-no-code', 'html']).optional()
     }).parse(payload);
     return exportSessionMarkdown(request, getWindow());
   });

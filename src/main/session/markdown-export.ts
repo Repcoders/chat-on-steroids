@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { app, clipboard, dialog, type BrowserWindow } from 'electron';
+import { app, clipboard, ClipboardItem, dialog, type BrowserWindow } from 'electron';
 import type { StoredText } from '../../shared/session.js';
 import {
   answerMarkdown, completedTurnIds, markdownFileName, messageAnswerEntries, sessionMarkdown, transcriptEntries, turnAnswerEntries
@@ -9,6 +9,7 @@ import { getSession, readEvents, readOverflowText } from './store.js';
 import { providerEntitiesAsMarkdown } from '../../shared/content-reference.js';
 import { dialogLabel, mainText } from '../main-texts.js';
 import { completedDilText } from '../../shared/dil-tables.js';
+import { answerHtml, answerPlainText, type CopyFormat } from '../../shared/answer-copy.js';
 
 export type MarkdownExportRequest = {
   id: string;
@@ -18,6 +19,8 @@ export type MarkdownExportRequest = {
   /** An answer recorded outside any turn (copied branch history, an adopted chat's history). */
   messageId?: string;
   target: 'clipboard' | 'file';
+  /** Copy as: what the clipboard gets instead of the Markdown. A saved file is always Markdown. */
+  format?: CopyFormat;
 };
 
 export type MarkdownExportResult = { done: 'copied' } | { done: 'saved'; name: string } | { done: 'cancelled' };
@@ -34,6 +37,8 @@ async function fullText(sessionId: string, stored: StoredText, html?: StoredText
 export async function exportSessionMarkdown(request: MarkdownExportRequest, owner: BrowserWindow | null): Promise<MarkdownExportResult> {
   const summary = await getSession(request.id);
   if (!summary) throw new Error('Session not found');
+  const format = request.format ?? 'markdown';
+  if (format !== 'markdown' && request.target !== 'clipboard') throw new Error('Only a copy can be plain text or formatted text');
   const events = await readEvents(request.id);
   let markdown: string;
   let name: string;
@@ -52,7 +57,9 @@ export async function exportSessionMarkdown(request: MarkdownExportRequest, owne
     name = markdownFileName(summary.title);
   }
   if (request.target === 'clipboard') {
-    await clipboard.writeText(markdown);
+    // Formatted text carries the plain text too, for the apps that paste no HTML.
+    if (format === 'html') await clipboard.write([new ClipboardItem({ 'text/plain': answerPlainText(markdown), 'text/html': answerHtml(markdown) })]);
+    else await clipboard.writeText(format === 'markdown' ? markdown : answerPlainText(markdown, { codeBlocks: format !== 'text-no-code' }));
     return { done: 'copied' };
   }
   const options = {

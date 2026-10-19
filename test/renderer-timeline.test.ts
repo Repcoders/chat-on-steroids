@@ -5327,6 +5327,24 @@ it('offers copy and Markdown export under the answer of a completed turn only', 
   expect(api.exportMarkdown).toHaveBeenCalledWith({ id: summary([]).id, scope: 'session', turnId: undefined, target: 'file' });
 });
 
+it('copies a completed answer as plain text, without code or formatted from its Copy as menu', async () => {
+  const reply: SessionEvent = { kind: 'assistant_message', seq: 1, time: T0, source: 'extension', turnId: 'done-turn', messageId: 'reply', message: text('Created **hello.txt**.'), final: true, state: 'final' };
+  const { w } = await boot([reply, { seq: 2, time: T0 + 1_000, source: 'extension', kind: 'turn_end', turnId: 'done-turn', outcome: 'completed' }]);
+  const api = (w as any).api;
+  api.exportMarkdown = vi.fn(async () => ({ ok: true, data: { done: 'copied' } }));
+  const trigger = w.document.querySelector<HTMLElement>('.answer-actions summary[aria-label="Copy as"]');
+  expect(trigger).not.toBeNull();
+  const menu = trigger!.parentElement as HTMLDetailsElement;
+  const choices = [...menu.querySelectorAll<HTMLButtonElement>('.answer-copy-choice')];
+  expect(choices.map(choice => choice.textContent)).toEqual(['Plain text', 'Plain text without code blocks', 'Formatted text']);
+  for (const [index, format] of (['text', 'text-no-code', 'html'] as const).entries()) {
+    menu.open = true;
+    choices[index]!.click(); await settle();
+    expect(menu.open).toBe(false);
+    expect(api.exportMarkdown).toHaveBeenLastCalledWith({ id: summary([]).id, scope: 'answer', turnId: 'done-turn', messageId: undefined, target: 'clipboard', format });
+  }
+});
+
 it('does not offer copy or export after an interrupted turn', async () => {
   const reply: SessionEvent = { kind: 'assistant_message', seq: 1, time: T0, source: 'extension', turnId: 'cut-turn', messageId: 'cut', message: text('Half an answer'), final: true, state: 'final' };
   const { w } = await boot([reply, { seq: 2, time: T0 + 1_000, source: 'extension', kind: 'turn_end', turnId: 'cut-turn', outcome: 'interrupted' }]);

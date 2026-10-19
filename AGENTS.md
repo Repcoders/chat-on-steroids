@@ -1114,6 +1114,14 @@ turn (copied branch history, an adopted chat's history, replies to messages type
 the same actions as a turn's answer (`messageAnswerAnchors`); `sessions:exportMarkdown` names them
 by `messageId` instead of `turnId`, and refuses a turn's own answer named that way.
 
+Copy as: `sessions:exportMarkdown` takes an optional `format` for a clipboard copy (`markdown` when
+left out, `text`, `text-no-code`, `html`); a file is always Markdown, and a file asked for in another
+format is refused. `shared/answer-copy.ts` builds the plain text with `markdownVisibleText(…, { layout:
+true })` (bullets, numbers, task boxes, tab-separated table cells; `codeBlocks: false` for
+`text-no-code`) and the HTML with `marked`, which escapes raw markup, draws an image as its
+description and links only http(s) and mailto addresses. Both drop a writing block's `:::` fence and
+keep its words. `html` writes the plain text beside the HTML, for apps that paste no HTML.
+
 Edit & resubmit (#365): ChatGPT keeps an edited question as a new version beside the old one, under
 the same parent, and continues from the new one. The page reports each question's place in that tree
 (`user_message.parentId`: the legacy `metadata.parent_id`, or on the shell the previous turn's last
