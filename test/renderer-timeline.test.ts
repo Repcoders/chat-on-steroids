@@ -5617,6 +5617,32 @@ it('pins the question of the answer being read to the top of the chat, and goes 
   expect(pin.hidden).toBe(true);
 });
 
+it('pins a question sent from the app, whose row is keyed by its input', async () => {
+  const { w } = await boot([
+    { kind: 'user_message', seq: 1, time: T0 + 1000, source: 'extension', messageId: 'first', message: text('Typed in ChatGPT') },
+    { kind: 'assistant_message', seq: 2, time: T0 + 2000, source: 'extension', messageId: 'short', message: text('Short answer.'), final: false },
+    { kind: 'user_message', seq: 3, time: T0 + 3000, source: 'app', messageId: 'sent', inputId: 'input-sent', message: text('Sent from the app') },
+    { kind: 'assistant_message', seq: 4, time: T0 + 4000, source: 'extension', messageId: 'long', message: text('A long answer.'), final: false }
+  ]);
+  const pane = w.document.getElementById('chatBody')!;
+  const timeline = w.document.getElementById('timeline')!;
+  const pin = w.document.getElementById('promptPin') as HTMLButtonElement;
+  const rows = [...timeline.querySelectorAll<HTMLElement>('[data-timeline-key]')].filter(row => !row.parentElement?.closest('[data-timeline-key]'));
+  expect(rows.map(row => row.dataset.timelineKey)).toContain('input:input-sent');
+  // Questions 60px tall, the first answer 100px, the long answer 2000px; the pane is 400px high.
+  const heights = [60, 100, 60, 2000];
+  w.HTMLElement.prototype.getBoundingClientRect = function () {
+    const index = rows.indexOf(this);
+    const top = this === pane || index < 0 ? 0 : heights.slice(0, index).reduce((sum, height) => sum + height, 0) - pane.scrollTop;
+    const height = this === pane ? 400 : heights[index] ?? 0;
+    return { top, bottom: top + height, height } as DOMRect;
+  };
+  Object.defineProperties(pane, { clientHeight: { configurable: true, value: 400 }, scrollHeight: { configurable: true, value: 2220 } });
+  pane.scrollTop = 900; pane.dispatchEvent(new w.Event('scroll'));
+  expect(pin.hidden).toBe(false);
+  expect(pin.querySelector('.prompt-pin-text')!.textContent).toBe('Sent from the app');
+});
+
 it('keeps the chat reading state out of Agents & automation, which shares its scroll pane', async () => {
   const { w, append } = await boot([{ kind: 'assistant_message', seq: 1, time: T0 + 1000, source: 'extension', messageId: 'first', message: text('Hello'), final: false }]);
   const pane = w.document.getElementById('chatBody')!;

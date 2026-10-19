@@ -3971,7 +3971,8 @@ function paintPromptPin(): void {
   if (!pin) return;
   const pane = $('chatBody');
   const rows = [...$('timeline').querySelectorAll<HTMLElement>('[data-timeline-key]')];
-  const prompts = rows.filter(row => row.dataset.timelineKey!.startsWith(USER_MESSAGE_KEY));
+  // By event, not key: a question sent from the app is keyed by its input.
+  const prompts = rows.filter(row => rowEvents.get(row)?.kind === 'user_message');
   const row = selectedId && timelineShown() ? promptAboveView(pane, prompts, PROMPT_PIN_INSET) : null;
   const event = row && rowEvents.get(row);
   if (event?.kind === 'user_message') pinnedPrompt = { event, key: row!.dataset.timelineKey!, generation: selectionGeneration };
