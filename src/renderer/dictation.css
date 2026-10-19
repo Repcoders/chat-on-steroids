@@ -61,3 +61,5 @@
 @media (prefers-reduced-motion: reduce) {
   .composer-dictation-button { transition: none; }
 }
+/* The dictated draft keeps its spoken line breaks in the "send" confirmation. */
+.dictation-send-dialog .file-confirm-dialog-message { max-height: 40vh; overflow-y: auto; white-space: pre-wrap; }

@@ -2797,5 +2797,9 @@
   "from {0} events|one": "aus {0} Ereignis",
   "(~{0} tokens)": "(ca. {0} Tokens)",
   "(~{0} tokens)|one": "(ca. {0} Token)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Voice commands while dictating": "Sprachbefehle beim Diktieren",
+  "Say “new line”, “new paragraph” or “scratch that” to edit what you dictate, or “send” to send it after you confirm. Works when Windows dictates in English, German, Spanish, French or Portuguese.": "Sag „neue Zeile“, „neuer Absatz“ oder „das löschen“, um das Diktierte zu bearbeiten, oder „senden“, um es nach deiner Bestätigung zu senden. Funktioniert, wenn Windows auf Englisch, Deutsch, Spanisch, Französisch oder Portugiesisch diktiert.",
+  "Keep editing": "Weiter bearbeiten",
+  "Send this message?": "Diese Nachricht senden?"
 }

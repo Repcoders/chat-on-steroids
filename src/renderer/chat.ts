@@ -43,6 +43,7 @@ import type { InputImage, InputAttachment, InputAutomation } from '../shared/inp
 import { authoredTextOf, injectableAttachments, queuedFollowup, MAX_INPUT_IMAGES } from '../shared/input.js';
 import type { InputArgs, InputEntry } from '../main/session/input.js';
 import type { DictationEvent } from '../shared/dictation.js';
+import { dictationPieces, hasDictationCommands } from '../shared/dictation-commands.js';
 import { PROJECT_COLORS, type LocalProject, type ProjectColor } from '../shared/projects.js';
 import type { TaskProgress } from '../shared/task-progress.js';
 import type { RunningExecProcess } from '../shared/background-exec.js';
@@ -391,10 +392,17 @@ type DictationSession = {
   end: number;
   rendered: string;
   committed: string;
+  /** Every final word as recognized; `committed` is it after spoken commands, when they are on. */
+  heard: string;
+  /** Where each dictated phrase starts in `committed`, for "scratch that". */
+  phrases: number[];
+  commands: boolean;
+  language?: string;
   stopping: boolean;
 };
 const dictationBridge: DictationBridge = api;
 let dictation: DictationSession | null = null;
+let dictationCommandsOn = (): boolean => false;
 // The native process stops asynchronously. Block a new start until it actually exits,
 // including when navigation retires the text owner before the stop event arrives.
 let dictationRetiring = false;
@@ -513,6 +521,52 @@ function joinedDictation(previous: string, next: string): string {
   return `${previous} ${next}`;
 }
 
+/** Applies a newly heard final chunk to `committed`; true when it said "send". */
+function spokenEdits(session: DictationSession, added: string): boolean {
+  let send = false;
+  for (const piece of dictationPieces(added, session.language)) {
+    if ('text' in piece) {
+      session.phrases.push(session.committed.length);
+      session.committed = joinedDictation(session.committed, piece.text);
+    } else if (piece.command === 'scratch') {
+      const start = session.phrases.pop();
+      if (start !== undefined) session.committed = session.committed.slice(0, start);
+    } else if (piece.command === 'send') send = true;
+    else session.committed = session.committed.replace(/[ \t]+$/u, '') + (piece.command === 'newLine' ? '\n' : '\n\n');
+  }
+  return send;
+}
+
+/** "Send" stops dictation and asks first; only an explicit click or Enter on Send sends. */
+function confirmDictatedSend(owner: ComposerDraftOwner): void {
+  document.querySelector('.dictation-send-dialog')?.remove();
+  const text = $<HTMLTextAreaElement>('chatInput').value.trim();
+  if (!text) return;
+  const box = document.createElement('dialog');
+  box.className = 'file-confirm-dialog dictation-send-dialog';
+  const body = el('div', 'file-confirm-dialog-body');
+  const actions = el('div', 'file-entry-dialog-actions');
+  const keep = el('button', 'btn', () => t('Keep editing')) as HTMLButtonElement;
+  const send = el('button', 'btn btn-solid', () => t('Send')) as HTMLButtonElement;
+  keep.type = 'button'; send.type = 'button';
+  actions.append(keep, send);
+  body.append(el('h2', '', () => t('Send this message?')),
+    el('p', 'file-confirm-dialog-message', text.length > 280 ? `${text.slice(0, 280)}…` : text), actions);
+  box.append(body);
+  const finish = (approved: boolean): void => {
+    if (!box.isConnected) return;
+    box.remove();
+    if (approved && ownsComposerDraft(owner)) $<HTMLFormElement>('composer').requestSubmit();
+    else $('chatInput').focus();
+  };
+  keep.addEventListener('click', () => finish(false));
+  send.addEventListener('click', () => finish(true));
+  box.addEventListener('cancel', event => { event.preventDefault(); finish(false); });
+  document.body.append(box);
+  if (typeof box.showModal === 'function') box.showModal(); else box.setAttribute('open', '');
+  send.focus();
+}
+
 function onDictationEvent(event: DictationEvent): void {
   const session = dictation;
   if (!session && dictationRetiring && event?.type === 'status' && event.status === 'stopped') {
@@ -528,10 +582,14 @@ function onDictationEvent(event: DictationEvent): void {
   } else if (event.type === 'final' && typeof event.text === 'string') {
     // Accept both cumulative final transcripts and segment-by-segment final chunks.
     const chunk = event.text;
-    const previous = session.committed;
-    session.committed = chunk === previous || previous && chunk.startsWith(previous) ? chunk :
+    const previous = session.heard;
+    session.heard = chunk === previous || previous && chunk.startsWith(previous) ? chunk :
       previous.endsWith(chunk) ? previous : joinedDictation(previous, chunk);
+    const commands = session.commands && hasDictationCommands(session.language);
+    const send = commands && spokenEdits(session, session.heard.slice(previous.length));
+    if (!commands) session.committed = session.heard;
     dictatedText(session, session.committed);
+    if (send && dictation === session) { retireDictation(); confirmDictatedSend(session.owner); }
   } else if (event.type === 'error') {
     dictation = null;
     dictationRetiring = true;
@@ -543,6 +601,7 @@ function onDictationEvent(event: DictationEvent): void {
   } else if (event.type === 'status') {
     const status = event.status?.toLowerCase() ?? '';
     if (['stopped', 'idle', 'ended', 'complete'].includes(status)) { completedDictation(session, 'Dictation stopped.'); return; }
+    if (event.language) session.language = event.language;
     if (!session.stopping) {
       dictationPhase = ['starting', 'initializing', 'requesting'].includes(status) ? 'starting' : 'listening';
       dictationNotice = dictationPhase === 'starting' ? 'Preparing microphone…'
@@ -586,7 +645,8 @@ async function toggleDictation(): Promise<void> {
   const input = $<HTMLTextAreaElement>('chatInput');
   const session: DictationSession = {
     owner: composerDraftOwner(), start: input.selectionStart, end: input.selectionEnd,
-    rendered: input.value.slice(input.selectionStart, input.selectionEnd), committed: '', stopping: false
+    rendered: input.value.slice(input.selectionStart, input.selectionEnd), committed: '', heard: '', phrases: [],
+    commands: dictationCommandsOn(), stopping: false
   };
   dictation = session;
   dictationPhase = 'starting';
@@ -618,7 +678,8 @@ async function toggleDictation(): Promise<void> {
   }
 }
 
-export function initComposerDictation(): void {
+export function initComposerDictation(options: { commands?: () => boolean } = {}): void {
+  if (options.commands) dictationCommandsOn = options.commands;
   paintDictation();
   $<HTMLButtonElement>('dictationButton').addEventListener('click', () => { void toggleDictation(); });
   $('chatInput').addEventListener('input', () => { if (!writingDictation && dictation) retireDictation(); });
@@ -7918,7 +7979,7 @@ export function initChat(next: Deps): void {
       .map(entry => ({ id: entry.id, scope: pinnedSortScope(projectGroup(entry.projectId) ?? '', pinnedChat(entry)) }))
   ], paintSessions);
   deps = next;
-  initComposerDictation();
+  initComposerDictation({ commands: () => deps.state()?.config.ui.dictationCommands === true });
   const stopComposerHeightMotion = installComposerHeightMotion($('composer'));
   const stopComposerDockMotion = installComposerDockMotion($('composerDock'));
   window.addEventListener('beforeunload', () => {

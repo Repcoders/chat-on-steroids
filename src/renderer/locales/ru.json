@@ -2887,5 +2887,9 @@
   "(~{0} tokens)|one": "(~{0} токен)",
   "(~{0} tokens)|few": "(~{0} токена)",
   "(~{0} tokens)|many": "(~{0} токенов)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Voice commands while dictating": "Голосовые команды при диктовке",
+  "Say “new line”, “new paragraph” or “scratch that” to edit what you dictate, or “send” to send it after you confirm. Works when Windows dictates in English, German, Spanish, French or Portuguese.": "Скажите «new line», «new paragraph» или «scratch that», чтобы исправить надиктованное, или «send», чтобы отправить его после подтверждения. Работает, когда Windows распознаёт речь на английском, немецком, испанском, французском или португальском.",
+  "Keep editing": "Продолжить редактирование",
+  "Send this message?": "Отправить это сообщение?"
 }

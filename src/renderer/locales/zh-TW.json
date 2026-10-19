@@ -2752,5 +2752,9 @@
   "{0} characters": "{0} 個字元",
   "from {0} events": "來自 {0} 個事件",
   "(~{0} tokens)": "（約 {0} Token）",
-  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}",
+  "Voice commands while dictating": "聽寫時的語音指令",
+  "Say “new line”, “new paragraph” or “scratch that” to edit what you dictate, or “send” to send it after you confirm. Works when Windows dictates in English, German, Spanish, French or Portuguese.": "說「new line」、「new paragraph」或「scratch that」可編輯聽寫的內容，說「send」會在你確認後傳送。僅在 Windows 以英文、德文、西班牙文、法文或葡萄牙文聽寫時可用。",
+  "Keep editing": "繼續編輯",
+  "Send this message?": "要傳送這則訊息嗎？"
 }

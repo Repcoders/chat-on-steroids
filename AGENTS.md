@@ -3970,11 +3970,17 @@ PowerShell recognizer child and sends validated `shared/dictation.ts` events
 (`status`, `partial`, `final`, `error`) to its originating `webContents`. The child
 dictates with Windows' own `Windows.Media.SpeechRecognition` engine (online, with
 punctuation) and falls back to offline `System.Speech` when that cannot run;
-`status: 'listening'` carries `engine: 'modern' | 'legacy'`, and the renderer tells
+`status: 'listening'` carries `engine: 'modern' | 'legacy'` and the BCP 47 `language` that
+engine dictates in, and the renderer tells
 the person when only the basic engine listens. Its fixed error sentences are catalog
 keys. Only an explicit microphone click starts it;
 the renderer owns the current composer draft, stops on manual edits/navigation,
-and never sends recognized text automatically. Stop creates a per-session stop file
+and never sends recognized text automatically. With the opt-in `ui.dictationCommands`,
+`shared/dictation-commands.ts` reads each final chunk in that speech language's phrases
+(English, German, Spanish, French, Portuguese; other languages stay plain text): "new line",
+"new paragraph" and "scratch that" (removes the last dictated phrase) edit the dictated text,
+and "send", only as a phrase of its own, stops dictation and opens a Send confirmation; only
+that dialog's Send submits. Stop creates a per-session stop file
 that the child polls; it then finishes the phrase in progress and exits, with 4 s
 before it is killed. App `before-quit` kills the child synchronously, and the
 PowerShell event loop checks the owning app's PID each second so a crashed/killed

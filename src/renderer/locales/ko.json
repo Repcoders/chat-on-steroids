@@ -2752,5 +2752,9 @@
   "{0} characters": "{0}자",
   "from {0} events": "이벤트 {0}개에서 생성",
   "(~{0} tokens)": "(~{0} 토큰)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Voice commands while dictating": "받아쓰기 중 음성 명령",
+  "Say “new line”, “new paragraph” or “scratch that” to edit what you dictate, or “send” to send it after you confirm. Works when Windows dictates in English, German, Spanish, French or Portuguese.": "“new line”, “new paragraph”, “scratch that”이라고 말하면 받아쓴 내용을 고치고, “send”라고 말하면 확인 후 보냅니다. Windows가 영어, 독일어, 스페인어, 프랑스어 또는 포르투갈어로 받아쓸 때 작동합니다.",
+  "Keep editing": "계속 편집",
+  "Send this message?": "이 메시지를 보낼까요?"
 }

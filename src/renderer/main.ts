@@ -742,6 +742,7 @@ function save(over: { readOnly?: boolean; theme?: 'light' | 'dark'; appearance?:
       backgroundPlacement: $<HTMLSelectElement>('backgroundPlacement').value === 'group' ? 'group' : 'window',
       followUp: $<HTMLSelectElement>('followUp').value === 'queue' ? 'queue' : 'steer',
       enterSends: $<HTMLSelectElement>('enterSends').value !== 'modifier',
+      dictationCommands: $<HTMLInputElement>('dictationCommands').checked,
       browserBridgePort: (selectedBridgePort === 'auto' ? 'auto' : Number(selectedBridgePort)) as BrowserBridgePort,
       autoContinue: $<HTMLInputElement>('autoContinue').checked,
       browserOnly: $<HTMLInputElement>('browserOnly').checked,
@@ -1700,6 +1701,9 @@ function apply(next: AppState): void {
   applyChecked($<HTMLInputElement>('followOutput'), config.ui.followOutput !== false, previousState?.config.ui.followOutput);
   applyChecked($<HTMLInputElement>('mentionCore'), config.ui.mentionCore !== false, previousState?.config.ui.mentionCore);
   applyChecked($<HTMLInputElement>('mentionPlugins'), config.ui.mentionPlugins === true, previousState?.config.ui.mentionPlugins);
+  applyChecked($<HTMLInputElement>('dictationCommands'), config.ui.dictationCommands === true, previousState?.config.ui.dictationCommands);
+  // Like the microphone itself: Windows dictation only.
+  $('dictationCommandsSetting').hidden = api.dictationSupported !== true;
   applyChecked($<HTMLInputElement>('controlApiEnabled'), config.controlApi?.enabled === true, previousState?.config.controlApi?.enabled);
   applyChecked($<HTMLInputElement>('mcpPersistentUrls'), config.mcp?.persistentUrls === true, previousState?.config.mcp?.persistentUrls);
   // Stable URLs live only in the OS-backed secret store; without it they keep rotating.
@@ -2770,6 +2774,7 @@ for (const id of [
   'followOutput',
   'followUp',
   'enterSends',
+  'dictationCommands',
   'turnNotifications',
   'mentionCore',
   'mentionPlugins',

@@ -4217,6 +4217,23 @@ it('offers which key sends, starting at Enter, and saves Cmd/Ctrl+Enter', async 
   expect(mounted.calls.at(-1)?.ui.enterSends).toBe(false);
 });
 
+it('hides voice commands while dictating where Windows dictation does not run', async () => {
+  const mounted = await mountChat({});
+  expect(mounted.window.document.getElementById('dictationCommandsSetting')!.hidden).toBe(true);
+});
+
+it('offers voice commands while dictating with Windows dictation, off by default, and saves them', async () => {
+  const mounted = await mountChat({}, [], { dictationSupported: true } as never);
+  const w = mounted.window;
+  expect(w.document.getElementById('dictationCommandsSetting')!.hidden).toBe(false);
+  const commands = w.document.getElementById('dictationCommands') as HTMLInputElement;
+  expect(commands.checked).toBe(false);
+  commands.checked = true;
+  commands.dispatchEvent(new w.Event('change', { bubbles: true }));
+  await settle();
+  expect(mounted.calls.at(-1)?.ui.dictationCommands).toBe(true);
+});
+
 // #1460: worker chats leave ChatGPT's chat list once retired, only when switched on.
 it('offers archiving retired worker chats, off by default, and saves it', async () => {
   const mounted = await mountChat({});

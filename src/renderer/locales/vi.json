@@ -2752,5 +2752,9 @@
   "{0} characters": "{0} ký tự",
   "from {0} events": "từ {0} sự kiện",
   "(~{0} tokens)": "(~{0} token)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Voice commands while dictating": "Lệnh giọng nói khi đọc chính tả",
+  "Say “new line”, “new paragraph” or “scratch that” to edit what you dictate, or “send” to send it after you confirm. Works when Windows dictates in English, German, Spanish, French or Portuguese.": "Nói “new line”, “new paragraph” hoặc “scratch that” để sửa nội dung đã đọc, hoặc “send” để gửi sau khi bạn xác nhận. Hoạt động khi Windows nhận dạng tiếng Anh, Đức, Tây Ban Nha, Pháp hoặc Bồ Đào Nha.",
+  "Keep editing": "Tiếp tục chỉnh sửa",
+  "Send this message?": "Gửi tin nhắn này?"
 }

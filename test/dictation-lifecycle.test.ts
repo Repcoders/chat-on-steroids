@@ -124,6 +124,17 @@ describe('Windows dictation child lifetime', () => {
     expect(script).toContain("Send 'status' 'listening' 'legacy'");
   });
 
+  it('reports the speech language each engine dictates in, for spoken commands', async () => {
+    const { sender } = startTestSession();
+    await mock.handlers.get('dictation:start')!({ sender });
+    const script = scriptOf(mock.spawn.mock.calls[0]!);
+    expect(script).toContain('Language = recognizer.CurrentLanguage.LanguageTag;');
+    expect(script).toContain('\\System32\\WinMetadata\\Windows.Globalization.winmd');
+    expect(script).toContain("Send 'status' 'listening' 'modern' ([CosDictation]::Language)");
+    expect(script).toContain("Send 'status' 'listening' 'legacy' ($choice.Culture.Name)");
+    expect(script).toContain('if($language) { $data.language = $language }');
+  });
+
   it.runIf(process.platform === 'win32')('the recognizer script parses, and its loop exits when its parent disappears or Stop asks (no microphone)', () => {
     execFileSync(process.execPath, ['scripts/fixtures/smoke-dictation-parent-windows.cjs'], {
       cwd: process.cwd(), encoding: 'utf8', timeout: 40_000

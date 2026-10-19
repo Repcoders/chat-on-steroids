@@ -2797,5 +2797,9 @@
   "from {0} events|one": "{0} olaydan",
   "(~{0} tokens)": "(~{0} token)",
   "(~{0} tokens)|one": "(~{0} token)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Voice commands while dictating": "Dikte sırasında sesli komutlar",
+  "Say “new line”, “new paragraph” or “scratch that” to edit what you dictate, or “send” to send it after you confirm. Works when Windows dictates in English, German, Spanish, French or Portuguese.": "Dikte ettiğinizi düzenlemek için “new line”, “new paragraph” veya “scratch that”, onayınızdan sonra göndermek için “send” deyin. Windows İngilizce, Almanca, İspanyolca, Fransızca veya Portekizce dikte ederken çalışır.",
+  "Keep editing": "Düzenlemeye devam et",
+  "Send this message?": "Bu mesaj gönderilsin mi?"
 }

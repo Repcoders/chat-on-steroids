@@ -2752,5 +2752,9 @@
   "{0} characters": "{0}文字",
   "from {0} events": "{0}件のイベントから",
   "(~{0} tokens)": "（約{0}トークン）",
-  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}",
+  "Voice commands while dictating": "音声入力中の音声コマンド",
+  "Say “new line”, “new paragraph” or “scratch that” to edit what you dictate, or “send” to send it after you confirm. Works when Windows dictates in English, German, Spanish, French or Portuguese.": "「new line」「new paragraph」「scratch that」と言うと入力した内容を編集でき、「send」と言うと確認のうえ送信します。Windows が英語、ドイツ語、スペイン語、フランス語、ポルトガル語で音声入力しているときに使えます。",
+  "Keep editing": "編集を続ける",
+  "Send this message?": "このメッセージを送信しますか？"
 }
