@@ -13,7 +13,9 @@ const stop = vi.fn(async () => ({ ok: true as const, data: undefined }));
 const unsubscribe = vi.fn();
 const languages = vi.fn(async () => ({ ok: true as const, data: { selected: '', languages: [
   { tag: 'de-DE', name: 'Deutsch (Deutschland)' }, { tag: 'en-US', name: 'English (United States)' }] } }));
-const setLanguage = vi.fn(async (tag: string) => tag === 'en-US' ? { ok: false as const, error: 'Could not save' } : { ok: true as const, data: undefined });
+let heldSave: Promise<unknown> | null = null;
+const setLanguage = vi.fn(async (tag: string) => heldSave ? heldSave
+  : tag === 'en-US' ? { ok: false as const, error: 'Could not save' } : { ok: true as const, data: undefined });
 
 beforeAll(async () => {
   dom = new JSDOM(`<!doctype html><html><body>
@@ -149,7 +151,7 @@ describe('renderer microphone draft ownership', () => {
     emit({ type: 'status', status: 'stopped' });
   });
 
-  it('picks the speech language from a chip beside the microphone, listing only installed ones', async () => {
+  it('picks the speech language from a chip beside the microphone, listing only the ones Windows offers', async () => {
     const doc = dom.window.document;
     const menu = doc.getElementById('dictationLanguageMenu') as HTMLDetailsElement;
     const summary = menu.querySelector('summary')!;
@@ -180,6 +182,21 @@ describe('renderer microphone draft ownership', () => {
     choices()[2]!.click();
     expect(label.textContent).toBe('en-US');
     await vi.waitFor(() => expect(label.textContent).toBe('de-DE'));
+  });
+
+  it('starts dictation only once a language picked a moment ago is saved', async () => {
+    let saved!: (reply: unknown) => void;
+    heldSave = new Promise(resolve => { saved = resolve; });
+    start.mockClear();
+    dom.window.document.querySelector<HTMLElement>('#dictationLanguageChoices [data-language=""]')!.click();
+    button.click(); await flush();
+    // Main reads the saved language at start: starting now would still listen in German.
+    expect(start).not.toHaveBeenCalled();
+    heldSave = null;
+    saved({ ok: true, data: undefined });
+    await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+    emit({ type: 'status', status: 'stopped' });
+    expect(button.getAttribute('data-state')).toBe('idle');
   });
 
   it('unsubscribes on page unload without sending a message', () => {

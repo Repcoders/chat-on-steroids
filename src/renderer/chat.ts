@@ -458,6 +458,7 @@ let savedDictationLanguage = '';
 let pickedDictationLanguage: string | null = null;
 let dictationLanguages: DictationLanguage[] | null = null;
 let dictationLanguageRead = 0;
+let dictationLanguageSave: Promise<void> | null = null;
 const sameLanguage = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
 
 function paintDictationLanguage(): void {
@@ -489,7 +490,7 @@ function paintDictationLanguage(): void {
   if (focused !== undefined) [...list.querySelectorAll<HTMLElement>('[data-language]')].find(row => row.dataset.language === focused)?.focus();
 }
 
-/** Installed languages can change while the app runs, so every opening reads them again. */
+/** Windows' languages can change while the app runs, so every opening reads them again. */
 async function readDictationLanguages(): Promise<void> {
   const read = ++dictationLanguageRead;
   let reply: unknown;
@@ -510,10 +511,12 @@ function pickDictationLanguage(tag: string): void {
   paintDictationLanguage();
   // Unsaved, the next start would still use the old language: show that one again.
   const undo = (): void => { if (pickedDictationLanguage === tag) { pickedDictationLanguage = previous; paintDictationLanguage(); } };
-  try {
-    void Promise.resolve(dictationBridge.setDictationLanguage?.(tag))
-      .then(reply => { if (dictationReplyError(reply)) undo(); }, undo);
-  } catch { undo(); }
+  let reply: Promise<unknown>;
+  try { reply = Promise.resolve(dictationBridge.setDictationLanguage?.(tag)); } catch (error) { reply = Promise.reject(error); }
+  // Main reads the saved language when dictation starts, so a start waits for this save.
+  const save: Promise<void> = reply.then(result => { if (dictationReplyError(result)) undo(); }, undo)
+    .finally(() => { if (dictationLanguageSave === save) dictationLanguageSave = null; });
+  dictationLanguageSave = save;
 }
 
 function dictationMessage(error: unknown): string {
@@ -647,6 +650,11 @@ async function toggleDictation(): Promise<void> {
       }
     }
     return;
+  }
+  if (dictationLanguageSave) {
+    // Main starts in the saved language: let a language picked a moment ago be saved first.
+    await dictationLanguageSave;
+    if (dictation) return;
   }
   if (dictationRetiring || dictationBridge.dictationSupported !== true ||
     !dictationBridge.startDictation || !dictationBridge.stopDictation || !dictationBridge.onDictationEvent) return;

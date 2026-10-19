@@ -45,7 +45,7 @@ describe('opt-in Windows dictation IPC contract', () => {
     expect(event && 'message' in event ? event.message.length : 0).toBe(240);
   });
 
-  it('lists each installed speech language once, by name, and only well-formed tags', () => {
+  it('lists each speech language once, by name, and only well-formed tags', () => {
     expect(parseDictationLanguages(JSON.stringify([
       { tag: 'en-US', name: 'English (United States)' },
       { tag: 'de-DE', name: 'Deutsch (Deutschland)' },

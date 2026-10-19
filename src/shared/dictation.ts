@@ -32,7 +32,7 @@ export function parseDictationEvent(line: string): DictationEvent | null {
   return null;
 }
 
-/** A speech language Windows has installed, as `dictation:languages` lists it. */
+/** A speech language Windows can dictate in, as `dictation:languages` lists it. */
 export type DictationLanguage = { tag: string; name: string };
 
 /** BCP 47 shape only (`en-US`, `zh-Hant-TW`); it is also spliced into the recognizer script. */
@@ -41,7 +41,7 @@ export function isDictationLanguageTag(value: unknown): value is string {
 }
 
 /**
- * The child's JSON list of installed speech languages: well-formed tags only, the first
+ * The child's JSON list of speech languages: well-formed tags only, the first
  * of each tag (the modern engine lists first), sorted by name, at most 64.
  */
 export function parseDictationLanguages(output: string): DictationLanguage[] {

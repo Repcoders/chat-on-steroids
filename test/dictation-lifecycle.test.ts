@@ -151,7 +151,7 @@ describe('Windows dictation child lifetime', () => {
     }
   });
 
-  it('lists the installed speech languages without opening the microphone', async () => {
+  it('lists the speech languages Windows can dictate in without opening the microphone', async () => {
     mock.config.ui.dictationLanguage = 'de-DE';
     const { sender, child } = startTestSession();
     const reply = mock.handlers.get('dictation:languages')!({ sender });
@@ -159,8 +159,10 @@ describe('Windows dictation child lifetime', () => {
     expect(script).toContain('[Windows.Media.SpeechRecognition.SpeechRecognizer]::SupportedTopicLanguages');
     expect(script).toContain('InstalledRecognizers()');
     expect(script).not.toMatch(/SetInputToDefaultAudioDevice|StartAsync|RecognizeAsync/);
-    child.stdout.emit('data', JSON.stringify([{ tag: 'en-US', name: 'English (United States)' }, { tag: 'de-DE', name: 'Deutsch (Deutschland)' }, { tag: 'en-US', name: 'English' }]) + '\r\n');
+    // The process can exit before its stdout is drained: the list is read once stdout closes.
     child.emit('exit', 0, null);
+    child.stdout.emit('data', JSON.stringify([{ tag: 'en-US', name: 'English (United States)' }, { tag: 'de-DE', name: 'Deutsch (Deutschland)' }, { tag: 'en-US', name: 'English' }]) + '\r\n');
+    child.emit('close', 0, null);
     expect(await reply).toEqual({ ok: true, data: {
       languages: [{ tag: 'de-DE', name: 'Deutsch (Deutschland)' }, { tag: 'en-US', name: 'English (United States)' }], selected: 'de-DE'
     } });

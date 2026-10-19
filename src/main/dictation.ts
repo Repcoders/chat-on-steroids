@@ -197,8 +197,9 @@ const SCRIPT = [
 ].join('\r\n');
 
 /**
- * Lists the speech languages this Windows has installed: those Windows' dictation engine
- * supports, then the System.Speech recognizers the fallback can use. No microphone opens.
+ * Lists the speech languages this Windows can dictate in: the dictation topic languages of
+ * Windows' own engine (which can include online ones), then the System.Speech recognizers
+ * installed for the fallback. No microphone opens.
  */
 const LANGUAGES_SCRIPT = [
   "$ErrorActionPreference='Stop'",
@@ -231,7 +232,8 @@ function listLanguages(): Promise<DictationLanguage[]> {
     child.stdout?.on('data', (chunk: string) => { output += chunk; if (output.length > 65_536) child.kill(); });
     child.stderr?.resume();
     child.once('error', () => { clearTimeout(timer); resolve([]); });
-    child.once('exit', () => { clearTimeout(timer); resolve(output.length > 65_536 ? [] : parseDictationLanguages(output)); });
+    // `close`, not `exit`: stdout may still hold the end of the list when the process exits.
+    child.once('close', () => { clearTimeout(timer); resolve(output.length > 65_536 ? [] : parseDictationLanguages(output)); });
   });
 }
 
