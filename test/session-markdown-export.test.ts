@@ -113,3 +113,12 @@ it('offers the latest answer of the project\'s other chats and workers, whole, f
   expect(store.listSessionPage).toHaveBeenCalledWith({ projectId: '00000000-0000-4000-8000-000000000001', limit: 13 });
   expect(store.readEvents).not.toHaveBeenCalledWith('session-here', expect.anything());
 });
+
+// The quote adds the chat's name and a "> " to every line, so the limit applies to the quote, not the answer.
+it('leaves out an answer whose quote would not fit in one message, though the answer alone would', async () => {
+  const lines = Array.from({ length: 4_000 }, () => 'x'.repeat(22)).join('\n');
+  expect(lines.length).toBeLessThan(96_000);
+  store.listSessionPage.mockResolvedValue({ sessions: [{ id: 'session-lines', title: 'Many lines', origin: null }] });
+  store.readEvents.mockResolvedValue([{ ...events[1], message: { text: lines, truncated: false, chars: lines.length } }, events[2]]);
+  await expect(quoteCandidates('00000000-0000-4000-8000-000000000001')).resolves.toEqual([]);
+});

@@ -341,9 +341,13 @@ export function initSkills(options: Options) {
       const projectId = scope.projectId, directory = range.directory ?? '', key = `files:${projectId ?? ''}:${directory}`;
       loadedKey = key; files = null; indexedFiles = []; quotes = null; paintInline();
       if (!projectId) { loading = false; paintInline(); return; }
-      // Answers are offered beside the project's top-level entries, without holding up the files;
-      // an unreadable list only leaves them out.
-      const quoted = range.directory === undefined && options.listQuotes ? options.listQuotes(projectId).catch(() => null) : null;
+      // Answers are offered beside the project's top-level entries; whichever of the two lists comes
+      // first is shown first. An unreadable list of answers only leaves them out.
+      if (range.directory === undefined && options.listQuotes) void options.listQuotes(projectId).catch(() => null).then(rows => {
+        if (!rows || request !== epoch || owner !== options.owner() || scopeKey() !== JSON.stringify(scope) || fragment()?.kind !== 'file' || fragment()?.directory !== undefined) return;
+        quotes = { projectId, rows: rows.map(quote => ({ quote, block: quotedAnswer(quote.title, quote.text), normalized: `${quote.title}\n${quote.text}`.toLocaleLowerCase() })) };
+        if (!host.hidden) paintInline();
+      });
       try {
         const result = await options.listFiles(projectId, directory);
         if (request !== epoch || owner !== options.owner() || scopeKey() !== JSON.stringify(scope) || fragment()?.kind !== 'file' || (fragment()?.directory ?? '') !== (range.directory ?? '')) return;
@@ -353,10 +357,6 @@ export function initSkills(options: Options) {
           .map(entry => ({ entry, normalizedName: entry.name.toLocaleLowerCase() }));
       } catch (failure) { if (request === epoch && current()) error = failure instanceof Error ? failure.message : String(failure); }
       finally { if (request === epoch && current() && scopeKey() === JSON.stringify(scope) && fragment()?.kind === 'file' && (fragment()?.directory ?? '') === (range.directory ?? '') && options.scope().projectId) { loading = false; paintInline(); } }
-      const rows = await quoted;
-      if (!rows || request !== epoch || owner !== options.owner() || scopeKey() !== JSON.stringify(scope) || fragment()?.kind !== 'file' || fragment()?.directory !== undefined) return;
-      quotes = { projectId, rows: rows.map(quote => ({ quote, block: quotedAnswer(quote.title, quote.text), normalized: `${quote.title}\n${quote.text}`.toLocaleLowerCase() })) };
-      if (!host.hidden) paintInline();
       return;
     }
     const key = `skills:${JSON.stringify(scope)}`;

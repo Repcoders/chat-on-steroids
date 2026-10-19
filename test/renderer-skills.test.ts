@@ -410,3 +410,11 @@ it('flags a draft with a quote only when it is longer than one message can hold'
   expect(draftSize('Look:\n> quoted')).toEqual({ chars: 14, over: false });
   expect(draftSize(`> ${'x'.repeat(96_000)}`)).toEqual({ chars: 96_002, over: true });
 });
+
+it('shows the answers while the project folder is still being read', async () => {
+  const f = await fixture();
+  f.listFiles.mockReturnValue(new Promise(() => undefined));
+  f.listQuotes.mockResolvedValue(quotes);
+  f.type('@'); await settle();
+  expect([...f.host.querySelectorAll<HTMLElement>('[data-quote-session]')].map(row => row.dataset.quoteSession)).toEqual(['session-b', 'worker-1']);
+});
