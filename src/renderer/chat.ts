@@ -4855,8 +4855,10 @@ function answerAfter(source: readonly SessionEvent[], index: number, skip: (even
     const event = source[at]!;
     if (event.kind === 'assistant_message' && event.messageId && latest.has(event.messageId) && !skip(event)) take(event);
   }
-  return [...latest.values()].filter(event => event.final || event.state === 'final')
-    .map(event => event.message.text.trim()).filter(Boolean).join('\n\n');
+  const final = [...latest.values()].filter(event => event.final || event.state === 'final');
+  // One stored cut short would leave part of the answer out of the comparison.
+  if (final.some(event => event.message.truncated)) return '';
+  return final.map(event => event.message.text.trim()).filter(Boolean).join('\n\n');
 }
 
 function continuationMarker(event: SessionEvent): { kind: 'HANDOFF' | 'RESUME'; token: string } | null {
@@ -5176,7 +5178,7 @@ function answerComparison(answers: { before: string; after: string }, key: strin
 /** What a row was drawn from; a different signature is a different row. */
 function itemSignature(item: TimelineItem): string {
   if (item.kind === 'earlier') return `earlier|${item.fold.versions}|${item.fold.events.map(event => `${event.seq}:${'message' in event ? event.message.chars : ''}`).join(',')}` +
-    `|${item.fold.answers ? `${item.fold.answers.before.length}:${item.fold.answers.after.length}:${item.fold.answers.after.slice(-64)}` : ''}`;
+    `|${item.fold.answers ? `${item.fold.answers.before}\u0000${item.fold.answers.after}` : ''}`;
   if (item.kind === 'compaction') {
     const { block } = item;
     return [

@@ -6567,6 +6567,29 @@ describe('edit and resubmit (#365)', () => {
     expect(fold.querySelector('.answer-compare-panel')!.textContent).toBe('The two answers are the same.');
   });
 
+  it('offers no Compare when an answer was stored cut short', async () => {
+    const cut = { ...a(2, 'a-1', 'Same start', 't1'), message: { text: 'Same start', truncated: true, chars: 90_000 } } as SessionEvent;
+    const events = [q(1, 'q-1', 'Ask', 't1'), cut, end(3, 't1'),
+      q(4, 'q-1b', 'Ask again', 't2', { replaces: 'q-1' }), a(5, 'a-2', 'Same start', 't2'), end(6, 't2')];
+    const { w } = await boot(events, true);
+    const fold = await openFold(w as any);
+    expect(fold.querySelector('.ev-assistant_message')).not.toBeNull();
+    expect(fold.querySelector('.answer-compare-toggle')).toBeNull();
+  });
+
+  it('redraws an open comparison when the new answer is revised, whatever its length', async () => {
+    const tail = ' and the rest of this answer stays exactly the same, word for word, to the very end.';
+    const events = [q(1, 'q-1', 'Ask', 't1'), a(2, 'a-1', 'Alpha' + tail, 't1'), end(3, 't1'),
+      q(4, 'q-1b', 'Ask again', 't2', { replaces: 'q-1' }), a(5, 'a-2', 'Betas' + tail, 't2'), end(6, 't2')];
+    const { w, append } = await boot(events, true);
+    let fold = await openFold(w as any);
+    fold.querySelector<HTMLButtonElement>('.answer-compare-toggle')!.click(); await settle();
+    expect(marked(fold.querySelector('.answer-compare-side.is-after')!, 'ins')).toEqual(['Betas']);
+    await append([a(7, 'a-2', 'Gamma' + tail, 't2')]);
+    fold = w.document.querySelector<HTMLDetailsElement>('#timeline > .earlier-version')!;
+    expect(marked(fold.querySelector('.answer-compare-side.is-after')!, 'ins')).toEqual(['Gamma']);
+  });
+
   const chat = '6ad337fe-47a4-83ed-a21f-c2e24d5829a4';
   const Q1 = '6ad3a59b-0001-83eb-8bc4-8c84e68dd911', Q2 = '6ad3a59b-0002-83eb-8bc4-8c84e68dd911';
   const A1 = '6ad3a59b-00a1-83eb-8bc4-8c84e68dd911', A2 = '6ad3a59b-00a2-83eb-8bc4-8c84e68dd911';
