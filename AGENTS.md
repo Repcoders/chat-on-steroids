@@ -1736,8 +1736,9 @@ prune would delete (older than 24 hours and not held by a pending outbox row) an
 sidecar is missing or disagrees with the original. Picking one calls `sessions:reattach` (preload
 `reattachFiles`) with staged ids only; it re-reads each sidecar, refuses an original the next prune
 would delete (a list left open past the 24-hour mark), renews the age of the rest under the same
-lock as pruning, then returns the stored metadata to the draft owner captured at the click. Ids already in the visible draft are not offered. The library keeps no copy, index or path
-of its own, and the 24-hour expiry is unchanged.
+lock as pruning, then returns the stored metadata to the draft owner captured at the click.
+Ids already in the visible draft are not offered. The library keeps no copy, index or path of
+its own, and the 24-hour expiry is unchanged.
 
 Bridge chunks are bounded to 512 KiB and require the exact pre-send claimed input and attachment
 membership. Native upload completion and final provider submission are separate checks.
