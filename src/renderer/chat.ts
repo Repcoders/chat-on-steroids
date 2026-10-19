@@ -8441,7 +8441,14 @@ export function initChat(next: Deps): void {
     recent: () => sessions
       .filter(entry => entry.origin?.kind !== 'worker' && entry.origin?.kind !== 'helper' && (!!entry.conversationId || entry.origin?.kind === 'desktop'))
       .sort((a, b) => b.updatedAt - a.updatedAt)
-      .map(entry => ({ id: entry.id, title: entry.title }))
+      .map(entry => ({ id: entry.id, title: entry.title })),
+    commands: () => APP_COMMANDS.filter(row => !CHAT_COMMANDS.has(row.command) || openChatSummary() !== null),
+    runCommand: name => {
+      // The commands act on the open chat and its composer: from Settings or a library page, go back to it first.
+      if (document.querySelector<HTMLElement>('.app')?.dataset.screen !== 'chat') $('backToChat').click();
+      runComposerCommand(name);
+    },
+    openSettings: openSettingsTab
   });
   $('sessionList').addEventListener('click', (event) => {
     const row = (event.target as HTMLElement).closest<HTMLElement>('[data-id]');

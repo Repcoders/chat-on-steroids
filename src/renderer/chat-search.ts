@@ -6,11 +6,16 @@
  * lists the most recent chats; while typing, the matches. The main process owns the search
  * (session/search.ts) because the sidebar holds only the newest page of chats. Until every chat's
  * words are indexed, the results say so and fill in as indexing goes on.
+ *
+ * Below the chats, the same query finds the app's commands (the composer's slash commands) and its
+ * settings, so one shortcut reaches all three. Chats stay first: Enter opens the first matching
+ * chat when there is one.
  */
 import type { SessionSearchReply } from '../shared/session.js';
 import { $, el, icon, run } from './dom.js';
 import { t, tn, ui } from './i18n.js';
 import { closeRowMenu } from './row-menu.js';
+import { collectSettings, foldSearchText, revealSetting, searchSettings } from './settings-search.js';
 import { isMac, primaryShortcut } from './shortcuts.js';
 
 const api = window.api;
@@ -19,6 +24,27 @@ const INDEXING_RECHECK_MS = 700;
 const REFRESH_MS = 3000;
 /** Enough to fill the dialog; the rest scroll. */
 const RECENT_CHATS = 30;
+/** Commands and settings follow the chats; a few of each, so the chats stay in view. */
+const MAX_COMMANDS = 5;
+const MAX_SETTINGS = 6;
+
+export interface SearchCommand {
+  command: string;
+  /** English, translated when shown. */
+  name: string;
+  description: string;
+}
+
+/** Commands whose name or slash command holds every word of the query; a name that starts with it first. */
+export function searchCommands(commands: readonly SearchCommand[], query: string): SearchCommand[] {
+  const wanted = foldSearchText(query);
+  if (!wanted) return [];
+  const terms = wanted.split(' ');
+  return commands.map((row, at) => ({ row, at, name: foldSearchText(t(row.name)) }))
+    .filter(({ row, name }) => terms.every(term => `${name} ${row.command}`.includes(term)))
+    .sort((a, b) => Number(!a.name.startsWith(wanted)) - Number(!b.name.startsWith(wanted)) || a.at - b.at)
+    .slice(0, MAX_COMMANDS).map(({ row }) => row);
+}
 
 export interface ChatSearch {
   /** Opens the search dialog (its button, ⌘K / Ctrl+K and the View menu). */
@@ -35,6 +61,11 @@ export interface ChatSearchOptions {
   selectedId(): string | null;
   /** The newest chats, newest first, offered before anything is typed. */
   recent(): Array<{ id: string; title: string }>;
+  /** The commands that can run now. */
+  commands(): readonly SearchCommand[];
+  runCommand(command: string): void;
+  /** Opens a Settings page by its tab. */
+  openSettings(tab: string): void;
 }
 
 export function initChatSearch(options: ChatSearchOptions): ChatSearch {
@@ -48,6 +79,8 @@ export function initChatSearch(options: ChatSearchOptions): ChatSearch {
   let recheckTimer = 0;
   let last: SessionSearchReply | null = null;
   let searchedAt = 0;
+  /** Runs once the dialog has closed: a command or setting focuses what the open dialog keeps inert. */
+  let afterClose: (() => void) | null = null;
 
   const query = (): string => field.value.trim();
 
@@ -55,7 +88,8 @@ export function initChatSearch(options: ChatSearchOptions): ChatSearch {
    * Closes after the exit animation, so the box fades out instead of vanishing. With no animation
    * (reduced motion, or no stylesheet) it closes at once.
    */
-  const close = (): void => {
+  const close = (after?: () => void): void => {
+    if (after) afterClose = after;
     if (!dialog.open || dialog.classList.contains('is-closing')) return;
     dialog.classList.add('is-closing');
     const finish = (): void => {
@@ -89,6 +123,26 @@ export function initChatSearch(options: ChatSearchOptions): ChatSearch {
     return node;
   };
 
+  /** Where each word of the query first occurs in `text`. */
+  const found = (text: string): Array<[number, number]> => {
+    const lower = text.toLocaleLowerCase();
+    return query().toLocaleLowerCase().split(/\s+/).filter(Boolean)
+      .map((term): [number, number] => { const start = lower.indexOf(term); return [start, start + term.length]; })
+      .filter(([start]) => start >= 0).sort((a, b) => a[0] - b[0]);
+  };
+
+  /** A command or setting row: its name, and what it does or where it is. */
+  const action = (key: string, title: string, detail: string, run: () => void): HTMLButtonElement => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'search-result';
+    button.dataset.searchAction = key;
+    button.setAttribute('role', 'listitem');
+    button.append(marked('b', '', title, found(title)), marked('span', 'search-snippet', detail));
+    button.addEventListener('click', () => close(run));
+    return button;
+  };
+
   /** One result row: the chat's title, and the passage that matched when the match is in the text. */
   const row = (id: string, title: HTMLElement, snippet?: HTMLElement, match?: string): HTMLButtonElement => {
     const button = document.createElement('button');
@@ -112,7 +166,9 @@ export function initChatSearch(options: ChatSearchOptions): ChatSearch {
     return box;
   };
 
-  const paint = (): void => {
+  const rowKey = (node: HTMLElement): string => node.dataset.searchId ?? node.dataset.searchAction ?? '';
+
+  const fill = (): void => {
     results.replaceChildren();
     if (!query()) {
       const recent = options.recent().slice(0, RECENT_CHATS);
@@ -134,6 +190,25 @@ export function initChatSearch(options: ChatSearchOptions): ChatSearch {
     } else if (reply.limited) {
       results.append(el('p', 'search-status', () => tn("Showing the first {0} match. Add a word to narrow it down.", "Showing the first {0} matches. Add a word to narrow them down.", reply.results.length)));
     }
+    const commands = searchCommands(options.commands(), query());
+    if (commands.length) {
+      results.append(el('p', 'search-heading', () => t("Commands")),
+        list(commands.map(row => action(`command:${row.command}`, t(row.name), t(row.description), () => options.runCommand(row.command)))));
+    }
+    const settings = searchSettings(collectSettings(), query()).slice(0, MAX_SETTINGS);
+    if (settings.length) {
+      results.append(el('p', 'search-heading', () => t("Settings")),
+        list(settings.map(entry => action(`setting:${entry.tab}:${entry.title}`, entry.title, entry.section ? `${entry.page} › ${entry.section}` : entry.page,
+          () => revealSetting(entry, options.openSettings)))));
+    }
+  };
+
+  /** A running chat repaints the results every few seconds; the row the keyboard is on keeps the focus. */
+  const paint = (): void => {
+    const active = document.activeElement as HTMLElement | null;
+    const focused = active && results.contains(active) ? rowKey(active) : '';
+    fill();
+    if (focused) [...results.querySelectorAll<HTMLElement>('.search-result')].find(node => rowKey(node) === focused)?.focus();
   };
 
   const search = async (): Promise<void> => {
@@ -158,6 +233,7 @@ export function initChatSearch(options: ChatSearchOptions): ChatSearch {
 
   const open = (): void => {
     dialog.classList.remove('is-closing');
+    afterClose = null;
     // A chat's row menu is not part of the dialog: left open, it stayed over the dialog and after it.
     closeRowMenu();
     if (!dialog.open) dialog.showModal();
@@ -166,8 +242,8 @@ export function initChatSearch(options: ChatSearchOptions): ChatSearch {
     void search();
   };
 
-  ui(field, 'placeholder', () => t("Search chats"));
-  ui(field, 'aria-label', () => t("Search chats"));
+  ui(field, 'placeholder', () => t("Search chats, commands and settings"));
+  ui(field, 'aria-label', () => t("Search chats, commands and settings"));
   ui(dialog, 'aria-label', () => t("Search chats"));
   ui(clear, 'title', () => t("Clear search"));
   ui(clear, 'aria-label', () => t("Clear search"));
@@ -208,6 +284,9 @@ export function initChatSearch(options: ChatSearchOptions): ChatSearch {
     window.clearTimeout(typingTimer);
     window.clearTimeout(recheckTimer);
     generation++;
+    const next = afterClose;
+    afterClose = null;
+    next?.();
   });
   results.addEventListener('keydown', (event) => {
     const rows = [...results.querySelectorAll<HTMLElement>('.search-result')];

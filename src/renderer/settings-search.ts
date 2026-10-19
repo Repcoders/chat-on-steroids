@@ -99,6 +99,29 @@ export function searchSettings(entries: SettingEntry[], query: string, language 
   return scored.sort((a, b) => a.rank - b.rank || a.at - b.at).slice(0, MAX_RESULTS).map(({ entry }) => entry);
 }
 
+let marked: HTMLElement | null = null;
+let markTimer = 0;
+
+/**
+ * Opens the setting's page, brings the setting into view, briefly marks it and focuses its control.
+ * Settings search and the ⌘K / Ctrl+K search both open a setting this way.
+ */
+export function revealSetting(entry: SettingEntry, openTab: (tab: string) => void): void {
+  openTab(entry.tab);
+  if (entry.target.matches('[data-rail-step]')) entry.target.click();
+  for (let details = entry.target.parentElement?.closest('details'); details; details = details.parentElement?.closest('details')) details.open = true;
+  // The page is laid out once it shows; scroll and focus after that frame.
+  window.requestAnimationFrame(() => {
+    entry.target.scrollIntoView({ block: 'center' });
+    window.clearTimeout(markTimer);
+    marked?.classList.remove('is-found');
+    marked = entry.target;
+    marked.classList.add('is-found');
+    markTimer = window.setTimeout(() => { marked?.classList.remove('is-found'); marked = null; }, MARK_MS);
+    entry.target.querySelector<HTMLElement>('input:not([type="hidden"]), select, textarea, button')?.focus({ preventScroll: true });
+  });
+}
+
 export interface SettingsSearch {
   /** Empties the field and brings the page list back. */
   reset(): void;
@@ -109,8 +132,6 @@ export function initSettingsSearch(options: { open(tab: string): void; shown(): 
   const clear = $<HTMLButtonElement>('settingsFindClear');
   const results = $('settingsFindResults');
   const pages = $('tabs');
-  let marked: HTMLElement | null = null;
-  let markTimer = 0;
 
   const show = (searching: boolean): void => {
     results.hidden = !searching;
@@ -139,19 +160,7 @@ export function initSettingsSearch(options: { open(tab: string): void; shown(): 
 
   const open = (entry: SettingEntry): void => {
     reset();
-    options.open(entry.tab);
-    if (entry.target.matches('[data-rail-step]')) entry.target.click();
-    for (let details = entry.target.parentElement?.closest('details'); details; details = details.parentElement?.closest('details')) details.open = true;
-    // The page is laid out once it shows; scroll and focus after that frame.
-    window.requestAnimationFrame(() => {
-      entry.target.scrollIntoView({ block: 'center' });
-      window.clearTimeout(markTimer);
-      marked?.classList.remove('is-found');
-      marked = entry.target;
-      marked.classList.add('is-found');
-      markTimer = window.setTimeout(() => { marked?.classList.remove('is-found'); marked = null; }, MARK_MS);
-      entry.target.querySelector<HTMLElement>('input:not([type="hidden"]), select, textarea, button')?.focus({ preventScroll: true });
-    });
+    revealSetting(entry, options.open);
   };
 
   const paint = (): void => {
