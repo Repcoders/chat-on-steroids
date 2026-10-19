@@ -2752,5 +2752,16 @@
   "{0} characters": "{0} 個字元",
   "from {0} events": "來自 {0} 個事件",
   "(~{0} tokens)": "（約 {0} Token）",
-  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}",
+  "Scripts": "指令碼",
+  "Run one of this project's commands in a new terminal": "在新的終端機中執行此專案的一條命令",
+  "Edit scripts…": "編輯指令碼…",
+  "Add a script…": "新增指令碼…",
+  "Close a terminal before opening another (maximum 8)": "請先關閉一個終端機再開啟新的（最多 8 個）",
+  "Scripts for {0}": "{0} 的指令碼",
+  "Command": "命令",
+  "Remove script": "移除指令碼",
+  "Give every script a name and a command": "請為每個指令碼填寫名稱和命令",
+  "Add script": "新增指令碼",
+  "A script opens a new terminal in this project's folder and types its command there, as you would. It runs only when you choose it from the project's menu.": "指令碼會在此專案的資料夾中開啟新的終端機，並像你一樣在那裡輸入它的命令。只有在你從專案選單中選擇它時才會執行。"
 }

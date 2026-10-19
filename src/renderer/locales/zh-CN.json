@@ -2752,5 +2752,16 @@
   "{0} characters": "{0} 个字符",
   "from {0} events": "来自 {0} 个事件",
   "(~{0} tokens)": "（约 {0} Token）",
-  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}",
+  "Scripts": "脚本",
+  "Run one of this project's commands in a new terminal": "在新终端中运行此项目的一条命令",
+  "Edit scripts…": "编辑脚本…",
+  "Add a script…": "添加脚本…",
+  "Close a terminal before opening another (maximum 8)": "请先关闭一个终端再打开新的（最多 8 个）",
+  "Scripts for {0}": "{0} 的脚本",
+  "Command": "命令",
+  "Remove script": "移除脚本",
+  "Give every script a name and a command": "请为每个脚本填写名称和命令",
+  "Add script": "添加脚本",
+  "A script opens a new terminal in this project's folder and types its command there, as you would. It runs only when you choose it from the project's menu.": "脚本会在此项目的文件夹中打开一个新终端，并像你一样在那里输入它的命令。只有在你从项目菜单中选择它时才会运行。"
 }

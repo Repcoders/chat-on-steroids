@@ -2752,5 +2752,16 @@
   "{0} characters": "{0} ký tự",
   "from {0} events": "từ {0} sự kiện",
   "(~{0} tokens)": "(~{0} token)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Scripts": "Tập lệnh",
+  "Run one of this project's commands in a new terminal": "Chạy một lệnh của dự án này trong terminal mới",
+  "Edit scripts…": "Sửa tập lệnh…",
+  "Add a script…": "Thêm tập lệnh…",
+  "Close a terminal before opening another (maximum 8)": "Hãy đóng một terminal trước khi mở cái khác (tối đa 8)",
+  "Scripts for {0}": "Tập lệnh của {0}",
+  "Command": "Lệnh",
+  "Remove script": "Xóa tập lệnh",
+  "Give every script a name and a command": "Hãy đặt tên và lệnh cho mọi tập lệnh",
+  "Add script": "Thêm tập lệnh",
+  "A script opens a new terminal in this project's folder and types its command there, as you would. It runs only when you choose it from the project's menu.": "Một tập lệnh mở terminal mới trong thư mục của dự án này và gõ lệnh của nó vào đó, như bạn tự gõ. Nó chỉ chạy khi bạn chọn nó trong menu của dự án."
 }

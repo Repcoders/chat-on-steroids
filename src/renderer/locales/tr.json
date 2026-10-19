@@ -2797,5 +2797,16 @@
   "from {0} events|one": "{0} olaydan",
   "(~{0} tokens)": "(~{0} token)",
   "(~{0} tokens)|one": "(~{0} token)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Scripts": "Betikler",
+  "Run one of this project's commands in a new terminal": "Bu projenin komutlarından birini yeni bir terminalde çalıştır",
+  "Edit scripts…": "Betikleri düzenle…",
+  "Add a script…": "Betik ekle…",
+  "Close a terminal before opening another (maximum 8)": "Başka bir terminal açmadan önce birini kapatın (en fazla 8)",
+  "Scripts for {0}": "{0} betikleri",
+  "Command": "Komut",
+  "Remove script": "Betiği kaldır",
+  "Give every script a name and a command": "Her betiğe bir ad ve bir komut verin",
+  "Add script": "Betik ekle",
+  "A script opens a new terminal in this project's folder and types its command there, as you would. It runs only when you choose it from the project's menu.": "Bir betik, bu projenin klasöründe yeni bir terminal açar ve komutunu sizin yazacağınız gibi oraya yazar. Yalnızca projenin menüsünden seçtiğinizde çalışır."
 }

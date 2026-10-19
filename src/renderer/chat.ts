@@ -43,7 +43,7 @@ import type { InputImage, InputAttachment, InputAutomation } from '../shared/inp
 import { authoredTextOf, injectableAttachments, queuedFollowup, MAX_INPUT_IMAGES } from '../shared/input.js';
 import type { InputArgs, InputEntry } from '../main/session/input.js';
 import type { DictationEvent } from '../shared/dictation.js';
-import { PROJECT_COLORS, type LocalProject, type ProjectColor } from '../shared/projects.js';
+import { PROJECT_COLORS, type LocalProject, type ProjectColor, type ProjectScript } from '../shared/projects.js';
 import type { TaskProgress } from '../shared/task-progress.js';
 import type { RunningExecProcess } from '../shared/background-exec.js';
 /**
@@ -97,6 +97,7 @@ import { openRowMenu, rowMenuOpenFor, toggleRowMenu, type RowMenuItem, type RowM
 import { createSearchPopup } from './search-popup.js';
 import { primaryShortcut } from './shortcuts.js';
 import { initSshProjectDialog } from './ssh-project-dialog.js';
+import { initProjectScriptsDialog } from './project-scripts-dialog.js';
 
 const api = window.api;
 let chatSearch: ChatSearch | null = null;
@@ -197,10 +198,12 @@ function rowMenuButton(owner: string): HTMLElement | null {
 const savingProjectColor = new Set<string>();
 const removingProject = new Set<string>();
 
-/** A project's menu: its color (a submenu) and taking it off the sidebar. A new chat has its own button on the row. */
+/** A project's menu: its scripts and color (submenus) and taking it off the sidebar. A new chat has its own button on the row. */
 function projectMenuItems(id: string): RowMenuItem[] {
-  const color = projects.find(row => row.id === id)?.color ?? null;
-  const link = projects.find(row => row.id === id)?.chatgpt;
+  const project = projects.find(row => row.id === id);
+  const color = project?.color ?? null;
+  const link = project?.chatgpt;
+  const scripts = project?.scripts ?? [];
   return [
     // Only when its native ChatGPT Project could not be created; otherwise nothing about it shows.
     ...(link?.state === 'failed' || link?.state === 'uncertain' ? [{
@@ -211,6 +214,18 @@ function projectMenuItems(id: string): RowMenuItem[] {
         : t('Create this project in ChatGPT again'),
       run: () => void retryChatgptProject(id)
     } satisfies RowMenuItem] : []),
+    {
+      action: 'scripts', icon: 'i-play', label: () => t('Scripts'), title: () => t("Run one of this project's commands in a new terminal"),
+      submenu: () => [
+        ...scripts.map((script, index) => ({
+          action: `script-${index}`, icon: 'i-terminal', label: () => script.name, title: () => script.command, run: () => runProjectScript(id, script)
+        })),
+        {
+          action: 'scripts-edit', icon: scripts.length ? 'i-pencil' : 'i-plus', separated: scripts.length > 0,
+          label: () => scripts.length ? t('Edit scripts…') : t('Add a script…'), run: () => { if (project) projectScriptsDialog?.open(project); }
+        }
+      ]
+    },
     {
       action: 'color', icon: 'i-palette', label: () => t('Color'), title: () => t('Change project color'),
       submenu: () => ([null, ...PROJECT_COLORS] as const).map(choice => ({
@@ -224,6 +239,15 @@ function projectMenuItems(id: string): RowMenuItem[] {
       run: () => void removeProjectFromSidebar(id)
     }
   ];
+}
+
+let projectScriptsDialog: ReturnType<typeof initProjectScriptsDialog> | null = null;
+/** A script runs in a new bottom terminal of its own project, whichever chat is selected. */
+function runProjectScript(id: string, script: ProjectScript): void {
+  const project = projects.find(row => row.id === id);
+  if (!project || !workspaceTerminal) return;
+  workspaceDocks?.setBottomOpen(true, false);
+  if (!workspaceTerminal.run(project, script)) toast(t('Close a terminal before opening another (maximum 8)'));
 }
 
 const retryingChatgptProject = new Set<string>();
@@ -8250,6 +8274,12 @@ export function initChat(next: Deps): void {
   $('composerFolder').addEventListener('click', () => void addLocalProject());
   let sshDialogGeneration = 0;
   const sshProjectDialog = initSshProjectDialog(api, project => showAddedProject(project, sshDialogGeneration));
+  projectScriptsDialog = initProjectScriptsDialog(api, saved => {
+    // Reject list snapshots captured before this newer catalog commit.
+    ++sessionsLoadGeneration;
+    projects = projects.map(row => row.id === saved.id ? saved : row);
+    paintSessions();
+  });
   // A folder on this computer, or one on a server (#1469).
   $('addProject').addEventListener('click', event => {
     event.preventDefault();

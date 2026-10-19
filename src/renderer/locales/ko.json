@@ -2752,5 +2752,16 @@
   "{0} characters": "{0}자",
   "from {0} events": "이벤트 {0}개에서 생성",
   "(~{0} tokens)": "(~{0} 토큰)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Scripts": "스크립트",
+  "Run one of this project's commands in a new terminal": "이 프로젝트의 명령을 새 터미널에서 실행",
+  "Edit scripts…": "스크립트 편집…",
+  "Add a script…": "스크립트 추가…",
+  "Close a terminal before opening another (maximum 8)": "다른 터미널을 열기 전에 하나를 닫으세요(최대 8개)",
+  "Scripts for {0}": "{0}의 스크립트",
+  "Command": "명령",
+  "Remove script": "스크립트 제거",
+  "Give every script a name and a command": "모든 스크립트에 이름과 명령을 입력하세요",
+  "Add script": "스크립트 추가",
+  "A script opens a new terminal in this project's folder and types its command there, as you would. It runs only when you choose it from the project's menu.": "스크립트는 이 프로젝트 폴더에서 새 터미널을 열고, 직접 입력하듯이 그곳에 명령을 입력합니다. 프로젝트 메뉴에서 선택할 때만 실행됩니다."
 }

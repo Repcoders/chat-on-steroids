@@ -917,15 +917,21 @@ Projects may also store one optional color from the fixed `PROJECT_COLORS` palet
 sidebar presentation metadata only: changing or removing it never resolves paths, changes the
 project folder, grants permission, rebinds sessions, or changes prompt/workspace
 selection. Legacy rows without color remain unchanged. A project's color tints its folder icon.
+A project may also store up to 20 named scripts (`ProjectScript`: a name and a one-line command,
+no control characters, so a newline cannot run a second hidden line). `projects:scripts`
+(`setProjectScripts`) replaces the whole list; an empty list removes the field. Like color,
+saving them never resolves paths, grants permission or runs anything, and neither the app nor a
+model runs one on its own.
 Every sidebar row (a project or a chat) has one quiet "⋯" button, shown on hover/focus or while its
 menu is open, and a right click on the row opens the same menu (`renderer/row-menu.ts`). The menu
 lives in the document body, outside the sidebar the activity repaints, so a repaint never closes
 it; it finds its row's button again by owner (`data-row-menu`), stays inside the window, opens
 submenus beside their item, and is keyboard-driven (arrows, Right/Left for submenus, Escape gives
 focus back to the button). A project's menu: New chat in this project (`data-new-project`, which
-also shows the chat screen), Color (a submenu: None and the palette as radio items, each calling
-the same `projects:color` owner; choices wait while a save is pending) and Remove. A chat's
-menu: Rename and Open in browser, Block/Release and, in strict mode, Trust/Untrust, then Remove;
+also shows the chat screen), Scripts (a submenu: one item per script, then Add/Edit scripts…,
+which opens `renderer/project-scripts-dialog.ts`), Color (a submenu: None and the palette as
+radio items, each calling the same `projects:color` owner; choices wait while a save is pending)
+and Remove. A chat's menu: Rename and Open in browser, Block/Release and, in strict mode, Trust/Untrust, then Remove;
 the Unattributed row offers only its app-wide Block/Allow (never in strict mode) and Remove.
 Choosing an item gives focus back to the row's button before the action runs, so a color save's
 repaint keeps it there unless the user moved focus meanwhile; an action that moves focus
@@ -1291,6 +1297,9 @@ Each new terminal tab captures the selected approved project's canonical cwd, or
 home cwd when projectless; changing chats does not retarget existing shells. A selected project
 that fails resolution must not fall back to home. The live Command permission gates spawn/input,
 and input rechecks the original project path for project-bound tabs.
+Choosing a project script opens a new bottom tab bound to that script's project (not the selected
+one), titled with the script's name, and types the command plus Enter once the shell has spawned,
+through the same `terminalWrite` input path and permission check as keystrokes.
 
 Up to eight tabs across both docks retain interactive shell state. Hiding a panel preserves processes; closing
 a tab, renderer reload/destruction or app shutdown retires them. UUIDs and pending-create tickets

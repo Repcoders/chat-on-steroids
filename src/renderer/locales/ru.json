@@ -2887,5 +2887,16 @@
   "(~{0} tokens)|one": "(~{0} токен)",
   "(~{0} tokens)|few": "(~{0} токена)",
   "(~{0} tokens)|many": "(~{0} токенов)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Scripts": "Скрипты",
+  "Run one of this project's commands in a new terminal": "Выполнить одну из команд этого проекта в новом терминале",
+  "Edit scripts…": "Изменить скрипты…",
+  "Add a script…": "Добавить скрипт…",
+  "Close a terminal before opening another (maximum 8)": "Закройте один терминал, прежде чем открыть другой (не больше 8)",
+  "Scripts for {0}": "Скрипты проекта {0}",
+  "Command": "Команда",
+  "Remove script": "Удалить скрипт",
+  "Give every script a name and a command": "Укажите для каждого скрипта название и команду",
+  "Add script": "Добавить скрипт",
+  "A script opens a new terminal in this project's folder and types its command there, as you would. It runs only when you choose it from the project's menu.": "Скрипт открывает новый терминал в папке этого проекта и вводит там свою команду, как это сделали бы вы. Он запускается, только когда вы выбираете его в меню проекта."
 }

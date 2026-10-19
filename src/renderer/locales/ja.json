@@ -2752,5 +2752,16 @@
   "{0} characters": "{0}文字",
   "from {0} events": "{0}件のイベントから",
   "(~{0} tokens)": "（約{0}トークン）",
-  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}",
+  "Scripts": "スクリプト",
+  "Run one of this project's commands in a new terminal": "このプロジェクトのコマンドを新しいターミナルで実行する",
+  "Edit scripts…": "スクリプトを編集…",
+  "Add a script…": "スクリプトを追加…",
+  "Close a terminal before opening another (maximum 8)": "別のターミナルを開く前に、どれかを閉じてください（最大 8 個）",
+  "Scripts for {0}": "{0} のスクリプト",
+  "Command": "コマンド",
+  "Remove script": "スクリプトを削除",
+  "Give every script a name and a command": "すべてのスクリプトに名前とコマンドを入力してください",
+  "Add script": "スクリプトを追加",
+  "A script opens a new terminal in this project's folder and types its command there, as you would. It runs only when you choose it from the project's menu.": "スクリプトは、このプロジェクトのフォルダで新しいターミナルを開き、あなたが打つのと同じようにコマンドを入力します。プロジェクトのメニューから選んだときだけ実行されます。"
 }

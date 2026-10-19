@@ -8,9 +8,11 @@ import { prependUserPrompt } from '../src/shared/user-prompt.js';
 import type { Handoff, SessionEvent, SessionSummary } from '../src/shared/session.js';
 import type { InputArgs, InputEntry } from '../src/main/session/input.js';
 import type { LocalProject } from '../src/shared/projects.js';
+const terminalRuns = vi.hoisted(() => [] as unknown[][]);
 vi.mock('../src/renderer/workspace-terminal.js', () => ({ createWorkspaceTerminal: () => ({
   update: vi.fn(), show: vi.fn(), hide: vi.fn(), hasTabs: () => false,
-  tabs: () => [], newTab: () => null, selectTab: vi.fn(), closeTab: vi.fn()
+  tabs: () => [], newTab: () => null, selectTab: vi.fn(), closeTab: vi.fn(),
+  run: (...args: unknown[]) => { terminalRuns.push(args); return 'script-tab'; }
 }) }));
 vi.mock('../src/renderer/pet.js', () => ({ initPet: () => Object.assign(() => {}, { toggle: () => {}, isVisible: () => false }) }));
 vi.mock('../src/renderer/file-code-editor.js', () => ({
@@ -1836,8 +1838,10 @@ it('offers a new chat beside a project\'s menu, and its color as a submenu and r
   expect(button.getAttribute('aria-expanded')).toBe('true');
   const menu = w.document.querySelector<HTMLElement>('.row-menu')!;
   expect(menu.getAttribute('role')).toBe('menu');
-  expect([...menu.querySelectorAll<HTMLElement>('.row-menu-item')].map(item => item.dataset.rowAction)).toEqual(['color', 'remove']);
+  expect([...menu.querySelectorAll<HTMLElement>('.row-menu-item')].map(item => item.dataset.rowAction)).toEqual(['scripts', 'color', 'remove']);
   expect(menuItem(w, 'remove').classList.contains('is-danger')).toBe(true);
+  expect(w.document.activeElement).toBe(menuItem(w, 'scripts'));
+  menu.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
   expect(w.document.activeElement).toBe(menuItem(w, 'color'));
   // Keyboard: Down and Up move, Right opens the color submenu on the current choice, Left comes back.
   menu.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
@@ -1866,6 +1870,26 @@ it('offers a new chat beside a project\'s menu, and its color as a submenu and r
   w.document.body.dispatchEvent(new w.Event('pointerdown', { bubbles: true }));
   (w.document.querySelector(`.project-heading > [data-new-project="${project.id}"]`) as HTMLButtonElement).click(); await settle();
   expect((w.document.getElementById('chatInput') as HTMLTextAreaElement).placeholder).toBe('Message in Workspace…');
+});
+
+it("runs a project's script in a terminal of that project, and edits its scripts from the same submenu", async () => {
+  const scripts = [{ name: 'dev', command: 'npm run dev' }, { name: 'test', command: 'npm test' }];
+  const project = { id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', name: 'Workspace', path: 'C:\workspace\primary', createdAt: 1, scripts };
+  const { w } = await boot([], false, [], [project]);
+  terminalRuns.length = 0;
+  projectMenu(w, project.id);
+  menuItem(w, 'scripts').click();
+  const submenu = w.document.querySelectorAll<HTMLElement>('.row-menu')[1]!;
+  expect([...submenu.querySelectorAll<HTMLElement>('.row-menu-item')].map(item => [item.dataset.rowAction, item.textContent, item.title]))
+    .toEqual([['script-0', 'dev', 'npm run dev'], ['script-1', 'test', 'npm test'], ['scripts-edit', 'Edit scripts…', '']]);
+  menuItem(w, 'script-1').click(); await settle();
+  expect(terminalRuns).toEqual([[expect.objectContaining({ id: project.id }), scripts[1]]]);
+  expect(w.document.querySelector('.row-menu')).toBeNull();
+  projectMenu(w, project.id);
+  menuItem(w, 'scripts').click();
+  menuItem(w, 'scripts-edit').click();
+  expect((w.document.getElementById('projectScriptsDialog') as HTMLDialogElement).hasAttribute('open')).toBe(true);
+  expect([...w.document.querySelectorAll<HTMLInputElement>('#projectScriptsList input')].map(input => input.value)).toEqual(['dev', 'npm run dev', 'test', 'npm test']);
 });
 
 it('picks and clears project color without changing project membership', async () => {

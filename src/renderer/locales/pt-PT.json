@@ -2842,5 +2842,16 @@
   "(~{0} tokens)": "(~{0} tokens)",
   "(~{0} tokens)|one": "(~{0} token)",
   "(~{0} tokens)|many": "(~{0} de tokens)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Scripts": "Scripts",
+  "Run one of this project's commands in a new terminal": "Executar um dos comandos deste projeto num novo terminal",
+  "Edit scripts…": "Editar scripts…",
+  "Add a script…": "Adicionar um script…",
+  "Close a terminal before opening another (maximum 8)": "Feche um terminal antes de abrir outro (máximo de 8)",
+  "Scripts for {0}": "Scripts de {0}",
+  "Command": "Comando",
+  "Remove script": "Remover script",
+  "Give every script a name and a command": "Dê a cada script um nome e um comando",
+  "Add script": "Adicionar script",
+  "A script opens a new terminal in this project's folder and types its command there, as you would. It runs only when you choose it from the project's menu.": "Um script abre um novo terminal na pasta deste projeto e escreve lá o comando, como faria. Só é executado quando o escolhe no menu do projeto."
 }
