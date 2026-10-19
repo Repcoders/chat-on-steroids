@@ -2752,5 +2752,12 @@
   "{0} characters": "{0}자",
   "from {0} events": "이벤트 {0}개에서 생성",
   "(~{0} tokens)": "(~{0} 토큰)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Send at…": "시간 지정 전송…",
+  "Send later": "나중에 보내기",
+  "The message waits in this chat and is sent at the time you choose, or as soon as the app is open again after it. You can cancel it in the chat until then.": "메시지는 이 채팅에서 기다렸다가 선택한 시간에 전송됩니다. 그때 앱이 열려 있지 않으면 다음에 앱을 열 때 전송됩니다. 그 전까지는 채팅에서 취소할 수 있습니다.",
+  "Send at": "보낼 시간",
+  "Schedule": "예약",
+  "Choose a date and time.": "날짜와 시간을 선택하세요.",
+  "Choose a time later than now.": "지금보다 나중 시간을 선택하세요."
 }

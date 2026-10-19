@@ -9,7 +9,7 @@ import {
   fileSilenceInput, deferSilenceInput, revokeSilenceInputs, pendingQueuedPickups, inputBeforeGoal, inputArgs, acknowledgeBrowserInput, cancelInput, claimBrowserInput, completeBrowserDecision, enqueueInput,
   failBrowserInput, listInputs, offerToolInput as offerToolInputBatch, acknowledgeToolInput, pendingBrowserInputs, requestBrowserDecision, resetInputForTests, configureInputDelivery,
   authorizeBrowserHelperRetry, pausedBrowserHelpers, hasEligibleToolInput, editQueuedInput, reorderQueuedInputs, setInputAutomation, authorizeBrowserInput, sessionInputPolicy, retryUnclaimedInput,
-  noteInputStartupError, fileRotationInput, failBranchInput, BRANCH_ERRORS
+  noteInputStartupError, fileRotationInput, failBranchInput, BRANCH_ERRORS, onInputChange
 } from '../src/main/session/input.js';
 import type { InputArgs, InputEntry } from '../src/main/session/input.js';
 import { editReplacement } from '../src/main/session/edits.js';
@@ -2302,5 +2302,40 @@ describe('edit and resubmit (#365)', () => {
     const edited = randomUUID();
     expect(await acknowledgeBrowserInput(entry.id, claim!.owner!, 'conversation-a', edited)).toBe(true);
     expect(editReplacement(edited)).toBe(later);
+  });
+});
+
+describe('Send at… (a message scheduled for later)', () => {
+  afterEach(() => { vi.useRealTimers(); });
+  it('announces a scheduled message the moment it falls due, so the browser looks for it again', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const row = await enqueueInput(input({ dueAt: now + 60_000 }));
+    expect(await pendingBrowserInputs()).toEqual([]);
+    const heard = vi.fn();
+    const stop = onInputChange(heard);
+    changed.mockClear();
+    now += 59_999; vi.advanceTimersByTime(59_999);
+    expect(changed).not.toHaveBeenCalled();
+    now += 1; vi.advanceTimersByTime(1);
+    expect(changed).toHaveBeenCalledTimes(1);
+    expect(heard).toHaveBeenCalledTimes(1);
+    expect(await pendingBrowserInputs()).toEqual([expect.objectContaining({ id: row.id })]);
+    stop();
+  });
+  it('keeps a scheduled message from holding back the next message in the chat, and the other way round', async () => {
+    const later = await enqueueInput(input({ dueAt: now + 60_000, text: 'At ten' }));
+    const next = await enqueueInput(input({ text: 'Right now' }));
+    expect(await enqueueInput(input({ dueAt: now + 120_000, text: 'At eleven' }))).toMatchObject({ state: 'queued' });
+    expect((await pendingBrowserInputs()).map(row => row.id)).toEqual([next.id]);
+    expect(later.state).toBe('queued');
+  });
+  it('keeps a scheduled message waiting past its time for a browser, instead of failing it a minute later', async () => {
+    // The computer can sleep through the chosen time: the message then goes once a browser takes it.
+    binding.finishEnabled = false;
+    const row = await enqueueInput(input({ dueAt: now + 60_000 }));
+    expect(row.transportIntent).toBeUndefined();
+    now += 60_000 + 60_001;
+    resetInputForTests();
+    expect((await listInputs()).find(entry => entry.id === row.id)?.state).toBe('queued');
   });
 });

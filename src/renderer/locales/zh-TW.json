@@ -2752,5 +2752,12 @@
   "{0} characters": "{0} 個字元",
   "from {0} events": "來自 {0} 個事件",
   "(~{0} tokens)": "（約 {0} Token）",
-  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}",
+  "Send at…": "定時傳送…",
+  "Send later": "稍後傳送",
+  "The message waits in this chat and is sent at the time you choose, or as soon as the app is open again after it. You can cancel it in the chat until then.": "訊息會在此對話中等待，並在你選擇的時間傳送；若那時應用程式未開啟，則在之後再次開啟時立即傳送。在此之前，你可以在對話中取消它。",
+  "Send at": "傳送時間",
+  "Schedule": "排定",
+  "Choose a date and time.": "請選擇日期和時間。",
+  "Choose a time later than now.": "請選擇晚於現在的時間。"
 }

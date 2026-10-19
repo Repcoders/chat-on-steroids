@@ -2797,5 +2797,12 @@
   "from {0} events|one": "{0} olaydan",
   "(~{0} tokens)": "(~{0} token)",
   "(~{0} tokens)|one": "(~{0} token)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Send at…": "Şu saatte gönder…",
+  "Send later": "Daha sonra gönder",
+  "The message waits in this chat and is sent at the time you choose, or as soon as the app is open again after it. You can cancel it in the chat until then.": "Mesaj bu sohbette bekler ve seçtiğiniz saatte, ya da o saatten sonra uygulama yeniden açıldığı anda gönderilir. O zamana kadar sohbetten iptal edebilirsiniz.",
+  "Send at": "Gönderim saati",
+  "Schedule": "Planla",
+  "Choose a date and time.": "Bir tarih ve saat seçin.",
+  "Choose a time later than now.": "Şu andan sonraki bir saat seçin."
 }

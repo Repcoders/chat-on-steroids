@@ -2887,5 +2887,12 @@
   "(~{0} tokens)|one": "(~{0} токен)",
   "(~{0} tokens)|few": "(~{0} токена)",
   "(~{0} tokens)|many": "(~{0} токенов)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Send at…": "Отправить в…",
+  "Send later": "Отправить позже",
+  "The message waits in this chat and is sent at the time you choose, or as soon as the app is open again after it. You can cancel it in the chat until then.": "Сообщение ждёт в этом чате и отправляется в выбранное время или сразу, как только приложение снова будет открыто после него. До тех пор его можно отменить в чате.",
+  "Send at": "Отправить в",
+  "Schedule": "Запланировать",
+  "Choose a date and time.": "Выберите дату и время.",
+  "Choose a time later than now.": "Выберите время позже текущего."
 }

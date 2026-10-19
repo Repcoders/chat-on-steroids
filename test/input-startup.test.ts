@@ -154,3 +154,23 @@ it.each(['cancel', 'shutdown'])('revokes explicit retry before readiness on %s',
   expect(ports.open).toHaveBeenCalledTimes(1);
   if (action === 'shutdown') await expect(sendDesktopInput({ ...request, id: 'bbbbbbbb-cccc-4ddd-8eee-ffffffffffff' })).rejects.toThrow('shutting down');
 });
+it.each(['falls due', 'is cancelled first'])('brings the connection and browser up for a message sent later only when it falls due (%s)', async outcome => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+  try {
+    const dueAt = Date.now() + 3_600_000;
+    expect(await sendDesktopInput({ ...request, sessionId: 'session-existing', dueAt })).toMatchObject({ state: 'queued', dueAt });
+    await vi.advanceTimersByTimeAsync(3_599_000);
+    expect(ports.connect).not.toHaveBeenCalled();
+    expect(ports.open).not.toHaveBeenCalled();
+    if (outcome === 'is cancelled first') expect(await cancelDesktopInput(request.id)).toBe(true);
+    await vi.advanceTimersByTimeAsync(1_000);
+  } finally { vi.useRealTimers(); }
+  if (outcome === 'is cancelled first') {
+    await Promise.resolve();
+    expect(ports.connect).not.toHaveBeenCalled();
+    expect(ports.open).not.toHaveBeenCalled();
+    return;
+  }
+  await vi.waitFor(() => expect(ports.open).toHaveBeenCalledWith('https://chatgpt.com/c/exact-conversation'));
+  expect(ports.connect).toHaveBeenCalledTimes(1);
+});

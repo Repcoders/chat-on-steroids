@@ -2842,5 +2842,12 @@
   "(~{0} tokens)": "(~{0} tokens)",
   "(~{0} tokens)|one": "(~{0} token)",
   "(~{0} tokens)|many": "(~{0} de tokens)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Send at…": "Enviar a las…",
+  "Send later": "Enviar más tarde",
+  "The message waits in this chat and is sent at the time you choose, or as soon as the app is open again after it. You can cancel it in the chat until then.": "El mensaje espera en este chat y se envía a la hora que elijas, o en cuanto la app vuelva a estar abierta después. Hasta entonces puedes cancelarlo en el chat.",
+  "Send at": "Enviar a las",
+  "Schedule": "Programar",
+  "Choose a date and time.": "Elige una fecha y una hora.",
+  "Choose a time later than now.": "Elige una hora posterior a ahora."
 }

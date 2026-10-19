@@ -2752,5 +2752,12 @@
   "{0} characters": "{0}文字",
   "from {0} events": "{0}件のイベントから",
   "(~{0} tokens)": "（約{0}トークン）",
-  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}",
+  "Send at…": "時刻を指定して送信…",
+  "Send later": "後で送信",
+  "The message waits in this chat and is sent at the time you choose, or as soon as the app is open again after it. You can cancel it in the chat until then.": "メッセージはこのチャットで待機し、選んだ時刻に送信されます。その時刻にアプリが開いていなければ、次に開いたときに送信されます。それまではチャットでキャンセルできます。",
+  "Send at": "送信時刻",
+  "Schedule": "予約",
+  "Choose a date and time.": "日付と時刻を選んでください。",
+  "Choose a time later than now.": "現在より後の時刻を選んでください。"
 }

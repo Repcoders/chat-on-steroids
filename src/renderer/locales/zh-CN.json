@@ -2752,5 +2752,12 @@
   "{0} characters": "{0} 个字符",
   "from {0} events": "来自 {0} 个事件",
   "(~{0} tokens)": "（约 {0} Token）",
-  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}",
+  "Send at…": "定时发送…",
+  "Send later": "稍后发送",
+  "The message waits in this chat and is sent at the time you choose, or as soon as the app is open again after it. You can cancel it in the chat until then.": "消息会在此对话中等待，并在你选择的时间发送；若那时应用未打开，则在之后应用再次打开时立即发送。在此之前，你可以在对话中取消它。",
+  "Send at": "发送时间",
+  "Schedule": "安排",
+  "Choose a date and time.": "请选择日期和时间。",
+  "Choose a time later than now.": "请选择晚于现在的时间。"
 }

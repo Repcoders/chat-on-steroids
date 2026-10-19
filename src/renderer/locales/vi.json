@@ -2752,5 +2752,12 @@
   "{0} characters": "{0} ký tự",
   "from {0} events": "từ {0} sự kiện",
   "(~{0} tokens)": "(~{0} token)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Send at…": "Gửi lúc…",
+  "Send later": "Gửi sau",
+  "The message waits in this chat and is sent at the time you choose, or as soon as the app is open again after it. You can cancel it in the chat until then.": "Tin nhắn chờ trong cuộc trò chuyện này và được gửi vào thời điểm bạn chọn, hoặc ngay khi ứng dụng được mở lại sau thời điểm đó. Trước đó, bạn có thể hủy nó trong cuộc trò chuyện.",
+  "Send at": "Gửi lúc",
+  "Schedule": "Lên lịch",
+  "Choose a date and time.": "Chọn ngày và giờ.",
+  "Choose a time later than now.": "Chọn một thời điểm sau bây giờ."
 }

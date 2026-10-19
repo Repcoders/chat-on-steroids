@@ -1411,10 +1411,13 @@
                 <button class="btn" id="generateFinishGoal" type="button" hidden>Generate Goal</button>
                 <div class="send-control">
                   <div class="send-options" id="sendOptions" hidden>
-                    <div class="delivery-choices" role="radiogroup" aria-label="Message delivery">
-                      <button type="button" role="radio" aria-checked="true" data-delivery="auto"><span id="immediateDeliveryLabel">Send</span><i class="ico ph ph-check" aria-hidden="true"></i></button>
-                      <button type="button" role="radio" aria-checked="false" data-delivery="tool"><span>Inject now</span><i class="ico ph ph-check" aria-hidden="true"></i></button>
-                      <button type="button" role="radio" aria-checked="false" data-delivery="after-turn"><span id="afterTurnLabel">After this turn</span><i class="ico ph ph-check" aria-hidden="true"></i></button>
+                    <div class="delivery-choices">
+                      <div class="delivery-modes" id="deliveryModes" role="radiogroup" aria-label="Message delivery">
+                        <button type="button" role="radio" aria-checked="true" data-delivery="auto"><span id="immediateDeliveryLabel">Send</span><i class="ico ph ph-check" aria-hidden="true"></i></button>
+                        <button type="button" role="radio" aria-checked="false" data-delivery="tool"><span>Inject now</span><i class="ico ph ph-check" aria-hidden="true"></i></button>
+                        <button type="button" role="radio" aria-checked="false" data-delivery="after-turn"><span id="afterTurnLabel">After this turn</span><i class="ico ph ph-check" aria-hidden="true"></i></button>
+                      </div>
+                      <button type="button" id="sendLaterAction" hidden><span>Send at…</span><i class="ico ph ph-clock" aria-hidden="true"></i></button>
                     </div>
                     <select id="sendMode" aria-label="Message delivery" hidden><option value="auto">Send</option><option value="tool">Inject now</option><option value="after-turn">After this turn</option></select>
                   </div>
@@ -1508,6 +1511,15 @@
         <label class="plugin-field" for="sshProjectFolder"><span>Folder on the server</span><input id="sshProjectFolder" required autocomplete="off" spellcheck="false" placeholder="/srv/app or ~/app" /></label>
         <p id="sshProjectError" class="plugin-error" role="alert" hidden></p>
         <div class="pet-delete-actions"><button class="btn" id="sshProjectCancel" type="button">Cancel</button><button class="btn btn-solid" id="sshProjectSubmit" type="submit">Test and add</button></div>
+      </form>
+    </dialog>
+    <dialog class="plugin-dialog send-later-dialog" id="sendLaterDialog" aria-labelledby="sendLaterTitle">
+      <div class="plugin-dialog-head"><h2 id="sendLaterTitle">Send later</h2><button class="btn" id="sendLaterClose" type="button">Close</button></div>
+      <form id="sendLaterForm" class="plugin-dialog-body">
+        <p>The message waits in this chat and is sent at the time you choose, or as soon as the app is open again after it. You can cancel it in the chat until then.</p>
+        <label class="plugin-field" for="sendLaterTime"><span>Send at</span><input id="sendLaterTime" type="datetime-local" step="60" required /></label>
+        <p id="sendLaterError" class="plugin-error" role="alert" hidden></p>
+        <div class="pet-delete-actions"><button class="btn" id="sendLaterCancel" type="button">Cancel</button><button class="btn btn-solid" id="sendLaterSubmit" type="submit">Schedule</button></div>
       </form>
     </dialog>
     <dialog class="search-dialog" id="searchDialog" aria-label="Search chats">

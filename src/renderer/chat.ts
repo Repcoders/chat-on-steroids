@@ -96,6 +96,7 @@ import { APPROVAL_ANSWERED_TEXT, APPROVAL_PROGRESS_PREFIX, APPROVAL_WAITING_TEXT
 import { openRowMenu, rowMenuOpenFor, toggleRowMenu, type RowMenuItem, type RowMenuOptions } from './row-menu.js';
 import { createSearchPopup } from './search-popup.js';
 import { primaryShortcut } from './shortcuts.js';
+import { initSendLaterDialog } from './send-later-dialog.js';
 import { initSshProjectDialog } from './ssh-project-dialog.js';
 
 const api = window.api;
@@ -2468,7 +2469,9 @@ function paintGoalProgress(): void {
 }
 const cancelledStarts = new Set<string>();
 function pendingComposerInput(): InputEntry | undefined {
+  // A message sent later (Send at…) waits in the chat with its own Cancel; Stop leaves it alone.
   return [...startingInputs.values(), ...pendingComposerInputs].find(entry => (!queuedFollowup(entry) || entry.state === 'browser') && ['queued', 'browser'].includes(entry.state) &&
+    !(entry.state === 'queued' && entry.dueAt > Date.now()) &&
     (selectedId ? (entry.sessionId ?? entry.deliveredSessionId) === selectedId :
       pendingNewInput?.generation === selectionGeneration && pendingNewInput.id === entry.id));
 }
@@ -2522,11 +2525,15 @@ function paintDeliveryControls(): void {
   if (!canInject && !canSendDirectly && !queueAtFinish) $<HTMLSelectElement>('sendMode').value = 'auto';
   const pending = pendingComposerInput();
   const stop = (working || !!pending) && !currentPreparedPlan() && !authoredComposerText().trim() && !(imageDrafts.get(draftKey())?.length);
+  const planMode = taskPlans.has(draftKey()), preparedPlan = currentPreparedPlan();
   // Hover selects delivery for the next message. Clicking the empty-composer
   // Stop still acts immediately; there is no second Stop action in the menu.
-  $('sendOptions').hidden = !canInject && !canSendDirectly && !queueAtFinish;
+  $('deliveryModes').hidden = !canInject && !canSendDirectly && !queueAtFinish;
+  // Send at… takes a typed text for an existing chat; files, plans, edits and /commands go now.
+  $('sendLaterAction').hidden = selectedId === null || !authoredComposerText().trim() || files.length > 0 || planMode || !!preparedPlan ||
+    editingQuestion?.sessionId === selectedId || /^\s*\/[a-z]/i.test($<HTMLTextAreaElement>('chatInput').value);
+  $('sendOptions').hidden = $('deliveryModes').hidden && $('sendLaterAction').hidden;
   const send = $<HTMLButtonElement>('chatSend');
-  const planMode = taskPlans.has(draftKey()), preparedPlan = currentPreparedPlan();
   send.disabled = !!preparedPlan && (preparedPlan.sending || preparedPlan.stages.some(stage => !stage.trim()));
   send.dataset.action = stop ? 'stop' : 'send';
   ui(send, 'aria-label', () => stop ? (controlledStopPending ? t("Stop requested") : t("Stop turn")) : t("Send message"));
@@ -7288,7 +7295,8 @@ function inputMessageRow(entry: InputEntry, notice: boolean): HTMLElement {
   }
   const receipt = el('span', 'pending-message-status');
   ui(receipt, 'title', status); ui(receipt, 'aria-label', status);
-  if (entry.error || entry.state === 'failed' || held || waiting) {
+  // A message sent later says when, in words, until it falls due.
+  if (entry.error || entry.state === 'failed' || held || waiting || (entry.state === 'queued' && entry.dueAt > Date.now())) {
     ui(receipt, 'textContent', status);
   }
   else receipt.append(icon(['sent', 'tool'].includes(entry.state) ? 'i-check' : 'i-clock'));
@@ -7398,7 +7406,7 @@ function paintPendingInputs(): void {
   const host = $('inputQueue');
   const previous = new Map([...host.querySelectorAll<HTMLElement>(':scope > .pending-message')].map(row => [row.dataset.inputId, row]));
   const next = rows.filter(entry => !historicalAutomaticInput(entry)).map(entry => {
-    const sig = JSON.stringify([entry.text, entry.state, entry.error, entry.dueAt, notice(entry), routeHeld(entry), queuedWaitReason(entry), entry.stagesApplied,
+    const sig = JSON.stringify([entry.text, entry.state, entry.error, entry.dueAt, entry.dueAt > Date.now(), notice(entry), routeHeld(entry), queuedWaitReason(entry), entry.stagesApplied,
       entry.stages, entry.attachments?.map(file => file.id), entry.images?.map(image => [image.name, image.dataUrl.length]),
       hasLaterModelActivity(entry.deliveredAt ?? entry.offeredAt ?? entry.createdAt)]);
     const old = previous.get(entry.id);
@@ -7660,7 +7668,7 @@ async function stopCurrentTurn(): Promise<void> {
   finally { if (selectedId === id && selectionGeneration === generation) { controlledStopPending = false; void refreshSessionControls(); } }
 }
 let composerDiscoveryGeneration = 0;
-async function sendComposer(delivery?: 'finish' | 'auto' | 'after-turn', plan?: string[], planObjective?: string, controlAction = false): Promise<boolean | void> {
+async function sendComposer(delivery?: 'finish' | 'auto' | 'after-turn', plan?: string[], planObjective?: string, controlAction = false, sendAt?: number): Promise<boolean | void> {
   const input = $<HTMLTextAreaElement>('chatInput');
   const key = draftKey();
   const projectId = selectedId ? sessions.find(row => row.id === selectedId)?.projectId ?? null : selectedProjectId;
@@ -7714,9 +7722,11 @@ async function sendComposer(delivery?: 'finish' | 'auto' | 'after-turn', plan?: 
   if (editing && images.length) { toast(t('An edit changes only the text. Send files in a new message.')); return false; }
   if (editing && plan) { toast(t('An edit is sent as one message, not as a plan.')); return false; }
   const edit = editing ? { messageId: editing.messageId } : undefined;
-  const chosenMode = edit ? 'auto' : delivery ?? $<HTMLSelectElement>('sendMode').value;
+  // Send at… is an ordinary message for this chat that the outbox holds until `sendAt`.
+  if (sendAt !== undefined && (!sessionId || edit || plan || images.length)) return false;
+  const chosenMode = edit || sendAt !== undefined ? 'auto' : delivery ?? $<HTMLSelectElement>('sendMode').value;
   const mode = chosenMode === 'tool' ? 'auto' : chosenMode === 'after-turn' && controlledSessionId === selectedId && controlledSelection === selectionGeneration && controlledQueueAtFinish ? 'finish' : chosenMode;
-  const dueAt = Date.now();
+  const dueAt = sendAt ?? Date.now();
   const id = crypto.randomUUID();
   const authoredDraft = authoredComposerText();
   const attachmentPayload = { images: images.filter((file): file is InputImage => 'dataUrl' in file), attachments: images.filter((file): file is InputAttachment => 'id' in file),
@@ -7732,7 +7742,7 @@ async function sendComposer(delivery?: 'finish' | 'auto' | 'after-turn', plan?: 
     : reserved?.origin?.branchOf && reserved.origin.fromSessionId && !reserved.conversationId
       ? { sessionId: reserved.origin.fromSessionId, ...reserved.origin.branchOf } : undefined;
   startingInputs.set(id, { id, sessionId, projectId, text, ...attachmentPayload, ...(branch ? { branch } : {}), ...(edit ? { edit } : {}), stages: plan?.slice(1), objective, authoredSource, mode: mode === 'finish' ? 'finish' : mode === 'auto' ? 'auto' : 'after-turn',
-    dueAt, ...modelSettings, state: 'queued', owner: null, createdAt: dueAt, conversationId: null });
+    dueAt, ...modelSettings, state: 'queued', owner: null, createdAt: Math.min(dueAt, Date.now()), conversationId: null });
   replaceComposerDraft();
   input.value = ''; inputDrafts.delete(key);
   // The edit is on its way; the composer gets back the draft it held before the edit began.
@@ -7974,6 +7984,8 @@ export function initChat(next: Deps): void {
     $<HTMLSelectElement>('sendMode').value = button.dataset.delivery!;
     paintDeliveryControls();
   });
+  const sendLater = initSendLaterDialog(dueAt => { retireDictation(); void sendComposer('auto', undefined, undefined, false, dueAt); });
+  $('sendLaterAction').addEventListener('click', () => { if (!$('sendLaterAction').hidden) sendLater.open(); });
   $('automationSwitch').addEventListener('click', (event) => {
     const edit = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-edit-mode]');
     if (edit) {
@@ -8293,7 +8305,7 @@ export function initChat(next: Deps): void {
     else if (event.key === 'Enter' && event.shiftKey && (event.metaKey || event.ctrlKey) && !event.isComposing) {
       event.preventDefault();
       if (!authoredComposerText().trim() && !imageDrafts.get(draftKey())?.length) return;
-      if ($('sendOptions').hidden || currentPreparedPlan() || taskPlans.has(draftKey())) { $<HTMLFormElement>('composer').requestSubmit(); return; }
+      if ($('deliveryModes').hidden || currentPreparedPlan() || taskPlans.has(draftKey())) { $<HTMLFormElement>('composer').requestSubmit(); return; }
       retireDictation();
       void sendComposer($<HTMLSelectElement>('sendMode').value === 'after-turn' ? 'auto' : 'after-turn');
     }
