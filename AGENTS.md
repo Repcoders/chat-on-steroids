@@ -1336,6 +1336,13 @@ explicit cancellation operation. A negative edit receipt retires the editor and 
 authoritative row; an IPC error retains the draft. Selection changes clear queued editors
 synchronously, including New Chat and A-to-B-to-A, before any asynchronous read completes.
 `scripts/verify-input-queue.cjs` checks these controls with the production renderer in Chromium.
+View › Outbox (`outbox-inspector.ts`) lists the same `sessions:outbox` read for every chat at once:
+each waiting row (queued, browser, tool, decision) oldest first, then each failed or cancelled row
+whose notice its chat still shows. A row names its chat (opening it on click) and says what it waits
+for in that chat queue's own words (`inputStatus`). Its only actions are the chat queue's own: Cancel
+delivery / Remove queued task / Cancel automatic Continue, Dismiss delivery notice and Retry browser,
+through the same IPC calls. It is presentation only: it decides nothing about delivery, and the
+chat queue's refresh repaints it, so a cancel there updates that chat's queue as well.
 The desktop composer uses native CSS content sizing, bounded at 220px. Layout owns its
 height across draft changes, hidden panels and width changes; do not persist a measured
 `scrollHeight` as an inline height. Empty and fitting input must not overflow; longer text
@@ -5016,8 +5023,8 @@ politely (`#connectionAnnounce`). Reduced
 motion drops the transitions; a sidebar narrower than 200px keeps the dot alone. Setup stays
 reachable from Settings and from the capsule when configuration is incomplete. The View menu is
 one icon button (≡) in the title bar opening the row menus' menu (`row-menu.ts`, `view-menu.ts`):
-each action with its icon and this keyboard's shortcut (not the sidebar toggle, which sits beside it), a
-pets label that says what it will do (Show/Hide pets), zoom steps that keep it open with Actual size's value updating
+each action with its icon and this keyboard's shortcut (not the sidebar toggle, which sits beside it), Outbox
+(§11), a pets label that says what it will do (Show/Hide pets), zoom steps that keep it open with Actual size's value updating
 (a zoom's resize repositions it instead of closing it), and Show browser (the CoS browser) only while the
 built-in browser is the ChatGPT browser. Appearance rows align controls at a shared minimum height and Setup uses a stable
 responsive title/language grid across locales.

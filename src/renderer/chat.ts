@@ -95,11 +95,15 @@ import { $, ago, clockTime, compactNumber, disclosureChevron, el, icon, run, set
 import { APPROVAL_ANSWERED_TEXT, APPROVAL_PROGRESS_PREFIX, APPROVAL_WAITING_TEXT, type ApprovalCardView } from '../shared/approval-wait.js';
 import { openRowMenu, rowMenuOpenFor, toggleRowMenu, type RowMenuItem, type RowMenuOptions } from './row-menu.js';
 import { createSearchPopup } from './search-popup.js';
+import { createOutboxInspector } from './outbox-inspector.js';
 import { primaryShortcut } from './shortcuts.js';
 import { initSshProjectDialog } from './ssh-project-dialog.js';
 
 const api = window.api;
 let chatSearch: ChatSearch | null = null;
+let outboxInspector: ReturnType<typeof createOutboxInspector> | null = null;
+/** Chats the outbox inspector names that the sidebar has not loaded; null while being read. */
+const outboxChats = new Map<string, SessionSummary | null>();
 let chatFind: ReturnType<typeof initChatFind> | null = null;
 
 /** Sprite id per tool-call family. Deliberately reuses the existing icon set. */
@@ -7263,6 +7267,11 @@ function historicalAutomaticInput(entry: InputEntry): boolean {
     entry.state === 'cancelled' && !!entry.error;
 }
 
+/** What a chat's queue says about an outbox row: its error, or its state and what it waits for. */
+function inputStatus(entry: InputEntry, held = routeHeld(entry), waiting = queuedWaitReason(entry)): string {
+  return entry.error ? t(entry.error) : held ? t("Sending in a moment…") : waiting === 'extension' ? t("Waiting for the browser extension to connect") : waiting === 'tool-call' ? t("Waiting for the running tool call to finish") : waiting === 'chatgpt-project' ? t("Creating this project in ChatGPT…") : waiting === 'chatgpt-project-failed' ? t("This project's ChatGPT Project isn't available. Retry it from the project's menu.") : (entry.state === 'failed' ? t("Delivery not confirmed") : entry.state === 'decision' ? t("Preparing follow-up") : entry.state === 'browser' ? t("Delivery confirmation pending") : entry.state === 'tool' ? t("Sent to the active turn · awaiting receipt") : entry.dueAt > Date.now() ? t("Scheduled {0}", [new Date(entry.dueAt).toLocaleString(currentLanguage())]) : entry.delivery === 'tool' ? t("Waiting for the next tool call") : t("Queued"));
+}
+
 function inputMessageRow(entry: InputEntry, notice: boolean): HTMLElement {
   const row = el('div', 'pending-message');
   row.classList.toggle('is-delivered', !entry.error && ['sent', 'tool'].includes(entry.state));
@@ -7276,7 +7285,7 @@ function inputMessageRow(entry: InputEntry, notice: boolean): HTMLElement {
   if (!visibleInputIds.has(entry.id)) row.classList.add('is-entering');
   visibleInputIds.add(entry.id);
   if (visibleInputIds.size > 100) visibleInputIds.delete(visibleInputIds.values().next().value!);
-  const status = () => entry.error ? t(entry.error) : held ? t("Sending in a moment…") : waiting === 'extension' ? t("Waiting for the browser extension to connect") : waiting === 'tool-call' ? t("Waiting for the running tool call to finish") : waiting === 'chatgpt-project' ? t("Creating this project in ChatGPT…") : waiting === 'chatgpt-project-failed' ? t("This project's ChatGPT Project isn't available. Retry it from the project's menu.") : (entry.state === 'failed' ? t("Delivery not confirmed") : entry.state === 'decision' ? t("Preparing follow-up") : entry.state === 'browser' ? t("Delivery confirmation pending") : entry.state === 'tool' ? t("Sent to the active turn · awaiting receipt") : entry.dueAt > Date.now() ? t("Scheduled {0}", [new Date(entry.dueAt).toLocaleString(currentLanguage())]) : entry.delivery === 'tool' ? t("Waiting for the next tool call") : t("Queued"));
+  const status = () => inputStatus(entry, held, waiting);
   const files = el('div', 'message-attachments');
   if (entry.attachments?.length) files.append(...entry.attachments.map(file => attachmentCard(file)));
   for (const image of entry.images ?? []) { const preview = document.createElement('img'); preview.src = image.dataUrl; preview.alt = image.name; files.append(preview); }
@@ -7410,6 +7419,7 @@ function paintPendingInputs(): void {
   // Helper controls have their own owner and are refreshed by the queue read below.
   reconcileChildren(host, [...next, ...host.querySelectorAll<HTMLElement>(':scope > .queued-input')]);
   holdSentMessage();
+  outboxInspector?.update();
 }
 async function refreshInputQueue(): Promise<void> {
   const request = ++inputQueueGeneration;
@@ -7797,6 +7807,11 @@ async function sendComposer(delivery?: 'finish' | 'auto' | 'after-turn', plan?: 
 }
 
 // ------------------------------------------------------------------- wiring
+
+/** Opens the outbox inspector: every chat's waiting messages (the View menu). */
+export function openOutbox(): void {
+  outboxInspector?.open();
+}
 
 /** Opens the search dialog, as ⌘K / Ctrl+K does (the View menu). */
 export function openChatSearch(): void {
@@ -8432,6 +8447,37 @@ export function initChat(next: Deps): void {
     find: async (id, query) => (await run(api.findInChat(id, query))) ?? null,
     reveal: revealChatLocation,
     row: rowForLocation
+  });
+  outboxInspector = createOutboxInspector({
+    entries: () => pendingComposerInputs,
+    refresh: () => void refreshInputQueue(),
+    chat: entry => {
+      const id = entry.sessionId ?? entry.deliveredSessionId;
+      if (!id) return null;
+      // The sidebar loads chats a page at a time; an older chat's name is read once.
+      const summary = sessions.find(row => row.id === id) ?? outboxChats.get(id);
+      if (!summary && !outboxChats.has(id)) {
+        outboxChats.set(id, null);
+        void run(api.getSession(id, { limit: 1 })).then(detail => {
+          if (detail?.summary) { outboxChats.set(id, detail.summary); outboxInspector?.update(); }
+        });
+      }
+      return summary && (summary.conversationId || summary.origin?.kind === 'desktop') ? { id: summary.id, title: shownSessionTitle(summary) } : null;
+    },
+    // A queued follow-up waits for its chat's answer, as its card in that chat says.
+    status: entry => entry.error || !queuedFollowup(entry) ? inputStatus(entry)
+      : entry.recovery ? t('Automatic Continue')
+      : entry.state === 'queued' ? (entry.mode === 'after-turn' ? t("After the next completed answer") : t("At Session finish or after a completed answer"))
+      : t("Awaiting receipt"),
+    notice: entry => !dismissedInputNotices.has(entry.id) && !historicalAutomaticInput(entry) && entry.purpose !== 'rotation' &&
+      (entry.state === 'failed' || !!entry.error),
+    cancel: async id => {
+      const result = await run(api.cancelInput(id));
+      if (result) dismissInputNotice(id);
+      return result;
+    },
+    retryBrowser: id => run(api.retryInputBrowser(id)),
+    open: id => { if (id !== selectedId) { pendingNewInput = null; selectSession(id); } }
   });
   chatSearch = initChatSearch({
     select: (id, match) => {

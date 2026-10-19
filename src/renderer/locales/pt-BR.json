@@ -21,6 +21,8 @@
   "Previous source": "Fonte anterior",
   "Next source": "Próxima fonte",
   "Search chats": "Pesquisar chats",
+  "Outbox": "Caixa de saída",
+  "Nothing is waiting to be sent.": "Nada aguardando envio.",
   "Ctrl": "Ctrl",
   "Showing the first {0} matches. Add a word to narrow them down.": "Mostrando os primeiros {0} resultados. Adicione uma palavra para refinar a busca.",
   "Showing the first {0} matches. Add a word to narrow them down.|one": "Mostrando {0} resultado. Adicione uma palavra para refinar a busca.",
