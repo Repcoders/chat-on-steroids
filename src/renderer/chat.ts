@@ -102,8 +102,6 @@ import { initSshProjectDialog } from './ssh-project-dialog.js';
 const api = window.api;
 let chatSearch: ChatSearch | null = null;
 let outboxInspector: ReturnType<typeof createOutboxInspector> | null = null;
-/** Chats the outbox inspector names that the sidebar has not loaded; null while being read. */
-const outboxChats = new Map<string, SessionSummary | null>();
 let chatFind: ReturnType<typeof initChatFind> | null = null;
 
 /** Sprite id per tool-call family. Deliberately reuses the existing icon set. */
@@ -7808,6 +7806,11 @@ async function sendComposer(delivery?: 'finish' | 'auto' | 'after-turn', plan?: 
 
 // ------------------------------------------------------------------- wiring
 
+/** A chat as the outbox inspector names it; null for a reserved chat with nothing to open yet. */
+function outboxChat(summary: SessionSummary): { id: string; title: string } | null {
+  return summary.conversationId || summary.origin?.kind === 'desktop' ? { id: summary.id, title: shownSessionTitle(summary) } : null;
+}
+
 /** Opens the outbox inspector: every chat's waiting messages (the View menu). */
 export function openOutbox(): void {
   outboxInspector?.open();
@@ -8451,18 +8454,14 @@ export function initChat(next: Deps): void {
   outboxInspector = createOutboxInspector({
     entries: () => pendingComposerInputs,
     refresh: () => void refreshInputQueue(),
-    chat: entry => {
-      const id = entry.sessionId ?? entry.deliveredSessionId;
-      if (!id) return null;
-      // The sidebar loads chats a page at a time; an older chat's name is read once.
-      const summary = sessions.find(row => row.id === id) ?? outboxChats.get(id);
-      if (!summary && !outboxChats.has(id)) {
-        outboxChats.set(id, null);
-        void run(api.getSession(id, { limit: 1 })).then(detail => {
-          if (detail?.summary) { outboxChats.set(id, detail.summary); outboxInspector?.update(); }
-        });
-      }
-      return summary && (summary.conversationId || summary.origin?.kind === 'desktop') ? { id: summary.id, title: shownSessionTitle(summary) } : null;
+    chat: id => {
+      const summary = sessions.find(row => row.id === id);
+      return summary ? outboxChat(summary) : undefined;
+    },
+    findChat: async id => {
+      const reply = await api.getSession(id, { limit: 1 });
+      if (!reply.ok) throw new Error(reply.error);
+      return reply.data?.summary ? outboxChat(reply.data.summary) : null;
     },
     // A queued follow-up waits for its chat's answer, as its card in that chat says.
     status: entry => entry.error || !queuedFollowup(entry) ? inputStatus(entry)

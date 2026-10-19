@@ -16,7 +16,7 @@ const row = (fields: Partial<InputEntry>): InputEntry => ({
   ...fields
 }) as InputEntry;
 
-async function mount(start: InputEntry[]) {
+async function mount(start: InputEntry[], findChat: (id: string) => Promise<{ id: string; title: string } | null> = async () => null) {
   dom = new JSDOM('<!doctype html><body></body>', { url: 'https://local.test' });
   vi.stubGlobal('window', dom.window); vi.stubGlobal('document', dom.window.document); vi.stubGlobal('Event', dom.window.Event);
   vi.stubGlobal('navigator', { platform: 'Win32', language: 'en', languages: ['en'] });
@@ -28,7 +28,8 @@ async function mount(start: InputEntry[]) {
   const inspector = createOutboxInspector({
     entries: () => entries,
     refresh: () => calls.push('refresh'),
-    chat: entry => entry.sessionId && titles[entry.sessionId] ? { id: entry.sessionId, title: titles[entry.sessionId]! } : null,
+    chat: id => titles[id] ? { id, title: titles[id]! } : undefined,
+    findChat,
     status: entry => entry.error ?? `status of ${entry.text}`,
     notice: entry => !!entry.error && !entry.text.includes('dismissed'),
     cancel: async id => { calls.push(`cancel ${id}`); return true; },
@@ -117,4 +118,29 @@ it('offers Retry browser only where the chat queue does, and opens a row\'s chat
   // A closed inspector paints nothing.
   view.inspector.update();
   expect(view.doc.querySelector('.outbox-row')).toBeNull();
+});
+
+it('names a chat the sidebar has not loaded after reading it, and reads it again when a read fails', async () => {
+  const reads: string[] = [];
+  let fail = true;
+  const older = row({ text: 'Queued in an older chat', sessionId: 'chat-old' });
+  const view = await mount([older], async id => {
+    reads.push(id);
+    if (fail) throw new Error('read failed');
+    return { id, title: 'Placeholder older chat' };
+  });
+  view.inspector.open();
+  await view.settle();
+  expect(view.rows().map(([chat]) => chat)).toEqual(['New chat']);
+  // A failed read is not kept: the next repaint asks again, once.
+  fail = false;
+  view.inspector.update();
+  view.inspector.update();
+  await view.settle();
+  expect(reads).toEqual(['chat-old', 'chat-old']);
+  expect(view.rows().map(([chat]) => chat)).toEqual(['Placeholder older chat']);
+  view.inspector.update();
+  expect(reads).toHaveLength(2);
+  view.doc.querySelector<HTMLButtonElement>('button.outbox-chat')!.click();
+  expect(view.calls.at(-1)).toBe('open chat-old');
 });

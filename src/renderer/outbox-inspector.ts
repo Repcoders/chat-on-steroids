@@ -15,8 +15,10 @@ export interface OutboxInspectorDeps {
   entries(): readonly InputEntry[];
   /** Reads the outbox again; the chat queue's refresh, which repaints this view too. */
   refresh(): void;
-  /** The chat a row belongs to, when the window knows it; null for a new chat not opened yet. */
-  chat(entry: InputEntry): { id: string; title: string } | null;
+  /** A chat the sidebar has loaded, named as it shows it; null for one with nothing to open yet, undefined when not loaded. */
+  chat(id: string): Chat | null | undefined;
+  /** Reads a chat the sidebar has not loaded; rejects when the read fails. */
+  findChat(id: string): Promise<Chat | null>;
   /** What the row's chat queue says about it: its error, or its state and what it waits for. */
   status(entry: InputEntry): string;
   /** A failed or cancelled row whose notice is still shown in its chat. */
@@ -26,6 +28,8 @@ export interface OutboxInspectorDeps {
   retryBrowser(id: string): Promise<unknown>;
   open(sessionId: string): void;
 }
+
+type Chat = { id: string; title: string };
 
 const WAITING = ['queued', 'browser', 'tool', 'decision'];
 /** The errors a chat's queue offers Retry browser for. */
@@ -42,6 +46,21 @@ export function outboxRows(entries: readonly InputEntry[], notice: (entry: Input
 export function createOutboxInspector(deps: OutboxInspectorDeps): { open(): void; update(): void } {
   let dialog: HTMLDialogElement | null = null;
   let list: HTMLElement | null = null;
+  // The sidebar loads chats a page at a time; an older chat is read once, and again after a failed read.
+  const found = new Map<string, Chat | null>();
+  const reading = new Set<string>();
+  const chatOf = (entry: InputEntry): Chat | null => {
+    const id = entry.sessionId ?? entry.deliveredSessionId;
+    if (!id) return null;
+    const known = deps.chat(id);
+    if (known !== undefined) return known;
+    if (found.has(id)) return found.get(id)!;
+    if (!reading.has(id)) {
+      reading.add(id);
+      void deps.findChat(id).then(chat => { reading.delete(id); found.set(id, chat); paint(); }, () => { reading.delete(id); });
+    }
+    return null;
+  };
 
   // Electron has the dialog methods; a bare DOM (the tests) gets the same effect by hand.
   const closeDialog = (): void => {
@@ -66,7 +85,7 @@ export function createOutboxInspector(deps: OutboxInspectorDeps): { open(): void
     const item = el('li', 'outbox-row');
     item.dataset.inputId = entry.id;
     item.dataset.state = entry.state;
-    const chat = deps.chat(entry);
+    const chat = chatOf(entry);
     const head = el('div', 'outbox-row-head');
     if (chat) {
       const link = el('button', 'outbox-chat', chat.title) as HTMLButtonElement;
@@ -104,7 +123,7 @@ export function createOutboxInspector(deps: OutboxInspectorDeps): { open(): void
     // Chats repaint their queue often (each running tool call); an unchanged row keeps its node and focus.
     const previous = new Map([...list.children].map(node => [(node as HTMLElement).dataset.inputId, node as HTMLElement]));
     const next = rows.map(entry => {
-      const sig = JSON.stringify([entry.state, entry.error, entry.text, deps.status(entry), deps.chat(entry)]);
+      const sig = JSON.stringify([entry.state, entry.error, entry.text, deps.status(entry), chatOf(entry)]);
       const old = previous.get(entry.id);
       if (old?.dataset.signature === sig) return old;
       const node = row(entry); node.dataset.signature = sig; return node;
