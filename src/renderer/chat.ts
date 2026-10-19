@@ -589,12 +589,14 @@ function onDictationEvent(event: DictationEvent): void {
     const chunk = event.text;
     const previous = session.heard;
     const commands = session.commands && hasDictationCommands(session.language);
-    // A command said twice ("New line." "New line.") is two commands, not a repeated transcript.
-    const onlyCommands = commands && dictationPieces(chunk, session.language).every(piece => 'command' in piece);
-    session.heard = onlyCommands ? joinedDictation(previous, chunk) :
+    // A command said twice ("New line." "New line.") is two commands, not a repeated transcript;
+    // a transcript that grows past what was heard still adds only its new part.
+    const grows = !!previous && chunk.length > previous.length && chunk.startsWith(previous);
+    const ownPhrase = !grows && commands && dictationPieces(chunk, session.language).every(piece => 'command' in piece);
+    session.heard = ownPhrase ? joinedDictation(previous, chunk) :
       chunk === previous || previous && chunk.startsWith(previous) ? chunk :
         previous.endsWith(chunk) ? previous : joinedDictation(previous, chunk);
-    const send = commands && spokenEdits(session, session.heard.slice(previous.length), onlyCommands);
+    const send = commands && spokenEdits(session, session.heard.slice(previous.length), ownPhrase);
     if (!commands) session.committed = session.heard;
     dictatedText(session, session.committed);
     if (send && dictation === session) { retireDictation(); confirmDictatedSend(session.owner); }

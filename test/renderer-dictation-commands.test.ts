@@ -81,6 +81,15 @@ describe('voice commands while dictating', () => {
     button.click(); await flush(); stopped();
   });
 
+  it('applies only the new commands of a growing command-only transcript', async () => {
+    await listen('en-US');
+    emit({ type: 'final', text: 'New line.' });
+    emit({ type: 'final', text: 'New line. New paragraph.' });
+    emit({ type: 'final', text: 'New line. New paragraph. Done' });
+    expect(input.value).toBe('\n\n\nDone');
+    button.click(); await flush(); stopped();
+  });
+
   it('stops listening on "send" and sends only after the person confirms', async () => {
     await listen('en-US');
     emit({ type: 'final', text: 'Ship it today' });
