@@ -51,9 +51,10 @@ export function pairScreenSources<S extends { display_id: string; thumbnail: { g
   if (sources.length !== 1) return byId;
   const ratio = (size: Size) => size.width / Math.max(1, size.height);
   const shown = ratio(sources[0]!.thumbnail.getSize());
-  const closest = displays.reduce((best, display, index) =>
-    Math.abs(ratio(display.bounds) - shown) < Math.abs(ratio(displays[best]!.bounds) - shown) ? index : best, 0);
-  return displays.map((_display, index) => index === closest ? sources[0] : undefined);
+  const distance = displays.map(display => Math.abs(ratio(display.bounds) - shown));
+  const best = Math.min(...distance);
+  // Displays of the same shape cannot be told apart; each shows the picture, and any of them works.
+  return displays.map((_display, index) => distance[index]! - best < 0.01 ? sources[0] : undefined);
 }
 
 /** The overlay's answer, checked: a rectangle in its own page coordinates, or nothing. */
@@ -150,7 +151,16 @@ export async function captureScreenRegion(owner: BrowserWindow | null): Promise<
     const png = crop.toPNG();
     const name = shotName();
     if (png.byteLength <= MAX_SHOT_BYTES) return { name: `${name}.png`, bytes: new Uint8Array(png) };
-    return { name: `${name}.jpg`, bytes: new Uint8Array(crop.toJPEG(92)) };
+    // A huge, busy crop: lower the JPEG quality, then halve the size, until it fits the bound.
+    let image = crop;
+    for (let halvings = 0; halvings < 8; halvings++) {
+      for (const quality of [92, 80, 65]) {
+        const jpeg = image.toJPEG(quality);
+        if (jpeg.byteLength <= MAX_SHOT_BYTES) return { name: `${name}.jpg`, bytes: new Uint8Array(jpeg) };
+      }
+      image = image.resize({ width: Math.max(1, Math.round(image.getSize().width / 2)) });
+    }
+    throw new Error('The screen could not be captured');
   } finally {
     for (const win of overlays) if (!win.isDestroyed()) win.destroy();
     if (stepAside && owner && !owner.isDestroyed()) { owner.show(); owner.focus(); }

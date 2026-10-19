@@ -147,6 +147,29 @@ it('adds nothing when the person cancels or closes an overlay, and brings the wi
   expect(state.owner).toMatchObject({ hidden: 2, shown: 2, visible: true });
 });
 
+it('keeps a huge busy crop under the staging bound: lower JPEG quality first, then half the size', async () => {
+  const MiB = 1024 * 1024;
+  const qualities: number[] = [];
+  const resized: number[] = [];
+  const image = (width: number): any => ({
+    getSize: () => ({ width, height: width / 2 }),
+    toPNG: () => Buffer.alloc(20 * MiB),
+    toJPEG: (quality: number) => { qualities.push(quality); return Buffer.alloc(width > 4000 ? 13 * MiB : 11 * MiB, 1); },
+    resize: ({ width: next }: { width: number }) => { resized.push(next); return image(next); }
+  });
+  const shot = { isEmpty: () => false, getSize: () => ({ width: 7680, height: 4320 }), toJPEG: () => Buffer.from('jpeg'), crop: () => image(7680) };
+  state.displays = [{ id: 1, bounds: { x: 0, y: 0, width: 3840, height: 2160 }, scaleFactor: 2 }];
+  state.sources = [{ display_id: '1', thumbnail: shot }];
+  const result = captureScreenRegion(owner());
+  await overlaysOpen(1);
+  state.windows[0]!.pick({ x: 0, y: 0, width: 3840, height: 2160 });
+  const staged = (await result)!;
+  expect(qualities).toEqual([92, 80, 65, 92]);
+  expect(resized).toEqual([3840]);
+  expect(staged.name).toMatch(/^screenshot-\d{8}-\d{6}\.jpg$/);
+  expect(staged.bytes.byteLength).toBe(11 * MiB);
+});
+
 /** Runs `body` as if on another platform, whatever this machine is. */
 const onPlatform = async (platform: NodeJS.Platform, body: () => Promise<void>) => {
   const real = Object.getOwnPropertyDescriptor(process, 'platform')!;
@@ -210,6 +233,9 @@ it('pairs sources without display ids in display order, as Linux reports them', 
   expect(pairScreenSources(displays, [a, b])).toEqual([a, b]);
   const square = source('', 1280, 1024);
   expect(pairScreenSources(displays, [square])).toEqual([undefined, square]);
+  // Two displays of the same shape: the picture is offered on both.
+  const twins = [{ id: 7, bounds: { width: 1920, height: 1080 } }, { id: 8, bounds: { width: 2560, height: 1440 } }];
+  expect(pairScreenSources(twins, [a])).toEqual([a, a]);
   const named = source('6');
   expect(pairScreenSources(displays, [named])).toEqual([undefined, named]);
   expect(pairScreenSources(displays, [])).toEqual([undefined, undefined]);
