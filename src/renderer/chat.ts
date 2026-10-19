@@ -459,6 +459,7 @@ let pickedDictationLanguage: string | null = null;
 let dictationLanguages: DictationLanguage[] | null = null;
 let dictationLanguageRead = 0;
 let dictationLanguageSave: Promise<void> | null = null;
+let dictationRetirements = 0;
 const sameLanguage = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
 
 function paintDictationLanguage(): void {
@@ -547,6 +548,7 @@ function stopDictationBestEffort(): void {
 }
 
 function retireDictation(): void {
+  dictationRetirements++;
   const session = dictation;
   if (!session) return;
   // Invalidating first is important: late IPC results must never write in a new chat.
@@ -652,9 +654,11 @@ async function toggleDictation(): Promise<void> {
     return;
   }
   if (dictationLanguageSave) {
-    // Main starts in the saved language: let a language picked a moment ago be saved first.
-    await dictationLanguageSave;
-    if (dictation) return;
+    // Main starts in the saved language: let the languages picked a moment ago be saved first.
+    // Whatever would retire a session meanwhile (another draft, a hidden window, typing) drops it.
+    const owner = composerDraftOwner(), retirements = dictationRetirements;
+    while (dictationLanguageSave) await dictationLanguageSave;
+    if (dictation || !ownsComposerDraft(owner) || retirements !== dictationRetirements) return;
   }
   if (dictationRetiring || dictationBridge.dictationSupported !== true ||
     !dictationBridge.startDictation || !dictationBridge.stopDictation || !dictationBridge.onDictationEvent) return;

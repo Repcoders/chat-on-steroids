@@ -13,8 +13,14 @@ const stop = vi.fn(async () => ({ ok: true as const, data: undefined }));
 const unsubscribe = vi.fn();
 const languages = vi.fn(async () => ({ ok: true as const, data: { selected: '', languages: [
   { tag: 'de-DE', name: 'Deutsch (Deutschland)' }, { tag: 'en-US', name: 'English (United States)' }] } }));
-let heldSave: Promise<unknown> | null = null;
-const setLanguage = vi.fn(async (tag: string) => heldSave ? heldSave
+// Saves that main has not finished yet, answered in order; release one with its resolver.
+const heldSaves: Promise<unknown>[] = [];
+const holdSave = (): ((reply: unknown) => void) => {
+  let release!: (reply: unknown) => void;
+  heldSaves.push(new Promise(resolve => { release = resolve; }));
+  return release;
+};
+const setLanguage = vi.fn(async (tag: string) => heldSaves.length ? heldSaves.shift()
   : tag === 'en-US' ? { ok: false as const, error: 'Could not save' } : { ok: true as const, data: undefined });
 
 beforeAll(async () => {
@@ -184,19 +190,45 @@ describe('renderer microphone draft ownership', () => {
     await vi.waitFor(() => expect(label.textContent).toBe('de-DE'));
   });
 
+  const pick = (tag: string) => dom.window.document.querySelector<HTMLElement>(`#dictationLanguageChoices [data-language="${tag}"]`)!.click();
+  const saved = { ok: true, data: undefined };
+
   it('starts dictation only once a language picked a moment ago is saved', async () => {
-    let saved!: (reply: unknown) => void;
-    heldSave = new Promise(resolve => { saved = resolve; });
+    const release = holdSave();
     start.mockClear();
-    dom.window.document.querySelector<HTMLElement>('#dictationLanguageChoices [data-language=""]')!.click();
+    pick('');
     button.click(); await flush();
     // Main reads the saved language at start: starting now would still listen in German.
     expect(start).not.toHaveBeenCalled();
-    heldSave = null;
-    saved({ ok: true, data: undefined });
+    release(saved);
     await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(1));
     emit({ type: 'status', status: 'stopped' });
     expect(button.getAttribute('data-state')).toBe('idle');
+  });
+
+  it('waits for the latest of several picks, and drops the start when the window was hidden meanwhile', async () => {
+    const first = holdSave(), second = holdSave();
+    start.mockClear();
+    pick('de-DE');
+    button.click(); await flush();
+    pick('');
+    first(saved); await flush(); await flush();
+    expect(start).not.toHaveBeenCalled();
+    second(saved);
+    await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+    emit({ type: 'status', status: 'stopped' });
+
+    const third = holdSave();
+    start.mockClear();
+    pick('de-DE');
+    button.click(); await flush();
+    Object.defineProperty(dom.window.document, 'hidden', { configurable: true, get: () => true });
+    try {
+      dom.window.document.dispatchEvent(new dom.window.Event('visibilitychange'));
+      third(saved); await flush(); await flush(); await flush();
+      expect(start).not.toHaveBeenCalled();
+      expect(button.getAttribute('data-state')).toBe('idle');
+    } finally { delete (dom.window.document as { hidden?: boolean }).hidden; }
   });
 
   it('unsubscribes on page unload without sending a message', () => {
