@@ -1210,6 +1210,9 @@ it('wakes a snoozed chat when one of its sub-agents waits on an approval or a st
   state = { approval: ['c-w1'] };
   changed();
   await vi.waitFor(() => expect(inboxCardIds(doc)).toEqual(['p1', 'plain']));
+  // While it waits, Snooze is not offered: it would come straight back.
+  expect(rowMenuItem(row('p1')!, 'snooze')).toBeNull();
+  closeRowMenus(doc);
   state = { recoveryStopped: ['c-w2'] };
   changed();
   await vi.waitFor(() => expect(inboxCardIds(doc)).toEqual(['p2', 'p1', 'plain']));

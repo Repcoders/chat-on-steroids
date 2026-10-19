@@ -335,9 +335,13 @@ const snoozeActivity = (entry: SessionSummary, workers: SessionSummary[] = []): 
  */
 function snoozedUntil(entry: SessionSummary, workers: SessionSummary[] = []): number | null {
   if (!sidebarSnooze || !pinnable(entry)) return null;
-  const waits = (summary: SessionSummary) => ['approval', 'recovery'].includes(chatAttention(summary) ?? '');
-  if (waits(entry) || workers.some(waits)) { sidebarSnooze.wake(entry.id); return null; }
+  if (waitsOnPerson(entry, workers)) { sidebarSnooze.wake(entry.id); return null; }
   return sidebarSnooze.until(entry.id, snoozeActivity(entry, workers));
+}
+/** An approval or a stopped recovery waits on the person, in the chat or one of its sub-agents. */
+function waitsOnPerson(entry: SessionSummary, workers: SessionSummary[] = []): boolean {
+  const waits = (summary: SessionSummary) => ['approval', 'recovery'].includes(chatAttention(summary) ?? '');
+  return waits(entry) || workers.some(waits);
 }
 const wakeTime = (at: number): string => wakeLabel(at, Date.now(), currentLanguage());
 const SNOOZE_LABELS: Record<SnoozeChoice, () => string> = { hour: () => t('In an hour'), tomorrow: () => t('Tomorrow'), week: () => t('Next week') };
@@ -1053,9 +1057,10 @@ function sessionRow(summary: SessionSummary): HTMLElement {
           rowMenuButton(owner)?.focus({ preventScroll: true });
         }
       });
-      // The paint already woke a chat whose sub-agents did something; its own activity is enough here.
-      const until = snoozedUntil(summary);
-      items.splice(1, 0, until !== null ? {
+      // Not while it waits on the person: it would come straight back.
+      const workers = workerChildren().get(summary.id);
+      const until = snoozedUntil(summary, workers);
+      if (!waitsOnPerson(summary, workers)) items.splice(1, 0, until !== null ? {
         action: 'unsnooze', icon: 'i-clock', label: () => t('Unsnooze'), hint: () => wakeTime(until),
         title: () => t('Bring this chat back to its list now'),
         run: () => {
