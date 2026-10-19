@@ -2752,5 +2752,8 @@
   "{0} characters": "{0} ký tự",
   "from {0} events": "từ {0} sự kiện",
   "(~{0} tokens)": "(~{0} token)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Possible secret in this message: {0}": "Tin nhắn này có thể chứa thông tin bí mật: {0}",
+  "Redact and send": "Che và gửi",
+  "Send anyway": "Vẫn gửi"
 }

@@ -2797,5 +2797,8 @@
   "from {0} events|one": "{0} olaydan",
   "(~{0} tokens)": "(~{0} token)",
   "(~{0} tokens)|one": "(~{0} token)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Possible secret in this message: {0}": "Bu mesajda gizli bilgi olabilir: {0}",
+  "Redact and send": "Gizle ve gönder",
+  "Send anyway": "Yine de gönder"
 }

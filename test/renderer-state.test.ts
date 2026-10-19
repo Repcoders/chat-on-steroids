@@ -3978,6 +3978,43 @@ it('shows the frozen Auto-selected Skill receipt for an accepted ordinary send',
   await vi.waitFor(() => expect(doc.querySelector('.toast')?.textContent).toContain('Auto-selected Skill: /code-review'));
 });
 
+it.each(['redact', 'send anyway', 'edit'] as const)('holds a send whose draft looks like it has a token until the person chooses (%s)', async choice => {
+  const ok = (data: any) => ({ ok: true, data });
+  const sendInput = vi.fn(async (request: any) => ok({ ...request, sessionId: request.id, opening: true, state: 'queued', owner: null, createdAt: Date.now(), conversationId: null }));
+  const mounted = await mountChat({}, [], { sendInput,
+    getChatModels: async () => ok({ state: 'ready', requestedAt: 1, observedAt: Date.now(), models: [{ id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol', efforts: ['high'] }] }),
+    listInputs: async () => ok([]), runningTools: async () => ok([]), turnTraces: async () => ok({}), listPausedHelpers: async () => ok([])
+  });
+  const w = mounted.window, doc = w.document, field = doc.getElementById('chatInput') as HTMLTextAreaElement;
+  const notice = doc.getElementById('secretDraft')!, token = `ghp_${'aB3'.repeat(12)}`;
+  (doc.getElementById('newChat') as HTMLButtonElement).click(); await settle();
+  field.value = `Push with ${token} please`;
+  field.dispatchEvent(new w.Event('input', { bubbles: true }));
+  doc.getElementById('composer')!.dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+  await settle();
+  // Nothing left the composer: the dock names the match by its harmless start.
+  expect(sendInput).not.toHaveBeenCalled();
+  expect(notice.hidden).toBe(false);
+  expect(notice.textContent).toContain('Possible secret in this message: ghp_…');
+  expect(notice.textContent).not.toContain(token);
+  expect(field.value).toBe(`Push with ${token} please`);
+  const [redact, anyway] = [...notice.querySelectorAll<HTMLButtonElement>('.secret-draft-action')];
+  expect([redact!.textContent, anyway!.textContent]).toEqual(['Redact and send', 'Send anyway']);
+  if (choice === 'edit') {
+    // Any edit drops the hold; the next send checks the new draft again.
+    field.value = 'Push please'; field.dispatchEvent(new w.Event('input', { bubbles: true }));
+    expect(notice.hidden).toBe(true);
+    doc.getElementById('composer')!.dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(sendInput).toHaveBeenCalledWith(expect.objectContaining({ text: 'Push please' })));
+    return;
+  }
+  (choice === 'redact' ? redact : anyway)!.click();
+  await vi.waitFor(() => expect(sendInput).toHaveBeenCalledTimes(1));
+  expect(sendInput).toHaveBeenCalledWith(expect.objectContaining({ sessionId: null,
+    text: choice === 'redact' ? 'Push with [redacted] please' : `Push with ${token} please` }));
+  expect(notice.hidden).toBe(true);
+});
+
 it('does not steal a newer New Chat draft when an older admission response arrives', async () => {
   let release!: (value: any) => void;
   const rows: any[] = [], summaries: any[] = [];

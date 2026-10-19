@@ -19,6 +19,7 @@ import { goalErrorMessage } from '../shared/goal-errors.js';
 import type { GoalModel } from '../shared/goal-reasoning.js';
 import { renderGoalReasoning } from './goal-reasoning.js';
 import { MAX_TASK_REQUEST_CHARS, taskRequestProblem } from '../shared/task-progress.js';
+import { findSecretShapes, redactSecretShapes } from '../shared/secret-shapes.js';
 import { shownSessionTitle } from './session-title.js';
 import { preserveTimelineViewport, ROUNDING_PX } from './timeline-scroll.js';
 import { createSidebarOrder, SIDEBAR_PROJECT_SCOPE } from './sidebar-order.js';
@@ -2099,6 +2100,7 @@ function syncSelectedWorkspace(): void {
   // Branch in new chat and Edit: the composer notices and the link back follow the selection in either layout.
   paintBranchNotices();
   paintEditNotice();
+  paintSecretNotice();
 }
 
 /**
@@ -2156,6 +2158,37 @@ function paintEditNotice(): void {
   notice.replaceChildren(icon('i-pencil'), el('span', 'queue-label', () => editing.later
     ? tn('Editing your message · replaces {0} later message', 'Editing your message · replaces {0} later messages', editing.later)
     : t('Editing your message')), cancel);
+}
+
+/**
+ * A send held because the draft holds what looks like a credential (`shared/secret-shapes.ts`).
+ * It belongs to that exact draft: any edit, or another chat, drops it, and the next send checks again.
+ */
+let secretHold: { key: string; text: string; found: string[]; delivery?: 'finish' | 'auto' | 'after-turn' } | null = null;
+function paintSecretNotice(): void {
+  const notice = $('secretDraft');
+  if (secretHold && (secretHold.key !== draftKey() || secretHold.text !== authoredComposerText())) secretHold = null;
+  const hold = secretHold;
+  notice.hidden = !hold;
+  if (!hold) { notice.replaceChildren(); return; }
+  const action = (label: () => string, click: () => void) => {
+    const button = el('button', 'secret-draft-action', label) as HTMLButtonElement;
+    button.type = 'button'; button.onclick = click; return button;
+  };
+  const label = el('span', 'queue-label', () => t('Possible secret in this message: {0}', [hold.found.join(', ')]));
+  label.title = hold.found.join(', ');
+  notice.replaceChildren(icon('i-lock'), label,
+    action(() => t('Redact and send'), () => {
+      if (secretHold !== hold) return;
+      const input = $<HTMLTextAreaElement>('chatInput');
+      input.value = redactSecretShapes(input.value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      void sendComposer(hold.delivery, undefined, undefined, false, true);
+    }),
+    action(() => t('Send anyway'), () => {
+      if (secretHold !== hold) return;
+      void sendComposer(hold.delivery, undefined, undefined, false, true);
+    }));
 }
 
 /** Puts one of your questions into the composer to edit it, keeping the draft that was there. */
@@ -7660,7 +7693,7 @@ async function stopCurrentTurn(): Promise<void> {
   finally { if (selectedId === id && selectionGeneration === generation) { controlledStopPending = false; void refreshSessionControls(); } }
 }
 let composerDiscoveryGeneration = 0;
-async function sendComposer(delivery?: 'finish' | 'auto' | 'after-turn', plan?: string[], planObjective?: string, controlAction = false): Promise<boolean | void> {
+async function sendComposer(delivery?: 'finish' | 'auto' | 'after-turn', plan?: string[], planObjective?: string, controlAction = false, secretsChecked = false): Promise<boolean | void> {
   const input = $<HTMLTextAreaElement>('chatInput');
   const key = draftKey();
   const projectId = selectedId ? sessions.find(row => row.id === selectedId)?.projectId ?? null : selectedProjectId;
@@ -7698,6 +7731,11 @@ async function sendComposer(delivery?: 'finish' | 'auto' | 'after-turn', plan?: 
     }
     return;
   }
+  // Only what the person typed is checked; a plan's stages were written from a request already sent.
+  const secrets = plan || secretsChecked ? [] : findSecretShapes(authoredComposerText());
+  secretHold = secrets.length ? { key, text: authoredComposerText(), found: secrets, delivery } : null;
+  paintSecretNotice();
+  if (secretHold) return false;
   const discoveryGeneration = ++composerDiscoveryGeneration;
   const discoverySelection = selectionGeneration, discoverySession = selectedId, discoveryDraft = authoredComposerText();
   const modelSettings = composerSendModel() ?? await ensureComposerModel();
@@ -8279,7 +8317,7 @@ export function initChat(next: Deps): void {
       cancelTaskPlan();
       if (hasText) taskPlans.set(draftKey(), { text: '', requestId: null, stages: null, sending: false, progress: null, error: null });
     }
-    paintDeliveryControls(); paintTaskActions();
+    paintDeliveryControls(); paintTaskActions(); paintSecretNotice();
   });
   $('chatInput').addEventListener('keydown', (event) => {
     // A slash or @file menu on screen keeps its arrows, also while it loads, has no choices, or is

@@ -2752,5 +2752,8 @@
   "{0} characters": "{0} 个字符",
   "from {0} events": "来自 {0} 个事件",
   "(~{0} tokens)": "（约 {0} Token）",
-  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}",
+  "Possible secret in this message: {0}": "此消息中可能有密钥：{0}",
+  "Redact and send": "遮盖后发送",
+  "Send anyway": "仍然发送"
 }
