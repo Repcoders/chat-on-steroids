@@ -89,8 +89,9 @@ export function initChatSearch(options: ChatSearchOptions): ChatSearch {
    * (reduced motion, or no stylesheet) it closes at once.
    */
   const close = (after?: () => void): void => {
-    if (after) afterClose = after;
+    // A second click while the dialog closes must not replace the row picked first.
     if (!dialog.open || dialog.classList.contains('is-closing')) return;
+    if (after) afterClose = after;
     dialog.classList.add('is-closing');
     const finish = (): void => {
       if (!dialog.classList.contains('is-closing')) return;

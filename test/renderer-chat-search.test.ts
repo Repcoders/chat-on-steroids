@@ -108,3 +108,14 @@ it('keeps the keyboard on the row it was on when a running chat repaints the res
   expect(usage()).not.toBe(before);
   expect(win.document.activeElement).toBe(usage());
 });
+
+it('runs the row clicked first when a second click lands while the dialog closes', async () => {
+  const { win, search, calls, type } = await mount();
+  search.open();
+  await type('usage');
+  const rows = [...win.document.querySelectorAll<HTMLButtonElement>('#searchResults .search-result[data-search-action]')];
+  rows[0]!.click();
+  rows[1]!.click();
+  await pause(60);
+  expect(calls).toEqual(['command usage closed']);
+});
