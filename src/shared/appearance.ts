@@ -25,6 +25,61 @@ export function defaultAppearance(): AppearanceSettings {
   };
 }
 
+/** What a preset or a theme code sets: the Colors section. Font, text size and layout stay. */
+export type AppearanceColors = Pick<AppearanceSettings, 'light' | 'dark' | 'translucentSidebar'>;
+export const APPEARANCE_PRESETS = ['default', 'near-black', 'slate', 'forest', 'sand'] as const;
+export type AppearancePreset = typeof APPEARANCE_PRESETS[number];
+export function presetColors(preset: AppearancePreset): AppearanceColors {
+  if (preset === 'near-black') return {
+    light: { background: '#fafafa', sidebar: '#f4f4f5', accent: '#18181b', contrast: 50 },
+    dark: { background: '#09090b', sidebar: '#0c0c0e', accent: '#e4e4e7', contrast: 55 }, translucentSidebar: false
+  };
+  if (preset === 'slate') return {
+    light: { background: '#f8fafc', sidebar: '#e2e8f0', accent: '#0369a1', contrast: 45 },
+    dark: { background: '#0f172a', sidebar: '#131c31', accent: '#7dd3fc', contrast: 60 }, translucentSidebar: true
+  };
+  if (preset === 'forest') return {
+    light: { background: '#f3f6f1', sidebar: '#e1e9dd', accent: '#2f6b45', contrast: 45 },
+    dark: { background: '#0f1712', sidebar: '#141f18', accent: '#86d7a0', contrast: 60 }, translucentSidebar: true
+  };
+  if (preset === 'sand') return {
+    light: { background: '#f7f3ee', sidebar: '#ebe3d7', accent: '#9a5b2c', contrast: 45 },
+    dark: { background: '#1a1714', sidebar: '#221d19', accent: '#e8b07f', contrast: 60 }, translucentSidebar: true
+  };
+  const { light, dark, translucentSidebar } = defaultAppearance();
+  return { light, dark, translucentSidebar };
+}
+export function sameColors(a: AppearanceColors, b: AppearanceColors): boolean {
+  const palette = (x: AppearancePalette, y: AppearancePalette) =>
+    x.background === y.background && x.sidebar === y.sidebar && x.accent === y.accent && x.contrast === y.contrast;
+  return palette(a.light, b.light) && palette(a.dark, b.dark) && a.translucentSidebar === b.translucentSidebar;
+}
+
+/** A theme code is one line of JSON, so it can be pasted into any chat or issue and read back. */
+export function themeCode(settings: AppearanceColors): string {
+  const palette = ({ background, sidebar, accent, contrast }: AppearancePalette) => ({ background, sidebar, accent, contrast });
+  return JSON.stringify({ cosTheme: 1, light: palette(settings.light), dark: palette(settings.dark), translucentSidebar: settings.translucentSidebar });
+}
+/** Only six-digit colors and whole contrast values come back: never CSS, fonts or other fields. */
+export function parseThemeCode(text: string): AppearanceColors | null {
+  if (text.length > 2000) return null;
+  let value: unknown;
+  try { value = JSON.parse(text.trim()); } catch { return null; }
+  const record = (input: unknown) => input && typeof input === 'object' && !Array.isArray(input) ? input as Record<string, unknown> : null;
+  const color = (input: unknown) => typeof input === 'string' && /^#[\da-fA-F]{6}$/.test(input) ? input.toLowerCase() : null;
+  const palette = (input: unknown): AppearancePalette | null => {
+    const fields = record(input);
+    if (!fields) return null;
+    const background = color(fields.background), sidebar = color(fields.sidebar), accent = color(fields.accent), contrast = fields.contrast;
+    if (!background || !sidebar || !accent || !Number.isInteger(contrast) || (contrast as number) < 0 || (contrast as number) > 100) return null;
+    return { background, sidebar, accent, contrast: contrast as number };
+  };
+  const code = record(value);
+  if (code?.cosTheme !== 1 || typeof code.translucentSidebar !== 'boolean') return null;
+  const light = palette(code.light), dark = palette(code.dark);
+  return light && dark ? { light, dark, translucentSidebar: code.translucentSidebar } : null;
+}
+
 /** Field-wise three-way merge, so an unrelated save cannot undo another window's colors. */
 export function mergeAppearance(live: AppearanceSettings | undefined, base: AppearanceSettings | undefined,
   wanted: AppearanceSettings | undefined): AppearanceSettings | undefined {

@@ -152,6 +152,15 @@ app.whenReady().then(async () => {
     assert.equal(await js(`window.fixtureState.config.ui.appearance.fontSize`),14);
     assert.equal(await js(`window.fixtureState.config.ui.appearance.dark.sidebar`),'#1a2129');
     assert.equal(await js(`window.fixtureState.config.ui.appearance.light.sidebar`),'#e9edf2');
+    // A preset sets both palettes and keeps typography; the pressed swatch follows the saved colors.
+    await change('appearanceSize','16');
+    await js(`document.querySelector('[data-preset="near-black"]').click()`);
+    await js('new Promise(r=>setTimeout(r,100))');
+    assert.equal(await js(`window.fixtureState.config.ui.appearance.dark.background`),'#09090b');
+    assert.equal(await js(`window.fixtureState.config.ui.appearance.light.background`),'#fafafa');
+    assert.equal(await js(`window.fixtureState.config.ui.appearance.fontSize`),16);
+    assert.equal(await js(`document.querySelector('[data-preset="near-black"]').getAttribute('aria-pressed')`),'true');
+    await screenshot('preset-near-black.png');
     // Reload the production renderer with the same saved settings snapshot.
     await js(`window.savedUi=structuredClone(window.fixtureState.config.ui);window.pushState()`);
     await change('appearance-sidebar-hex','#331155');
@@ -166,7 +175,7 @@ app.whenReady().then(async () => {
     await change('uiLanguage','en');
     await js(`document.getElementById('backToChat').click();document.getElementById('chatInput').value='A workspace in your colors.'`);
     await screenshot('chat.png');
-    fs.writeFileSync(path.join(output,'results.json'),JSON.stringify({arbitraryColors:true,separateThemes:true,translucency:true,dirtyPush:true,queuedSave:true,saveFailureRollback:true,reload:true,reset:true,layout},null,2));
+    fs.writeFileSync(path.join(output,'results.json'),JSON.stringify({arbitraryColors:true,separateThemes:true,translucency:true,dirtyPush:true,queuedSave:true,saveFailureRollback:true,reload:true,reset:true,preset:true,layout},null,2));
     console.log('Appearance Electron checks passed. '+output);
   } finally { win?.destroy(); await server.close(); app.quit(); }
 }).catch(error=>{console.error(error);app.exit(1)});

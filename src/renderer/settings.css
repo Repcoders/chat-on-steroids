@@ -22,6 +22,13 @@
 .appearance-color input[type='color']::-webkit-color-swatch { border: 1px solid var(--edge); border-radius: 50%; }
 .appearance-color input[type='text'] { width: 8ch; min-width: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--ink); font-family: var(--mono); font-size: calc(12px * var(--text-scale, 1)); }
 .appearance-color input[aria-invalid='true'] { outline: 1px solid var(--red); }
+.appearance-presets, .appearance-code-actions { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; max-width: 100%; }
+.appearance-preset { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 10px 4px 4px; border: 1px solid var(--edge); border-radius: 9px; background: var(--page); color: var(--ink); font: inherit; font-size: calc(12px * var(--text-scale, 1)); cursor: pointer; }
+.appearance-preset:hover { background: var(--hover); }
+.appearance-preset:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.appearance-preset[aria-pressed='true'] { border-color: var(--accent-edge); background: var(--accent-wash); }
+.appearance-preset-swatch { position: relative; flex: 0 0 26px; height: 26px; border: 1px solid var(--edge); border-radius: 6px; background: linear-gradient(90deg, var(--preset-sidebar) 0 40%, var(--preset-background) 40%); }
+.appearance-preset-swatch::after { content: ''; position: absolute; right: 4px; bottom: 4px; width: 8px; height: 8px; border-radius: 50%; background: var(--preset-accent); }
 .appearance-range { display: flex; align-items: center; gap: 14px; max-width: 100%; }
 .appearance-range input { width: 130px; min-width: 60px; accent-color: var(--accent-fill); }
 .appearance-range output { min-width: 5ch; text-align: right; font-variant-numeric: tabular-nums; font-size: calc(12px * var(--text-scale, 1)); }
@@ -146,6 +153,10 @@
 .setup-profile-dialog::backdrop { background: #0008; }
 .setup-profile-dialog label { display: block; margin: 12px 0 6px; font-size: calc(12px * var(--text-scale, 1)); color: var(--soft); }
 .setup-profile-dialog .step-actions { justify-content: flex-end; margin-top: 16px; }
+.theme-code-dialog { width: min(420px, calc(100vw - 32px)); }
+.theme-code-dialog textarea { box-sizing: border-box; width: 100%; padding: 8px 10px; border: 1px solid var(--edge); border-radius: 8px; background: var(--page); color: var(--ink); font-family: var(--mono); font-size: calc(12px * var(--text-scale, 1)); resize: vertical; }
+.theme-code-dialog textarea[aria-invalid='true'] { border-color: var(--red); }
+.theme-code-error { margin: 8px 0 0; color: var(--red); font-size: calc(12px * var(--text-scale, 1)); }
 .connectors {
   display: grid;
   gap: 0;

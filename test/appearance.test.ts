@@ -1,6 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { JSDOM } from 'jsdom';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { appearanceSchema } from '../src/main/appearance-schema.js';
-import { defaultAppearance, mergeAppearance, paletteTokens, contrastRatio, readableInk } from '../src/shared/appearance.js';
+import { APPEARANCE_PRESETS, defaultAppearance, luminance, mergeAppearance, paletteTokens, contrastRatio, parseThemeCode,
+  presetColors, readableInk, themeCode, type AppearanceSettings } from '../src/shared/appearance.js';
 import { titleBarOverlayForTheme, windowBackgroundForTheme } from '../src/main/window-layout.js';
 
 describe('custom appearance', () => {
@@ -59,5 +62,93 @@ describe('custom appearance', () => {
     appearance.dark.sidebar = '#ffffff'; appearance.dark.background = '#391c56'; appearance.translucentSidebar = false;
     expect(titleBarOverlayForTheme('dark', appearance)).toEqual({ height: 36, color: '#00000000', symbolColor: readableInk('#ffffff') });
     expect(windowBackgroundForTheme('dark', appearance)).toBe('#391c56');
+  });
+
+  it('offers presets, including a near-black one, that are valid saved colors in both themes', () => {
+    expect(presetColors('default')).toEqual({ light: defaultAppearance().light, dark: defaultAppearance().dark, translucentSidebar: true });
+    for (const preset of APPEARANCE_PRESETS) {
+      expect(appearanceSchema.parse({ ...defaultAppearance(), ...presetColors(preset) })).toMatchObject(presetColors(preset));
+    }
+    const { dark } = presetColors('near-black');
+    expect(luminance(dark.background)).toBeLessThan(.005);
+    expect(luminance(dark.sidebar)).toBeLessThan(.005);
+  });
+
+  it('round-trips a theme code and refuses anything that is not one', () => {
+    const colors = presetColors('forest');
+    const settings: AppearanceSettings = { ...defaultAppearance(), ...colors, font: 'mono', fontSize: 18, sidebarLayout: 'inbox' };
+    const code = themeCode(settings);
+    expect(code).not.toContain('\n');
+    expect(JSON.parse(code)).toEqual({ cosTheme: 1, ...colors });
+    expect(parseThemeCode(`  ${code}\n`)).toEqual(colors);
+    const upper = JSON.stringify({ cosTheme: 1, ...colors, dark: { ...colors.dark, accent: '#ABCDEF' } });
+    expect(parseThemeCode(upper)!.dark.accent).toBe('#abcdef');
+    const wrong = (patch: Record<string, unknown>) => JSON.stringify({ cosTheme: 1, ...colors, ...patch });
+    for (const bad of ['', 'not json', '[]', 'null', JSON.stringify(colors), wrong({ cosTheme: 2 }), wrong({ translucentSidebar: 'yes' }),
+      wrong({ dark: { ...colors.dark, sidebar: 'url(https://example.com)' } }), wrong({ light: { ...colors.light, accent: '#fff' } }),
+      wrong({ dark: { ...colors.dark, contrast: 101 } }), wrong({ light: { ...colors.light, contrast: 4.5 } }), wrong({ dark: undefined }),
+      code + ' '.repeat(2000)]) {
+      expect(parseThemeCode(bad), bad.slice(0, 80)).toBeNull();
+    }
+  });
+});
+
+describe('Appearance presets and theme codes in Settings', () => {
+  let dom: JSDOM | null = null;
+  afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); dom?.window.close(); dom = null; });
+
+  async function settings(appearance: AppearanceSettings) {
+    dom = new JSDOM(readFileSync('src/renderer/index.html', 'utf8'), { url: 'https://local.test/' });
+    const w = dom.window;
+    for (const key of ['window', 'document', 'Node', 'Element', 'HTMLElement', 'HTMLDialogElement'] as const) vi.stubGlobal(key, key === 'window' ? w : w[key]);
+    w.HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) { this.open = true; };
+    w.HTMLDialogElement.prototype.close = function (this: HTMLDialogElement) { this.open = false; };
+    const writeClipboard = vi.fn(async (_text: string) => ({ ok: true as const, data: true }));
+    Object.assign(w, { api: { writeClipboard } });
+    const save = vi.fn();
+    const { initAppearance } = await import('../src/renderer/appearance.js');
+    initAppearance(save).apply({ theme: 'dark', appearance } as never);
+    return { save, writeClipboard, doc: w.document };
+  }
+  const mine = (): AppearanceSettings => ({ ...defaultAppearance(), font: 'serif', fontSize: 17, sidebarLayout: 'inbox' });
+
+  it('applies a preset to both palettes and keeps font, text size and sidebar layout', async () => {
+    const { save, doc } = await settings(mine());
+    const button = doc.querySelector<HTMLButtonElement>('[data-preset="near-black"]')!;
+    expect(doc.querySelector('[data-preset="default"]')!.getAttribute('aria-pressed')).toBe('true');
+    expect(button.getAttribute('aria-pressed')).toBe('false');
+    button.click();
+    expect(save).toHaveBeenCalledWith({ appearance: { ...mine(), ...presetColors('near-black') } });
+    expect(button.getAttribute('aria-pressed')).toBe('true');
+    expect(doc.querySelector('[data-preset="default"]')!.getAttribute('aria-pressed')).toBe('false');
+    expect((doc.getElementById('appearance-background-hex') as HTMLInputElement).value).toBe('#09090B');
+    expect(doc.documentElement.style.getPropertyValue('--page')).toBe('#09090b');
+  });
+
+  it('copies the colors as a theme code and applies a pasted one, refusing a broken paste', async () => {
+    const shared = { ...defaultAppearance(), ...presetColors('sand') };
+    const first = await settings(shared);
+    first.doc.getElementById('appearanceCodeCopy')!.click();
+    await vi.waitFor(() => expect(first.writeClipboard).toHaveBeenCalledTimes(1));
+    const code = first.writeClipboard.mock.calls[0]![0];
+    expect(parseThemeCode(code)).toEqual(presetColors('sand'));
+    vi.unstubAllGlobals(); vi.resetModules(); dom!.window.close();
+
+    const { save, doc } = await settings(mine());
+    const dialog = doc.getElementById('themeCodeDialog') as HTMLDialogElement, input = doc.getElementById('themeCodeInput') as HTMLTextAreaElement;
+    const submit = () => doc.getElementById('themeCodeForm')!.dispatchEvent(new dom!.window.Event('submit', { cancelable: true }));
+    doc.getElementById('appearanceCodePaste')!.click();
+    expect(dialog.open).toBe(true);
+    input.value = code.slice(0, -2);
+    submit();
+    expect(save).not.toHaveBeenCalled();
+    expect(dialog.open).toBe(true);
+    expect(doc.getElementById('themeCodeError')!.hidden).toBe(false);
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    input.value = code;
+    submit();
+    expect(save).toHaveBeenCalledWith({ appearance: { ...mine(), ...presetColors('sand') } });
+    expect(dialog.open).toBe(false);
+    expect(doc.querySelector('[data-preset="sand"]')!.getAttribute('aria-pressed')).toBe('true');
   });
 });

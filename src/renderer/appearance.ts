@@ -1,6 +1,8 @@
-import { defaultAppearance, mixColor, paletteTokens, type AppearanceSettings, type AppearanceTheme } from '../shared/appearance.js';
+import { APPEARANCE_PRESETS, defaultAppearance, mixColor, paletteTokens, parseThemeCode, presetColors, sameColors, themeCode,
+  type AppearanceColors, type AppearanceSettings, type AppearanceTheme } from '../shared/appearance.js';
 import type { UiPrefs } from '../shared/types.js';
-import { $ } from './dom.js';
+import { $, run, toast } from './dom.js';
+import { t } from './i18n.js';
 
 const FONT_FAMILIES = {
   system: '', sans: 'Arial, Helvetica, sans-serif',
@@ -57,6 +59,18 @@ export function initAppearance(save: (patch: { theme?: AppearanceTheme; appearan
       const hex = panel.querySelector<HTMLInputElement>(`[data-hex="${key}"]`)!;
       if (document.activeElement !== hex) hex.value = color.toUpperCase();
     }
+    for (const preset of APPEARANCE_PRESETS) {
+      const button = panel.querySelector<HTMLButtonElement>(`[data-preset="${preset}"]`)!, colors = presetColors(preset);
+      button.setAttribute('aria-pressed', String(sameColors(current, colors)));
+      // The swatch shows the preset in the theme being edited, not the live page colors.
+      const swatch = button.querySelector<HTMLElement>('.appearance-preset-swatch')!;
+      for (const key of colorKeys) swatch.style.setProperty(`--preset-${key}`, colors[theme][key]);
+    }
+  }
+  function useColors(colors: AppearanceColors): void {
+    editing = false;
+    current = { ...current, light: colors.light, dark: colors.dark, translucentSidebar: colors.translucentSidebar };
+    paint(); save({ appearance: current });
   }
   function update(control: HTMLInputElement | HTMLSelectElement): boolean {
     if (control.dataset.color || control.dataset.hex) {
@@ -102,6 +116,28 @@ export function initAppearance(save: (patch: { theme?: AppearanceTheme; appearan
   $('appearanceReset').addEventListener('click', () => {
     // Colors and typography only: the sidebar keeps the layout the person chose.
     editing = false; current = { ...defaultAppearance(), sidebarLayout: current.sidebarLayout }; paint(); save({ appearance: current });
+  });
+  for (const preset of APPEARANCE_PRESETS) {
+    panel.querySelector(`[data-preset="${preset}"]`)!.addEventListener('click', () => useColors(presetColors(preset)));
+  }
+  $('appearanceCodeCopy').addEventListener('click', async () => {
+    if (await run(window.api.writeClipboard(themeCode(current)))) toast(t('Theme code copied'));
+  });
+  const dialog = $<HTMLDialogElement>('themeCodeDialog'), input = $<HTMLTextAreaElement>('themeCodeInput'), error = $('themeCodeError');
+  const showError = (shown: boolean) => {
+    error.hidden = !shown;
+    if (shown) input.setAttribute('aria-invalid', 'true'); else input.removeAttribute('aria-invalid');
+  };
+  $('appearanceCodePaste').addEventListener('click', () => {
+    input.value = ''; showError(false); dialog.showModal(); input.focus();
+  });
+  input.addEventListener('input', () => showError(false));
+  $('themeCodeCancel').addEventListener('click', () => dialog.close());
+  $('themeCodeForm').addEventListener('submit', event => {
+    event.preventDefault();
+    const colors = parseThemeCode(input.value);
+    if (!colors) { showError(true); input.focus(); return; }
+    dialog.close(); useColors(colors);
   });
   return { apply(ui) {
     if (editing) return;

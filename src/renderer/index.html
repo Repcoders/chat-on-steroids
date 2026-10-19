@@ -241,6 +241,13 @@
               </div>
             </section>
             <section class="appearance-section">
+              <header class="settings-section-head"><div><h2>Presets</h2><p>Start from a ready-made palette for Light and Dark. Font, text size and layout stay as they are.</p></div></header>
+              <div class="settings-surface pane appearance-settings-card">
+              <div class="setting"><span class="setting-text" id="appearancePresetLabel"><b>Color preset</b></span><div class="appearance-presets" role="group" aria-labelledby="appearancePresetLabel"><button class="appearance-preset" type="button" data-preset="default" aria-pressed="false"><span class="appearance-preset-swatch" aria-hidden="true"></span>Default</button><button class="appearance-preset" type="button" data-preset="near-black" aria-pressed="false"><span class="appearance-preset-swatch" aria-hidden="true"></span>Near black</button><button class="appearance-preset" type="button" data-preset="slate" aria-pressed="false"><span class="appearance-preset-swatch" aria-hidden="true"></span>Slate</button><button class="appearance-preset" type="button" data-preset="forest" aria-pressed="false"><span class="appearance-preset-swatch" aria-hidden="true"></span>Forest</button><button class="appearance-preset" type="button" data-preset="sand" aria-pressed="false"><span class="appearance-preset-swatch" aria-hidden="true"></span>Sand</button></div></div>
+              <div class="setting"><span class="setting-text"><b>Theme code</b><em>Share your colors as a code, or paste a code someone shared.</em></span><div class="appearance-code-actions"><button class="btn" id="appearanceCodeCopy" type="button"><i class="ico ph ph-copy" aria-hidden="true"></i>Copy code</button><button class="btn" id="appearanceCodePaste" type="button"><i class="ico ph ph-clipboard-text" aria-hidden="true"></i>Paste code</button></div></div>
+              </div>
+            </section>
+            <section class="appearance-section">
               <header class="settings-section-head"><div><h2>Colors</h2><p>Fine-tune background and accent colors for the selected theme.</p></div></header>
               <div class="settings-surface pane appearance-settings-card">
               <label class="setting"><span class="setting-text"><b>Theme</b><em>Light and dark keep their own colors.</em></span><select id="appearanceTheme"><option value="light">Light</option><option value="dark">Dark</option></select></label>
@@ -1535,6 +1542,15 @@
         <button class="whats-new-link" id="whatsNewNotes" type="button"><i class="ico ph ph-arrow-square-out" aria-hidden="true"></i>Full release notes</button>
         <button class="whats-new-done" id="whatsNewDone" type="button">Got it</button>
       </footer>
+    </dialog>
+    <dialog id="themeCodeDialog" class="setup-profile-dialog theme-code-dialog" aria-labelledby="themeCodeDialogTitle">
+      <form id="themeCodeForm">
+        <h3 id="themeCodeDialogTitle">Paste a theme code</h3>
+        <label for="themeCodeInput">Theme code</label>
+        <textarea id="themeCodeInput" rows="4" maxlength="2000" required spellcheck="false" autocomplete="off" aria-describedby="themeCodeError"></textarea>
+        <p class="theme-code-error" id="themeCodeError" hidden>This is not a theme code. Copy the whole code and try again.</p>
+        <div class="step-actions"><button class="btn" id="themeCodeCancel" type="button">Cancel</button><button class="btn" type="submit">Use theme</button></div>
+      </form>
     </dialog>
     <dialog id="setupProfileDialog" class="setup-profile-dialog" aria-labelledby="setupProfileDialogTitle">
       <form id="setupProfileForm">
