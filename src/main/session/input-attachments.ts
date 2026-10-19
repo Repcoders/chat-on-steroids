@@ -51,15 +51,19 @@ export function listRecentAttachments(retained: Set<string>): Promise<InputAttac
   staging = next.catch(() => undefined);
   return next;
 }
-/** Hand already staged originals to a new draft by id, renewing their age under the prune lock. */
-export function reuseInputAttachments(ids: string[]): Promise<InputAttachment[]> {
+/**
+ * Hand already staged originals to a new draft by id, renewing their age under the prune lock.
+ * An expired original that no pending message holds is refused, as the next prune would delete it.
+ */
+export function reuseInputAttachments(ids: string[], retained: Set<string>): Promise<InputAttachment[]> {
   const next = staging.then(async () => {
     const attachments: InputAttachment[] = [];
     for (const id of ids) {
       const file = fileFor(id);
       try {
         const attachment = attachmentSchema.parse(JSON.parse(await fs.readFile(file + '.json', 'utf8')));
-        if (attachment.id !== id || (await fs.stat(file)).size !== attachment.size) throw new Error('changed');
+        const stat = await fs.stat(file);
+        if (attachment.id !== id || stat.size !== attachment.size || (!retained.has(id) && Date.now() - stat.mtimeMs > STAGING_TTL_MS)) throw new Error('changed');
         attachments.push(attachment);
       } catch { throw new Error('Attachment is missing or changed; attach it again'); }
     }

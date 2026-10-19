@@ -1431,13 +1431,11 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     const { text } = z.object({ text: z.string().min(1).max(4 * 1024 * 1024) }).parse(payload);
     return (await stageFiles([{ text }]))[0]!;
   });
-  handle('sessions:recentAttachments', async () => {
-    const retained = new Set((await listInputs()).filter(row => !['sent', 'failed', 'cancelled'].includes(row.state)).flatMap(row => row.attachments?.map(file => file.id) ?? []));
-    return listRecentAttachments(retained);
-  });
+  const pendingAttachmentIds = async () => new Set((await listInputs()).filter(row => !['sent', 'failed', 'cancelled'].includes(row.state)).flatMap(row => row.attachments?.map(file => file.id) ?? []));
+  handle('sessions:recentAttachments', async () => listRecentAttachments(await pendingAttachmentIds()));
   handle('sessions:reattach', async payload => {
     const { ids } = z.object({ ids: z.array(z.string().uuid()).min(1).max(20) }).strict().parse(payload);
-    return reuseInputAttachments(ids);
+    return reuseInputAttachments(ids, await pendingAttachmentIds());
   });
   handle('sessions:stopTurn', async payload => {
     const { id, expectedTurnId } = sessionIdArg.extend({ expectedTurnId: z.string().min(1).max(256) }).parse(payload);

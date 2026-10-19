@@ -92,10 +92,20 @@ it('lists staged files most recently used first and reattaches one by id with a 
   expect(JSON.stringify(listed)).not.toContain(directory);
   // A pick renews the original's age under the prune lock, so the next staging keeps it.
   await fs.utimes(staged(report.id), at(23.9), at(23.9));
-  expect(await reuseInputAttachments([report.id])).toEqual([report]);
+  expect(await reuseInputAttachments([report.id], new Set())).toEqual([report]);
   await fs.utimes(staged(notes.id), at(25), at(25));
   await stageInputAttachment({ text: 'next draft' }, new Set());
   await validateInputAttachments([report]);
-  await expect(reuseInputAttachments([notes.id])).rejects.toThrow('attach it again');
-  await expect(reuseInputAttachments(['../config'])).rejects.toThrow();
+  await expect(reuseInputAttachments([notes.id], new Set())).rejects.toThrow('attach it again');
+  await expect(reuseInputAttachments(['../config'], new Set())).rejects.toThrow();
+});
+it('refuses to revive an expired original the list already showed, unless a pending message holds it', async () => {
+  const shown = await stageInputAttachment({ text: 'listed an hour ago' }, new Set());
+  const held = await stageInputAttachment({ text: 'queued' }, new Set());
+  expect(await listRecentAttachments(new Set())).toHaveLength(2);
+  // The list stayed open past the 24-hour mark; no prune ran in between.
+  const old = new Date(Date.now() - 25 * 3600000);
+  for (const file of [shown, held]) await fs.utimes(path.join(directory, 'input-attachments', file.id), old, old);
+  await expect(reuseInputAttachments([shown.id], new Set([held.id]))).rejects.toThrow('attach it again');
+  expect(await reuseInputAttachments([held.id], new Set([held.id]))).toEqual([held]);
 });
