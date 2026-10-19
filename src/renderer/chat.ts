@@ -674,8 +674,12 @@ function paintComposerImages(): void {
 }
 /** Redact or mark up one staged image: the flattened copy is staged like a pasted image and takes the original's place. */
 let imageEditing = false;
-/** The draft whose edited image is still staging: its Send waits, so the original cannot go out instead. */
-let imageReplacing: string | null = null;
+/** Edited copies still staging, by draft: that draft's Send waits, so an original cannot go out instead. */
+const imageReplacing = new Map<string, number>();
+function imageReplacingWait(key: string): boolean {
+  if (!imageReplacing.has(key)) return false;
+  toast(t("Wait until the edited image is attached")); return true;
+}
 async function editComposerImage(file: InputAttachment): Promise<void> {
   if (imageEditing) return;
   imageEditing = true;
@@ -690,10 +694,13 @@ async function editComposerImage(file: InputAttachment): Promise<void> {
   } finally { imageEditing = false; }
   if (!edited || !ownsComposerDraft(owner)) return;
   const name = `${file.name.replace(/\.[^.]*$/, '') || 'image'}-edited.${edited.type === 'image/jpeg' ? 'jpg' : 'png'}`;
-  imageReplacing = owner.key;
+  imageReplacing.set(owner.key, (imageReplacing.get(owner.key) ?? 0) + 1);
   let staged: InputAttachment[] | null;
   try { staged = await run(api.dropFiles([new File([edited], name, { type: edited.type })])); }
-  finally { imageReplacing = null; }
+  finally {
+    const left = (imageReplacing.get(owner.key) ?? 1) - 1;
+    if (left) imageReplacing.set(owner.key, left); else imageReplacing.delete(owner.key);
+  }
   if (!staged) return;
   const drafts = imageDrafts.get(owner.key) ?? [], at = drafts.findIndex(entry => 'id' in entry && entry.id === file.id);
   if (!staged[0] || !ownsComposerDraft(owner) || at < 0) { toast(t("Files were not added because the draft changed.")); return; }
@@ -7704,7 +7711,7 @@ async function sendComposer(delivery?: 'finish' | 'auto' | 'after-turn', plan?: 
   const images = imageDrafts.get(key) ?? [];
   const text = plan?.[0] ?? (authoredComposerText().trim() || (images.length ? 'Please look at the attached files.' : ''));
   if ($<HTMLButtonElement>('chatSend').disabled) return;
-  if (imageReplacing === key) { toast(t("Wait until the edited image is attached")); return; }
+  if (imageReplacingWait(key)) return;
   if (!text) {
     // An empty/repeated form submission is not a Stop gesture. Only activation
     // of the button while it actually displays Stop/Cancel owns this branch.
@@ -7744,6 +7751,8 @@ async function sendComposer(delivery?: 'finish' | 'auto' | 'after-turn', plan?: 
   if (discoveryGeneration !== composerDiscoveryGeneration || discoverySelection !== selectionGeneration || discoverySession !== selectedId ||
       authoredComposerText() !== discoveryDraft || (imageDrafts.get(key) ?? []).some((image, index) => image !== images[index]) ||
       (imageDrafts.get(key)?.length ?? 0) !== images.length) return false;
+  // An edit saved while the model was being confirmed is still staging its copy.
+  if (imageReplacingWait(key)) return false;
   if (!modelSettings) { toast(t("Model discovery could not confirm your selection. Choose an available model and thinking effort, then send again.")); return false; }
   const sessionId = selectedId;
   const generation = selectionGeneration;

@@ -1414,6 +1414,52 @@ it('holds Send while the edited copy stages, offers Edit without a preview and k
   expect(w.document.querySelector('.toast')?.textContent).toBe('Attach up to 20 files and 512 MB per message');
 });
 
+it('keeps Send waiting until every edited copy in the draft is staged, also after model discovery', async () => {
+  // A new chat whose default model is not confirmed yet: Send asks for the model list first.
+  const app = await boot([], false, [], [], { defaultChatModel: 'gpt-6' });
+  const w = app.w as any;
+  w.api.requestChatModels = async () => ({ ok: true, data: { state: 'unavailable', requestedAt: 1, observedAt: null, models: [] } });
+  (w.document.getElementById('refreshComposerModels') as HTMLButtonElement).click(); await settle();
+  const one = { id: '11111111-2222-4333-8444-555555555555', name: 'one.png', mimeType: 'image/png', size: 42 };
+  const two = { ...one, id: '22222222-2222-4333-8444-555555555555', name: 'two.png' };
+  w.HTMLImageElement.prototype.decode = async () => undefined;
+  w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: () => () => undefined, set: () => true });
+  w.HTMLCanvasElement.prototype.toBlob = (done: BlobCallback, type?: string) => done(new Blob(['redacted'], { type }));
+  w.HTMLCanvasElement.prototype.getBoundingClientRect = function () { return { left: 0, top: 0, width: this.width, height: this.height }; };
+  w.api.attachmentImage = async () => ({ ok: true, data: { dataUrl: 'data:image/png;base64,YQ==', width: 320, height: 180 } });
+  const finishes = new Map<string, (value: unknown) => void>();
+  w.api.dropFiles = vi.fn((files: File[]) => new Promise(resolve => finishes.set(files[0]!.name, resolve)));
+  const edit = async (name: string) => {
+    (w.document.querySelector(`[aria-label="Edit ${name}"]`) as HTMLButtonElement).click(); await settle();
+    const canvas = w.document.querySelector('.image-editor-canvas') as HTMLCanvasElement;
+    for (const [type, x, y] of [['pointerdown', 40, 30], ['pointermove', 120, 60], ['pointerup', 120, 60]] as const)
+      canvas.dispatchEvent(new w.MouseEvent(type, { clientX: x, clientY: y, button: 0, bubbles: true }));
+    [...w.document.querySelectorAll('.image-editor-dialog button')].find((node: any) => node.textContent === 'Save')!.click();
+    await settle();
+  };
+  const submit = async () => { w.document.getElementById('composer')!.dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true })); await settle(); };
+  const copy = (file: typeof one) => ({ ok: true, data: [{ ...file, id: file.id.replace('5555', '6666'), name: file.name.replace('.png', '-edited.png') }] });
+  w.api.chooseFiles = async () => ({ ok: true, data: [one, two] });
+  w.document.getElementById('attachImages')!.click(); await settle();
+  // Two copies staging, finished in reverse order: Send waits for both.
+  await edit('one.png'); await edit('two.png');
+  finishes.get('two-edited.png')!(copy(two)); await settle();
+  await submit();
+  expect(app.live.sent).toHaveLength(0);
+  finishes.get('one-edited.png')!(copy(one)); await settle();
+  // An edit saved while Send waits for the model list holds that Send too.
+  let discovered!: (value: unknown) => void;
+  w.api.requestChatModels = vi.fn(() => new Promise(resolve => { discovered = resolve; }));
+  w.api.dropFiles = vi.fn(() => new Promise(() => undefined));
+  const sending = submit();
+  await sending;
+  await edit('one-edited.png');
+  discovered({ ok: true, data: { state: 'ready', requestedAt: 1, observedAt: Date.now(), models: [{ id: 'gpt-6', label: 'GPT-6', efforts: ['none', 'high'] }] } });
+  await settle();
+  expect(app.live.sent).toHaveLength(0);
+  expect(w.document.querySelector('.toast')?.textContent).toBe('Wait until the edited image is attached');
+});
+
 it.each([7, 10, 11])('uses the same visible delivery choice and payload for %s attached images', async count => {
   const { w, live } = await boot([]);
   const files = Array.from({ length: count }, (_, index) => ({
