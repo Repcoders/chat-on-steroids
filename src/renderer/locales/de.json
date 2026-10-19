@@ -2829,5 +2829,6 @@
   "Cited in": "Zitiert in",
   "Answer {0}": "Antwort {0}",
   "No sources match": "Keine passenden Quellen",
-  "No sources in this chat": "Dieser Chat zitiert keine Quellen"
+  "No sources in this chat": "Dieser Chat zitiert keine Quellen",
+  "Only the first 500 cited pages are listed.": "Nur die ersten 500 zitierten Seiten werden angezeigt."
 }

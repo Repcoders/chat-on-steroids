@@ -2784,5 +2784,6 @@
   "Cited in": "인용한 답변",
   "Answer {0}": "답변 {0}",
   "No sources match": "일치하는 출처가 없습니다",
-  "No sources in this chat": "이 채팅에는 출처가 없습니다"
+  "No sources in this chat": "이 채팅에는 출처가 없습니다",
+  "Only the first 500 cited pages are listed.": "인용된 페이지 중 처음 500개만 표시합니다."
 }

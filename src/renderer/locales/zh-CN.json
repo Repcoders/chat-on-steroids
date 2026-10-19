@@ -2784,5 +2784,6 @@
   "Cited in": "引用于",
   "Answer {0}": "回答 {0}",
   "No sources match": "没有匹配的来源",
-  "No sources in this chat": "此聊天未引用任何来源"
+  "No sources in this chat": "此聊天未引用任何来源",
+  "Only the first 500 cited pages are listed.": "仅列出前 500 个被引用的页面。"
 }

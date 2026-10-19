@@ -2829,5 +2829,6 @@
   "Cited in": "Alıntılandığı yer",
   "Answer {0}": "Yanıt {0}",
   "No sources match": "Eşleşen kaynak yok",
-  "No sources in this chat": "Bu sohbet kaynak göstermiyor"
+  "No sources in this chat": "Bu sohbet kaynak göstermiyor",
+  "Only the first 500 cited pages are listed.": "Yalnızca alıntılanan ilk 500 sayfa listeleniyor."
 }

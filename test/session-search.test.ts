@@ -250,10 +250,30 @@ it('lists every page a chat cites once, with each answer that cites it and its q
     return { seq: event.seq, kind: 'assistant_message', messageId, position: positionOf(event) };
   };
   // In the order first cited; one page however its link was written, with what later citations add.
-  expect(await sourcesInSession(session.id)).toEqual([
+  expect(await sourcesInSession(session.id)).toEqual({ sources: [
     { url: 'https://docs.example.org/notes', title: 'Release notes', date: 1_760_000_000_000,
       citedBy: [{ answer: 1, question: 'What changed in the release?', location: at('a1') }] },
     { url: 'https://example.com/changelog#top', title: 'Changelog', source: 'Example', snippet: 'Fixed the crash.',
       citedBy: [{ answer: 1, question: 'What changed in the release?', location: at('a1') }, { answer: 2, question: 'And the bug fixes?', location: at('a2') }] }
-  ]);
+  ] });
+});
+
+it('bounds a chat Sources list and says when it holds only part of it', async () => {
+  const session = await createSession({ conversationId: 'search-chat-sources-many', title: 'Many sources' });
+  // 25 answers cite the same page; three more cite 200 new pages each.
+  for (let n = 0; n < 28; n++) {
+    const pages = n < 25 ? [{ title: 'Shared page', url: 'https://example.com/shared' }]
+      : Array.from({ length: 200 }, (_, at) => ({ title: `Page ${n}-${at}`, url: `https://example.com/${n}/${at}` }));
+    await upsertMessageEvent(session.id, { kind: 'assistant_message', source: 'extension', time: Date.now(), messageId: `many-${n}`,
+      message: { text: `Answer ${n}`, chars: 9, truncated: false }, state: 'final', final: true,
+      references: [{ index: 0, sources: pages.slice(0, 100) }, { index: 1, sources: pages.slice(100) }] });
+  }
+  await flushSessions();
+  const reply = await sourcesInSession(session.id);
+  expect(reply.limited).toBe(true);
+  expect(reply.sources).toHaveLength(500);
+  const shared = reply.sources[0]!;
+  // The first 20 citing answers are listed; the other 5 are counted.
+  expect(shared.citedBy.map(cited => cited.answer)).toEqual(Array.from({ length: 20 }, (_, at) => at + 1));
+  expect(shared.moreAnswers).toBe(5);
 });

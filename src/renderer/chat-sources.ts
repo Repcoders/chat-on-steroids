@@ -5,12 +5,12 @@
  * route; each answer citing it opens the chat at that answer. The list, or the part a search
  * leaves, copies as a Markdown list.
  */
-import type { SessionSearchLocation, SessionSource } from '../shared/session.js';
+import type { SessionSearchLocation, SessionSource, SessionSourcesReply } from '../shared/session.js';
 import { $, el } from './dom.js';
 import { currentLanguage, t, ui } from './i18n.js';
 
 export interface ChatSourcesDeps {
-  sources(id: string): Promise<SessionSource[] | null>;
+  sources(id: string): Promise<SessionSourcesReply | null>;
   /** Opens the page through the main process's validated link route. */
   openLink(url: string): void;
   /** Scrolls the open chat to the answer, loading the history page around it when needed. */
@@ -32,6 +32,7 @@ export function initChatSources(deps: ChatSourcesDeps): { open(id: string): void
   const list = $('sourcesList');
   let sessionId: string | null = null;
   let all: SessionSource[] = [];
+  let limited = false;
   let generation = 0;
   let copiedTimer = 0;
 
@@ -74,6 +75,7 @@ export function initChatSources(deps: ChatSourcesDeps): { open(id: string): void
       });
       cited.append(answer);
     }
+    if (source.moreAnswers) cited.append(el('span', 'source-cited-label', `+${source.moreAnswers}`));
     box.append(cited);
     return box;
   };
@@ -89,12 +91,14 @@ export function initChatSources(deps: ChatSourcesDeps): { open(id: string): void
     rows.setAttribute('role', 'list');
     rows.append(...sources.map(row));
     list.replaceChildren(rows);
+    if (limited) list.append(el('p', 'search-status', () => t('Only the first 500 cited pages are listed.')));
   };
 
   const open = (id: string): void => {
     const mine = ++generation;
     sessionId = id;
     all = [];
+    limited = false;
     field.value = '';
     list.replaceChildren();
     copy.disabled = true;
@@ -102,7 +106,8 @@ export function initChatSources(deps: ChatSourcesDeps): { open(id: string): void
     field.focus();
     void deps.sources(id).then(sources => {
       if (mine !== generation || !dialog.open) return;
-      all = sources ?? [];
+      all = sources?.sources ?? [];
+      limited = Boolean(sources?.limited);
       paint();
     });
   };

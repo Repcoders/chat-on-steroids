@@ -2784,5 +2784,6 @@
   "Cited in": "Được trích trong",
   "Answer {0}": "Câu trả lời {0}",
   "No sources match": "Không có nguồn nào khớp",
-  "No sources in this chat": "Cuộc trò chuyện này không trích nguồn nào"
+  "No sources in this chat": "Cuộc trò chuyện này không trích nguồn nào",
+  "Only the first 500 cited pages are listed.": "Chỉ liệt kê 500 trang được trích đầu tiên."
 }

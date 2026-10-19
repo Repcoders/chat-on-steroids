@@ -2874,5 +2874,6 @@
   "Cited in": "Citada en",
   "Answer {0}": "Respuesta {0}",
   "No sources match": "Ninguna fuente coincide",
-  "No sources in this chat": "Este chat no cita fuentes"
+  "No sources in this chat": "Este chat no cita fuentes",
+  "Only the first 500 cited pages are listed.": "Solo se muestran las primeras 500 páginas citadas."
 }

@@ -2784,5 +2784,6 @@
   "Cited in": "引用元の回答",
   "Answer {0}": "回答 {0}",
   "No sources match": "一致する出典はありません",
-  "No sources in this chat": "このチャットには出典がありません"
+  "No sources in this chat": "このチャットには出典がありません",
+  "Only the first 500 cited pages are listed.": "引用されたページは最初の 500 件だけを表示しています。"
 }

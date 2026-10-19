@@ -2784,5 +2784,6 @@
   "Cited in": "引用於",
   "Answer {0}": "回答 {0}",
   "No sources match": "沒有相符的來源",
-  "No sources in this chat": "此聊天未引用任何來源"
+  "No sources in this chat": "此聊天未引用任何來源",
+  "Only the first 500 cited pages are listed.": "僅列出前 500 個被引用的頁面。"
 }

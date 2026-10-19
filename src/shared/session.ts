@@ -1323,6 +1323,13 @@ export interface SessionSource {
    * the question it answered (empty before any question), and where it is.
    */
   citedBy: Array<{ answer: number; question: string; location: SessionSearchLocation }>;
+  /** Citing answers beyond the first 20, counted only. */
+  moreAnswers?: number;
+}
+export interface SessionSourcesReply {
+  sources: SessionSource[];
+  /** More pages are cited than the 500 `sources` holds. */
+  limited?: true;
 }
 
 /**
