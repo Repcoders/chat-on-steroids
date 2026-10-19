@@ -259,8 +259,10 @@ export async function findInSession(id: string, query: string): Promise<SessionS
     if (!toolCallShownText(event.call).some(matches)) continue;
     calls.push({ at: positionOf(event), location: { seq: event.seq, kind: 'tool_call', messageId: null, callId: event.call.callId, position: positionOf(event) } });
   }
+  // Both in the order the chat draws them (a stable sort keeps spoken order between equals), then
+  // each call goes in before the first message drawn below it.
+  said.sort((a, b) => a.at - b.at);
   calls.sort((a, b) => a.at - b.at);
-  // Messages keep their spoken order; each call goes in before the first message drawn below it.
   const found: SessionSearchLocation[] = [];
   let next = 0;
   for (const message of said) {

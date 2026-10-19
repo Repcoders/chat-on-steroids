@@ -253,6 +253,30 @@ it("finds a phrase in a tool call's arguments and result, where the chat draws t
   expect(await findInSession(id, 'grep .* src')).toEqual([]);
 });
 
+it('steps through calls and answers in the order the chat draws them', async () => {
+  // An answer ChatGPT opened early and finished last is drawn at its turn's end, below a later
+  // answer and the calls between them; in spoken order it came first and pulled every call above it.
+  const { appendEvent } = await import('../src/main/session/store.js');
+  const id = await chat('Order', [['user', 'Check the widget']]);
+  let time = Date.now();
+  const stored = (text: string) => ({ text, chars: text.length, truncated: false });
+  const answer = (messageId: string, text: string, final: boolean) => upsertMessageEvent(id, { kind: 'assistant_message', source: 'extension',
+    time: time++, messageId, turnId: 'turn-1', message: stored(text), state: final ? 'final' : 'streaming', final });
+  const call = (callId: string) => appendEvent(id, { kind: 'tool_call', source: 'mcp', time: time++, turnId: 'turn-1', call: {
+    callId, tool: 'exec_command', requestId: null, conversationId: null, attribution: 'request_id', attributionMethod: 'request_id',
+    args: stored(`{"cmd":"check PLACEHOLDER_ORDER ${callId}"}`), result: stored('ok'), outcome: 'ok', durationMs: 1, summary: { kind: 'run', title: 'Ran', tone: 'neutral' } } });
+  await answer('opened-early', 'Working on PLACEHOLDER_ORDER', false);
+  const first = await call('call-1');
+  await answer('between', 'PLACEHOLDER_ORDER is half done.', true);
+  const second = await call('call-2');
+  await answer('opened-early', 'Done: PLACEHOLDER_ORDER works.', true);
+  await flushSessions();
+  const said = await readEvents(id, { kinds: ['assistant_message'] });
+  const seqOf = (messageId: string) => said.find(event => event.kind === 'assistant_message' && event.messageId === messageId)!.seq;
+  expect((await findInSession(id, 'placeholder_order')).map(location => location.seq))
+    .toEqual([first.seq, seqOf('between'), second.seq, seqOf('opened-early')]);
+});
+
 it('locates a reply by its native message id, where it first appeared (#482)', async () => {
   // Branch in new chat links back to the exact reply it was branched from.
   const id = await chat('Branch source', [['user', 'try one'], ['assistant', 'Approach A.'], ['user', 'go on'], ['assistant', 'Approach A, step two.']]);
