@@ -2752,5 +2752,14 @@
   "{0} characters": "{0}자",
   "from {0} events": "이벤트 {0}개에서 생성",
   "(~{0} tokens)": "(~{0} 토큰)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Snooze": "다시 알림",
+  "Unsnooze": "다시 알림 취소",
+  "In an hour": "1시간 후",
+  "Tomorrow": "내일",
+  "Next week": "다음 주",
+  "Hide this chat until the time you pick. New activity brings it back sooner.": "선택한 시간까지 이 채팅을 숨깁니다. 새 활동이 있으면 더 일찍 돌아옵니다.",
+  "Bring this chat back to its list now": "이 채팅을 지금 목록으로 되돌리기",
+  "Snoozed until {0}": "{0}까지 다시 알림",
+  "Snoozed · {0}": "다시 알림 · {0}"
 }

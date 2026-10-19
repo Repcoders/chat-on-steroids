@@ -2887,5 +2887,14 @@
   "(~{0} tokens)|one": "(~{0} токен)",
   "(~{0} tokens)|few": "(~{0} токена)",
   "(~{0} tokens)|many": "(~{0} токенов)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Snooze": "Отложить",
+  "Unsnooze": "Вернуть",
+  "In an hour": "Через час",
+  "Tomorrow": "Завтра",
+  "Next week": "На следующей неделе",
+  "Hide this chat until the time you pick. New activity brings it back sooner.": "Скрыть этот чат до выбранного времени. Новая активность вернёт его раньше.",
+  "Bring this chat back to its list now": "Вернуть этот чат в его список сейчас",
+  "Snoozed until {0}": "Отложен до {0}",
+  "Snoozed · {0}": "Отложенные · {0}"
 }

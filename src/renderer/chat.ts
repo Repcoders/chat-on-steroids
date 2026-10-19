@@ -23,6 +23,7 @@ import { shownSessionTitle } from './session-title.js';
 import { preserveTimelineViewport, ROUNDING_PX } from './timeline-scroll.js';
 import { createSidebarOrder, SIDEBAR_PROJECT_SCOPE } from './sidebar-order.js';
 import { createSidebarPins, pinnedSortScope } from './sidebar-pins.js';
+import { createSidebarSnooze, SNOOZE_CHOICES, snoozeUntil, wakeLabel, type SnoozeChoice } from './sidebar-snooze.js';
 import { createSidebarCompletionState } from './sidebar-completion.js';
 import { toolResultText } from './tool-result.js';
 import { renderEditCards } from './tool-artifacts.js';
@@ -323,6 +324,23 @@ let sidebarPins: ReturnType<typeof createSidebarPins> | undefined;
 /** Only a person's own recorded chats can be pinned; workers live inside their task's row. */
 const pinnable = (entry: SessionSummary): boolean => !!entry.conversationId && entry.origin?.kind !== 'worker';
 const pinnedChat = (entry: SessionSummary): boolean => pinnable(entry) && sidebarPins?.has(entry.id) === true;
+let sidebarSnooze: ReturnType<typeof createSidebarSnooze> | undefined;
+let snoozedOpen = false;
+/** A chat's last activity, its sub-agents' included: anything newer wakes it from a snooze. */
+const snoozeActivity = (entry: SessionSummary, workers: SessionSummary[] = []): number =>
+  Math.max(entry.updatedAt, ...workers.map(worker => worker.updatedAt));
+/**
+ * When a snoozed chat wakes, or null when it is in its list: its time, new activity, or an approval
+ * or a stopped recovery waiting on the person brings it back.
+ */
+function snoozedUntil(entry: SessionSummary, workers?: SessionSummary[]): number | null {
+  if (!sidebarSnooze || !pinnable(entry)) return null;
+  const attention = chatAttention(entry);
+  if (attention === 'approval' || attention === 'recovery') { sidebarSnooze.wake(entry.id); return null; }
+  return sidebarSnooze.until(entry.id, snoozeActivity(entry, workers));
+}
+const wakeTime = (at: number): string => wakeLabel(at, Date.now(), currentLanguage());
+const SNOOZE_LABELS: Record<SnoozeChoice, () => string> = { hour: () => t('In an hour'), tomorrow: () => t('Tomorrow'), week: () => t('Next week') };
 let sidebarCompletion: ReturnType<typeof createSidebarCompletionState> | undefined;
 function draftKey(): string { return selectedId ?? (selectedProjectId ? `project:${selectedProjectId}` : 'new'); }
 let selectionGeneration = 0;
@@ -1035,6 +1053,33 @@ function sessionRow(summary: SessionSummary): HTMLElement {
           rowMenuButton(owner)?.focus({ preventScroll: true });
         }
       });
+      // The paint already woke a chat whose sub-agents did something; its own activity is enough here.
+      const until = snoozedUntil(summary);
+      items.splice(1, 0, until !== null ? {
+        action: 'unsnooze', icon: 'i-clock', label: () => t('Unsnooze'), hint: () => wakeTime(until),
+        title: () => t('Bring this chat back to its list now'),
+        run: () => {
+          sidebarSnooze?.wake(summary.id);
+          paintSessions();
+          // Back in its list: the keyboard follows it there, as after a pin.
+          [...$('sessionList').querySelectorAll<HTMLElement>('.sess')].find(entry => entry.dataset.id === summary.id)
+            ?.querySelector<HTMLElement>('.sess-top')?.focus({ preventScroll: true });
+        }
+      } : {
+        action: 'snooze', icon: 'i-clock', label: () => t('Snooze'),
+        title: () => t('Hide this chat until the time you pick. New activity brings it back sooner.'),
+        submenu: () => SNOOZE_CHOICES.map(choice => ({
+          action: `snooze-${choice}`, label: SNOOZE_LABELS[choice], hint: () => wakeTime(snoozeUntil(choice, Date.now())),
+          run: () => {
+            const at = snoozeUntil(choice, Date.now());
+            sidebarSnooze?.snooze(summary.id, at, snoozeActivity(summary, workerChildren().get(summary.id)));
+            paintSessions();
+            // Its row went into Snoozed: the keyboard goes to that group's heading, not to the page.
+            $('sessionList').querySelector<HTMLElement>('[data-inbox-control="snoozed"]')?.focus({ preventScroll: true });
+            toast(t('Snoozed until {0}', [wakeTime(at)]));
+          }
+        }))
+      });
     }
   }
   items.push(remove);
@@ -1651,7 +1696,11 @@ function paintInbox(): void {
   const busy = new Map([...children].map(([key, workers]) => [key, busyWorkers(workers)]));
   const inProject = (entry: SessionSummary) => !inboxProject || projectGroup(entry.projectId) === inboxProject;
   const attributed = (entry: SessionSummary) => !!entry.conversationId || entry.origin?.kind === 'desktop';
-  const shown = sessions.filter(entry => entry.origin?.kind !== 'worker' && attributed(entry) && inProject(entry));
+  const listed = sessions.filter(entry => entry.origin?.kind !== 'worker' && attributed(entry) && inProject(entry));
+  const snoozed = listed.map(entry => ({ entry, until: snoozedUntil(entry, children.get(entry.id)) }))
+    .filter((row): row is { entry: SessionSummary; until: number } => row.until !== null);
+  const asleep = new Set(snoozed.map(row => row.entry));
+  const shown = listed.filter(entry => !asleep.has(entry));
   // What the tree puts under "Unattributed activity", under the same disclosure here.
   const diagnostics = sessions.filter(entry => entry.origin?.kind !== 'worker' && !attributed(entry) && inProject(entry));
   const settles = new Set(shown.filter(entry => inboxSettled(entry, busy.get(entry.id))));
@@ -1764,12 +1813,14 @@ function paintInbox(): void {
   }
   // After both groups, outside Settled: it reads on in the whole list, and Settled may be closed.
   if (showMore) rows.push(showMore);
+  const snoozedBox = snoozedGroup(snoozed, inboxSettledRow);
+  if (snoozedBox) rows.push(snoozedBox);
   const orphans = (children.get('other-workers') ?? []).filter(worker => !id || projectGroup(worker.projectId) === id);
   const history = workerHistory(orphans);
   if (history) rows.push(history);
   const unattributed = unattributedActivity(diagnostics);
   if (unattributed) rows.push(unattributed);
-  if (!chats.length && !diagnostics.length) rows.push(inboxEmpty(id));
+  if (!chats.length && !diagnostics.length && !snoozed.length) rows.push(inboxEmpty(id));
   $('projectList').replaceChildren();
   list.replaceChildren(...rows);
   restoreRowFocus(); restoreControlFocus();
@@ -1908,6 +1959,27 @@ function unattributedActivity(entries: SessionSummary[]): HTMLElement | null {
   return disclosure;
 }
 
+/** Snoozed chats, from every list, behind one quiet disclosure at its end, each with the time it wakes. */
+function snoozedGroup(entries: Array<{ entry: SessionSummary; until: number }>, row: (entry: SessionSummary) => HTMLElement): HTMLElement | null {
+  if (!entries.length) return null;
+  const disclosure = document.createElement('details');
+  disclosure.className = 'session-diagnostics';
+  disclosure.open = snoozedOpen;
+  const summary = el('summary', '', () => t('Snoozed · {0}', [entries.length]));
+  summary.dataset.inboxControl = 'snoozed';
+  disclosure.append(summary, ...entries.map(({ entry, until }) => {
+    const shown = row(entry);
+    const top = shown.querySelector<HTMLElement>('.sess-top')!;
+    top.querySelector(':scope > .sess-age')?.remove();
+    top.append(el('span', 'sess-age', () => wakeTime(until)));
+    const pinned = pinnedChat(entry), badges = sessionBadges(entry);
+    ui(shown, 'title', () => sessionRowTitle(entry, pinned, badges, [t('Snoozed until {0}', [wakeTime(until)])]));
+    return shown;
+  }));
+  disclosure.addEventListener('toggle', () => { snoozedOpen = disclosure.open; });
+  return disclosure;
+}
+
 function paintSessions(): void {
   // Keep the pointer's elected rows alive while asynchronous activity snapshots arrive.
   if (sidebarOrder?.interacting) return;
@@ -1938,6 +2010,7 @@ function paintSessions(): void {
   // even though those nodes are immediately discarded by the project page limit.
   const projectRows = new Map<string, Array<{ entry: SessionSummary; workers?: SessionSummary[]; selected: boolean }>>();
   const diagnostics: SessionSummary[] = [];
+  const snoozed: Array<{ entry: SessionSummary; until: number }> = [];
   // Pinned chats lead their own list (#1133). Resolve project membership once for
   // this paint: scanning all sessions for each project and then searching the project
   // catalog for every comparison used to multiply work on frequent activity pushes.
@@ -1964,6 +2037,8 @@ function paintSessions(): void {
     if (!entry.conversationId && entry.origin?.kind !== 'desktop') { diagnostics.push(entry); continue; }
     const projectId = groupOf(entry.projectId);
     const workers = children.get(entry.id);
+    const until = snoozedUntil(entry, workers);
+    if (until !== null) { snoozed.push({ entry, until }); continue; }
     if (projectId) {
       const tasks = projectRows.get(projectId) ?? [];
       tasks.push({ entry, workers, selected: entry.id === selectedId || workers?.some(worker => worker.id === selectedId) === true });
@@ -1974,6 +2049,8 @@ function paintSessions(): void {
       if (workers) workerGroup(entry.id, workers, row, rows);
     }
   }
+  const snoozedBox = snoozedGroup(snoozed, sessionRow);
+  if (snoozedBox) rows.push(snoozedBox);
   const history = workerHistory(children.get('other-workers') ?? []);
   if (history) rows.push(history);
   const projectEntries = projectSortEntries(groupOf);
@@ -2339,6 +2416,8 @@ function scheduleToolActivityExpiry(): void {
     const expiry = summary.activityExpiresAt ?? lastActivityAt + CHAT_ACTIVE_MS;
     if (expiry > now) nearest = Math.min(nearest, expiry);
   }
+  // A snoozed chat comes back at its time without any activity to repaint for it.
+  nearest = Math.min(nearest, sidebarSnooze?.nextWake() ?? Number.POSITIVE_INFINITY);
   if (!Number.isFinite(nearest)) return;
   toolActivityTimer = window.setTimeout(() => paintSessions(), Math.max(1, nearest - now + 1));
 }
@@ -7912,6 +7991,7 @@ function selectNewChat(projectId: string | null = null, branch: typeof newChatBr
 export function initChat(next: Deps): void {
   sidebarCompletion = createSidebarCompletionState();
   sidebarPins = createSidebarPins();
+  sidebarSnooze = createSidebarSnooze();
   sidebarOrder = createSidebarOrder($('sessionList'), () => [
     ...projectSortEntries(),
     ...sessions.filter(entry => (entry.conversationId || entry.origin?.kind === 'desktop') && entry.origin?.kind !== 'worker')

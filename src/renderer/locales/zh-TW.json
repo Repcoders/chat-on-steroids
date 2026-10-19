@@ -2752,5 +2752,14 @@
   "{0} characters": "{0} 個字元",
   "from {0} events": "來自 {0} 個事件",
   "(~{0} tokens)": "（約 {0} Token）",
-  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}",
+  "Snooze": "稍後提醒",
+  "Unsnooze": "取消稍後提醒",
+  "In an hour": "1 小時後",
+  "Tomorrow": "明天",
+  "Next week": "下週",
+  "Hide this chat until the time you pick. New activity brings it back sooner.": "在你選擇的時間之前隱藏此聊天。有新活動時會提早回來。",
+  "Bring this chat back to its list now": "立即將此聊天放回所在清單",
+  "Snoozed until {0}": "稍後提醒至 {0}",
+  "Snoozed · {0}": "稍後提醒 · {0}"
 }

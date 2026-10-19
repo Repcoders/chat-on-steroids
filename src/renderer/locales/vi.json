@@ -2752,5 +2752,14 @@
   "{0} characters": "{0} ký tự",
   "from {0} events": "từ {0} sự kiện",
   "(~{0} tokens)": "(~{0} token)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Snooze": "Tạm ẩn",
+  "Unsnooze": "Bỏ tạm ẩn",
+  "In an hour": "Sau một giờ",
+  "Tomorrow": "Ngày mai",
+  "Next week": "Tuần sau",
+  "Hide this chat until the time you pick. New activity brings it back sooner.": "Ẩn cuộc trò chuyện này đến thời điểm bạn chọn. Hoạt động mới sẽ đưa nó trở lại sớm hơn.",
+  "Bring this chat back to its list now": "Đưa cuộc trò chuyện này về danh sách ngay",
+  "Snoozed until {0}": "Tạm ẩn đến {0}",
+  "Snoozed · {0}": "Đã tạm ẩn · {0}"
 }

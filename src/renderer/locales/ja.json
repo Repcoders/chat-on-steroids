@@ -2752,5 +2752,14 @@
   "{0} characters": "{0}文字",
   "from {0} events": "{0}件のイベントから",
   "(~{0} tokens)": "（約{0}トークン）",
-  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}",
+  "Snooze": "スヌーズ",
+  "Unsnooze": "スヌーズを解除",
+  "In an hour": "1 時間後",
+  "Tomorrow": "明日",
+  "Next week": "来週",
+  "Hide this chat until the time you pick. New activity brings it back sooner.": "選んだ時刻までこのチャットを隠します。新しいアクティビティがあれば早めに戻ります。",
+  "Bring this chat back to its list now": "このチャットを今すぐリストに戻す",
+  "Snoozed until {0}": "{0} までスヌーズ",
+  "Snoozed · {0}": "スヌーズ中 · {0}"
 }

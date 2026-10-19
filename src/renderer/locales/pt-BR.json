@@ -2842,5 +2842,14 @@
   "(~{0} tokens)": "(~{0} tokens)",
   "(~{0} tokens)|one": "(~{0} token)",
   "(~{0} tokens)|many": "(~{0} de tokens)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Snooze": "Adiar",
+  "Unsnooze": "Cancelar adiamento",
+  "In an hour": "Em uma hora",
+  "Tomorrow": "Amanhã",
+  "Next week": "Próxima semana",
+  "Hide this chat until the time you pick. New activity brings it back sooner.": "Ocultar este chat até o horário escolhido. Uma nova atividade o traz de volta antes.",
+  "Bring this chat back to its list now": "Trazer este chat de volta para a lista agora",
+  "Snoozed until {0}": "Adiado até {0}",
+  "Snoozed · {0}": "Adiados · {0}"
 }

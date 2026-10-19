@@ -2797,5 +2797,14 @@
   "from {0} events|one": "aus {0} Ereignis",
   "(~{0} tokens)": "(ca. {0} Tokens)",
   "(~{0} tokens)|one": "(ca. {0} Token)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Snooze": "Zurückstellen",
+  "Unsnooze": "Zurückstellung aufheben",
+  "In an hour": "In einer Stunde",
+  "Tomorrow": "Morgen",
+  "Next week": "Nächste Woche",
+  "Hide this chat until the time you pick. New activity brings it back sooner.": "Diesen Chat bis zur gewählten Zeit ausblenden. Neue Aktivität holt ihn früher zurück.",
+  "Bring this chat back to its list now": "Diesen Chat jetzt in seine Liste zurückholen",
+  "Snoozed until {0}": "Zurückgestellt bis {0}",
+  "Snoozed · {0}": "Zurückgestellt · {0}"
 }

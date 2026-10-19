@@ -2797,5 +2797,14 @@
   "from {0} events|one": "{0} olaydan",
   "(~{0} tokens)": "(~{0} token)",
   "(~{0} tokens)|one": "(~{0} token)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Snooze": "Ertele",
+  "Unsnooze": "Ertelemeyi kaldır",
+  "In an hour": "Bir saat sonra",
+  "Tomorrow": "Yarın",
+  "Next week": "Gelecek hafta",
+  "Hide this chat until the time you pick. New activity brings it back sooner.": "Bu sohbeti seçtiğin zamana kadar gizle. Yeni etkinlik onu daha erken geri getirir.",
+  "Bring this chat back to its list now": "Bu sohbeti şimdi listesine geri getir",
+  "Snoozed until {0}": "{0} tarihine kadar ertelendi",
+  "Snoozed · {0}": "Ertelenenler · {0}"
 }
