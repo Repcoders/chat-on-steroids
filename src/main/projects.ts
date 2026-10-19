@@ -9,7 +9,8 @@ import { parseRemote, remoteIdentity, sftpFor } from './remote/ssh.js';
 import { SftpError, type SftpClient } from './remote/sftp.js';
 import type { RemoteFolder, Root } from '../shared/types.js';
 import { bindSessionProject, findSessionByConversation, getSession } from './session/store.js';
-import { CHATGPT_PROJECT_ID, PROJECT_COLORS, type ChatgptProjectLink, type LocalProject, type ProjectColor } from '../shared/projects.js';
+import { CHATGPT_PROJECT_ID, PROJECT_COLORS, type ChatgptProjectLink, type LocalProject, type ProjectChatDefaults, type ProjectColor } from '../shared/projects.js';
+import { REASONING_EFFORTS } from '../shared/session.js';
 
 const at = z.number().finite().nonnegative();
 const requestId = z.string().uuid();
@@ -21,11 +22,14 @@ const chatgptSchema = z.discriminatedUnion('state', [
   z.object({ state: z.literal('failed'), requestId, error: z.string().max(500), updatedAt: at }),
   z.object({ state: z.literal('uncertain'), requestId, error: z.string().max(500), updatedAt: at })
 ]);
+export const projectChatDefaultsSchema = z.object({ model: z.string().trim().min(1).max(80), reasoningEffort: z.enum(REASONING_EFFORTS) }).strict();
 const projectSchema = z.object({
   id: z.string().uuid(), name: z.string().min(1).max(160), path: z.string().min(1).max(32768),
   color: z.enum(PROJECT_COLORS).optional(),
   createdAt: z.number().finite().nonnegative(), ungrouped: z.boolean().optional(),
   chatgpt: chatgptSchema.optional(),
+  // A malformed pair is dropped, never a reason to reject the whole catalog.
+  chatDefaults: projectChatDefaultsSchema.optional().catch(undefined),
   remote: z.object({ host: z.string().min(1).max(255), port: z.number().int().min(1).max(65535).optional(), path: z.string().min(1).max(4096) }).optional()
 });
 const catalogSchema = z.array(projectSchema).max(200);
@@ -126,6 +130,23 @@ export function setProjectColor(projectId: string, color: ProjectColor | null): 
     if (project.color === (normalized ?? undefined)) return project;
     const { color: _, ...withoutColor } = project;
     const updated: LocalProject = normalized ? { ...withoutColor, color: normalized } : withoutColor;
+    await writeDurableNow('projects', projects.map(row => row.id === projectId ? updated : row));
+    return updated;
+  });
+  mutations = operation.catch(() => undefined);
+  return operation;
+}
+
+/** The pair a new chat in this project starts with; null goes back to the Settings default. */
+export function setProjectChatDefaults(projectId: string, defaults: ProjectChatDefaults | null): Promise<LocalProject> {
+  const operation = mutations.then(async () => {
+    z.string().uuid().parse(projectId);
+    const normalized = projectChatDefaultsSchema.nullable().parse(defaults);
+    const projects = await listProjects();
+    const project = projects.find(row => row.id === projectId);
+    if (!project) throw new Error('Project not found');
+    const { chatDefaults: _, ...without } = project;
+    const updated: LocalProject = normalized ? { ...without, chatDefaults: normalized } : without;
     await writeDurableNow('projects', projects.map(row => row.id === projectId ? updated : row));
     return updated;
   });

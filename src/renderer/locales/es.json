@@ -2842,5 +2842,11 @@
   "(~{0} tokens)": "(~{0} tokens)",
   "(~{0} tokens)|one": "(~{0} token)",
   "(~{0} tokens)|many": "(~{0} de tokens)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "New-chat model": "Modelo para chats nuevos",
+  "The model and effort a new chat in this project starts with": "El modelo y el esfuerzo con que empieza un chat nuevo en este proyecto",
+  "Same as Settings": "Igual que en Ajustes",
+  "Use {0} for new chats here": "Usar {0} en los chats nuevos de aquí",
+  "Start new chats here with the model and effort the composer shows": "Empezar los chats nuevos de aquí con el modelo y el esfuerzo que muestra el editor",
+  "Pick a model in the composer first": "Elige antes un modelo en el editor"
 }

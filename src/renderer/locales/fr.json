@@ -2842,5 +2842,11 @@
   "(~{0} tokens)": "(~{0} jetons)",
   "(~{0} tokens)|one": "(~{0} jeton)",
   "(~{0} tokens)|many": "(~{0} de jetons)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "New-chat model": "Modèle des nouveaux chats",
+  "The model and effort a new chat in this project starts with": "Le modèle et l’effort avec lesquels démarre un nouveau chat dans ce projet",
+  "Same as Settings": "Comme dans les Paramètres",
+  "Use {0} for new chats here": "Utiliser {0} pour les nouveaux chats ici",
+  "Start new chats here with the model and effort the composer shows": "Démarrer les nouveaux chats ici avec le modèle et l’effort affichés dans la zone de saisie",
+  "Pick a model in the composer first": "Choisissez d’abord un modèle dans la saisie"
 }

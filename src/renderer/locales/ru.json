@@ -2887,5 +2887,11 @@
   "(~{0} tokens)|one": "(~{0} токен)",
   "(~{0} tokens)|few": "(~{0} токена)",
   "(~{0} tokens)|many": "(~{0} токенов)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "New-chat model": "Модель для нового чата",
+  "The model and effort a new chat in this project starts with": "Модель и уровень, с которыми начинается новый чат в этом проекте",
+  "Same as Settings": "Как в настройках",
+  "Use {0} for new chats here": "Использовать {0} для новых чатов здесь",
+  "Start new chats here with the model and effort the composer shows": "Начинать новые чаты здесь с моделью и уровнем, показанными в поле ввода",
+  "Pick a model in the composer first": "Сначала выберите модель в поле ввода"
 }

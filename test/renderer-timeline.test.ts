@@ -1836,12 +1836,12 @@ it('offers a new chat beside a project\'s menu, and its color as a submenu and r
   expect(button.getAttribute('aria-expanded')).toBe('true');
   const menu = w.document.querySelector<HTMLElement>('.row-menu')!;
   expect(menu.getAttribute('role')).toBe('menu');
-  expect([...menu.querySelectorAll<HTMLElement>('.row-menu-item')].map(item => item.dataset.rowAction)).toEqual(['color', 'remove']);
+  expect([...menu.querySelectorAll<HTMLElement>('.row-menu-item')].map(item => item.dataset.rowAction)).toEqual(['color', 'chat-defaults', 'remove']);
   expect(menuItem(w, 'remove').classList.contains('is-danger')).toBe(true);
   expect(w.document.activeElement).toBe(menuItem(w, 'color'));
   // Keyboard: Down and Up move, Right opens the color submenu on the current choice, Left comes back.
   menu.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-  expect(w.document.activeElement).toBe(menuItem(w, 'remove'));
+  expect(w.document.activeElement).toBe(menuItem(w, 'chat-defaults'));
   menu.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
   expect(w.document.activeElement).toBe(menuItem(w, 'color'));
   menu.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
@@ -1866,6 +1866,42 @@ it('offers a new chat beside a project\'s menu, and its color as a submenu and r
   w.document.body.dispatchEvent(new w.Event('pointerdown', { bubbles: true }));
   (w.document.querySelector(`.project-heading > [data-new-project="${project.id}"]`) as HTMLButtonElement).click(); await settle();
   expect((w.document.getElementById('chatInput') as HTMLTextAreaElement).placeholder).toBe('Message in Workspace…');
+});
+
+it('starts a project\'s new chats on the model saved from its menu, and other new chats on the Settings default', async () => {
+  const project = { id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', name: 'Workspace', path: 'C:\\workspace\\primary', createdAt: 1 };
+  const { w, live } = await boot([], false, [], [project], { defaultChatModel: 'gpt-5.6-sol' });
+  const api = (w as any).api;
+  api.setProjectChatDefaults = vi.fn(async (_id: string, defaults: unknown) => ({ ok: true, data: { ...project, ...(defaults ? { chatDefaults: defaults } : {}) } }));
+  const label = () => w.document.getElementById('composerModelLabel')!.textContent;
+  const newProjectChat = async () => { (w.document.querySelector(`.project-heading > [data-new-project="${project.id}"]`) as HTMLButtonElement).click(); await settle(); };
+  await newProjectChat();
+  expect(label()).toBe('GPT-5.6 Sol · High');
+  projectMenu(w, project.id);
+  menuItem(w, 'chat-defaults').click();
+  expect(menuItem(w, 'chat-defaults-settings').getAttribute('aria-checked')).toBe('true');
+  // The composer shows the pair it offers; Instant is picked there first.
+  w.document.body.dispatchEvent(new w.Event('pointerdown', { bubbles: true }));
+  const effort = w.document.getElementById('composerReasoning') as HTMLSelectElement;
+  effort.value = 'none'; effort.dispatchEvent(new w.Event('change', { bubbles: true }));
+  projectMenu(w, project.id); menuItem(w, 'chat-defaults').click();
+  expect(menuItem(w, 'chat-defaults-composer').textContent).toBe('Use GPT-5.6 Sol · Instant for new chats here');
+  menuItem(w, 'chat-defaults-composer').click(); await settle();
+  expect(api.setProjectChatDefaults).toHaveBeenCalledWith(project.id, { model: 'gpt-5.6-sol', reasoningEffort: 'none' });
+  // An unfiled new chat keeps the Settings default; the project's next new chat uses its own pair.
+  w.document.getElementById('newChat')!.click(); await settle();
+  expect(label()).toBe('GPT-5.6 Sol · High');
+  await newProjectChat();
+  expect(label()).toBe('GPT-5.6 Sol · Instant');
+  const input = w.document.getElementById('chatInput') as HTMLTextAreaElement;
+  input.value = 'Hello from the project';
+  (w.document.getElementById('chatSend') as HTMLButtonElement).click(); await settle();
+  expect(live.sent.at(-1)).toMatchObject({ text: 'Hello from the project', projectId: project.id, model: 'gpt-5.6-sol', reasoningEffort: 'none' });
+  // Same as Settings clears it.
+  projectMenu(w, project.id); menuItem(w, 'chat-defaults').click();
+  expect(menuItem(w, 'chat-defaults-saved').getAttribute('aria-checked')).toBe('true');
+  menuItem(w, 'chat-defaults-settings').click(); await settle();
+  expect(api.setProjectChatDefaults).toHaveBeenLastCalledWith(project.id, null);
 });
 
 it('picks and clears project color without changing project membership', async () => {

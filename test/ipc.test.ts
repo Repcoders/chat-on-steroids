@@ -525,6 +525,12 @@ it('adds picker-selected projects, reuses containing approval, and leaves cancel
   const uncolored = await handlers.get('projects:color')!(null, { id: first.data.id, color: null }) as any;
   expect(uncolored).toMatchObject({ ok: true, data: { id: first.data.id } });
   expect(uncolored.data.color).toBeUndefined();
+  const pair = { model: 'gpt-6', reasoningEffort: 'high' };
+  expect(await handlers.get('projects:chatDefaults')!(null, { id: first.data.id, defaults: pair })).toMatchObject({ ok: true, data: { id: first.data.id, chatDefaults: pair } });
+  expect(await handlers.get('projects:chatDefaults')!(null, { id: first.data.id, defaults: { ...pair, extra: 1 } })).toMatchObject({ ok: false });
+  const cleared = await handlers.get('projects:chatDefaults')!(null, { id: first.data.id, defaults: null }) as any;
+  expect(cleared).toMatchObject({ ok: true, data: { id: first.data.id } });
+  expect(cleared.data.chatDefaults).toBeUndefined();
   const removed = await handlers.get('projects:remove')!(null, { id: first.data.id }) as any;
   expect(removed).toMatchObject({ ok: true, data: { id: first.data.id, ungrouped: true } });
   expect(getConfig().roots).toHaveLength(1);

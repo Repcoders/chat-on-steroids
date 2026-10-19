@@ -2,6 +2,7 @@ import { ui, uiText, t } from './i18n.js';
 import type { ChatModelCatalog } from '../shared/chat-models.js';
 import { chatModelDisplayLabel, DEFAULT_HELPER_CHAT_MODEL, resolveChatModel } from '../shared/chat-models.js';
 import type { Config } from '../shared/types.js';
+import type { ProjectChatDefaults } from '../shared/projects.js';
 import type { ReasoningEffort } from '../shared/session.js';
 import { $, el, icon, run } from './dom.js';
 
@@ -14,6 +15,9 @@ let catalogSubscribed = false;
 type ObservedSelection = { model: string; reasoningEffort?: ReasoningEffort; observedAt: number };
 let composerContext: { scope: string | null; observation: ObservedSelection | null; edited: boolean; automatic?: boolean } | null = null;
 let ordinaryDefaults: { model: string; reasoningEffort: string } = { model: '', reasoningEffort: '' };
+/** The selected new chat's project pair, which replaces the Settings default while it is shown. */
+let projectDefaults: ProjectChatDefaults | null = null;
+const newChatDefaults = (): { model: string; reasoningEffort: string } => projectDefaults ?? ordinaryDefaults;
 /**
  * Automatic: send with whatever model ChatGPT already has selected, switching nothing.
  *
@@ -31,7 +35,7 @@ function exactModelRequested(): boolean {
   if (composerContext?.automatic) return false;
   if (composerContext?.edited) return !!$<HTMLSelectElement>('composerModel').value;
   // A new chat asks for the configured default; an existing chat already has its own model.
-  return !composerContext || composerContext.scope === null ? !!ordinaryDefaults.model : false;
+  return !composerContext || composerContext.scope === null ? !!newChatDefaults().model : false;
 }
 function automaticApplies(): boolean {
   return composerContext?.automatic === true || (!catalog.models.length && !exactModelRequested());
@@ -68,7 +72,7 @@ export function chatModelName(model: string, reasoningEffort: string | undefined
 function paintComposerContext(): void {
   if (!composerContext || composerContext.edited) return;
   if (composerContext.scope === null) {
-    paintPair('composerModel', 'composerReasoning', ordinaryDefaults.model, ordinaryDefaults.reasoningEffort);
+    paintPair('composerModel', 'composerReasoning', newChatDefaults().model, newChatDefaults().reasoningEffort);
     return;
   }
   const observed = composerContext.observation;
@@ -77,9 +81,15 @@ function paintComposerContext(): void {
   paintPair('composerModel', 'composerReasoning', match?.id ?? observed?.model ?? 'not-observed', observed?.reasoningEffort ?? 'not-observed');
 }
 
-/** Scope comes from the caller's session + selection generation; no browser mutation. */
-export function applyComposerSessionModel(scope: string | null, observation: ObservedSelection | null): void {
-  if (!composerContext || composerContext.scope !== scope) {
+/**
+ * Scope comes from the caller's session + selection generation; no browser mutation. A new chat
+ * (scope null) may bring its project's own pair; a different pair starts the composer over on it.
+ */
+export function applyComposerSessionModel(scope: string | null, observation: ObservedSelection | null, project: ProjectChatDefaults | null = null): void {
+  const defaults = scope === null ? project : null;
+  const changed = defaults?.model !== projectDefaults?.model || defaults?.reasoningEffort !== projectDefaults?.reasoningEffort;
+  projectDefaults = defaults;
+  if (!composerContext || composerContext.scope !== scope || (scope === null && changed)) {
     composerContext = { scope, observation, edited: false };
   } else if (observation && (!composerContext.observation || observation.observedAt >= composerContext.observation.observedAt)) {
     composerContext.observation = observation;

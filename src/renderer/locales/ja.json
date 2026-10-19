@@ -2752,5 +2752,11 @@
   "{0} characters": "{0}文字",
   "from {0} events": "{0}件のイベントから",
   "(~{0} tokens)": "（約{0}トークン）",
-  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}",
+  "New-chat model": "新規チャットのモデル",
+  "The model and effort a new chat in this project starts with": "このプロジェクトの新規チャットが最初に使うモデルと思考レベル",
+  "Same as Settings": "設定と同じ",
+  "Use {0} for new chats here": "ここの新規チャットで{0}を使う",
+  "Start new chats here with the model and effort the composer shows": "入力欄に表示中のモデルと思考レベルで、ここの新規チャットを始める",
+  "Pick a model in the composer first": "先に入力欄でモデルを選んでください"
 }

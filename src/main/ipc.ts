@@ -90,7 +90,7 @@ import type { WorkerWorktreeCleanupOffer } from '../shared/session.js';
 import { unifiedExecManager } from './codex/manager.js';
 import { inFlightToolCalls } from './mcp/call-context.js';
 import { RESERVED_ROOT_NAMES, uniqueRootName, validateNewRoot, SandboxError, resolvePath } from './sandbox.js';
-import { addProject, addRemoteProject, expireArmedProjectCreates, getSessionProject, listProjects, localProjectPath, onProjectLinkChange, projectWorkspace, removeProject, retryProjectCreate, setProjectColor } from './projects.js';
+import { addProject, addRemoteProject, expireArmedProjectCreates, getSessionProject, listProjects, localProjectPath, onProjectLinkChange, projectWorkspace, removeProject, retryProjectCreate, setProjectChatDefaults, setProjectColor, projectChatDefaultsSchema } from './projects.js';
 import { createProjectEntry, listProjectDirectory, previewProjectFile, projectFileTarget, renameProjectEntry, revalidateProjectFileTarget, saveProjectTextFile, serverFileSnapshot } from './project-files.js';
 import { ProjectFileWatchSet } from './project-file-watcher.js';
 import { ProjectGitWatchSet, readProjectGitDiff, readProjectGitSnapshot } from './project-git.js';
@@ -1004,6 +1004,12 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
   handle('projects:color', async payload => {
     const { id, color } = z.object({ id: z.string().uuid(), color: z.enum(PROJECT_COLORS).nullable() }).strict().parse(payload);
     const project = await setProjectColor(id, color);
+    push('session:changed');
+    return project;
+  });
+  handle('projects:chatDefaults', async payload => {
+    const { id, defaults } = z.object({ id: z.string().uuid(), defaults: projectChatDefaultsSchema.nullable() }).strict().parse(payload);
+    const project = await setProjectChatDefaults(id, defaults);
     push('session:changed');
     return project;
   });

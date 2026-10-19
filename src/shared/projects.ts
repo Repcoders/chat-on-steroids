@@ -18,6 +18,17 @@ export interface LocalProject {
    * this existed have one; it grants no filesystem permission.
    */
   chatgpt?: ChatgptProjectLink;
+  /**
+   * The model and effort a new chat in this project starts with, in place of the Settings
+   * new-chat default (`ui.defaultChatModel`). A chat that has its own selection keeps it.
+   */
+  chatDefaults?: ProjectChatDefaults;
+}
+
+/** A project's own new-chat model and effort; both are always set together. */
+export interface ProjectChatDefaults {
+  model: string;
+  reasoningEffort: import('./session.js').ReasoningEffort;
 }
 
 /**

@@ -747,3 +747,29 @@ it('glides the effort thumb, picks the nearest effort, settles on release and st
   expect(confirmedComposerModel()).toEqual({ model: 'think', reasoningEffort: 'medium' });
   expect(slider.getAttribute('aria-valuetext')).toBe('Medium');
 });
+
+it('starts a new chat of a project on its own pair, and every other new chat on the Settings default', async () => {
+  dom = new JSDOM(await readFile('src/renderer/index.html', 'utf8'));
+  vi.stubGlobal('window', dom.window); vi.stubGlobal('document', dom.window.document);
+  const models = [{ id: 'gpt-6', label: 'GPT-6', efforts: ['low', 'high'] }, { id: 'sol', label: 'GPT-5.6 Sol', efforts: ['medium', 'high'] }];
+  Object.assign(dom.window, { api: { getChatModels: async () => ({ ok: true, data: { state: 'ready', observedAt: 2, models } }), requestChatModels: vi.fn() } });
+  const { initChatModels, applyChatModels, applyComposerSessionModel, composerSendModel } = await import('../src/renderer/chat-models.js');
+  initChatModels(); applyChatModels({ ui: { defaultChatModel: 'gpt-6', defaultChatReasoning: 'low' }, multiAgent: {}, goal: {} } as Config); await Promise.resolve();
+  const project = { model: 'sol', reasoningEffort: 'medium' } as const;
+  applyComposerSessionModel(null, null, project);
+  expect(composerSendModel()).toEqual({ model: 'sol', reasoningEffort: 'medium' });
+  expect(dom.window.document.getElementById('composerModelLabel')!.textContent).toBe('GPT-5.6 Sol · Medium');
+  // Repaints of the same new chat keep a choice made in the composer.
+  const effort = dom.window.document.getElementById('composerReasoning') as HTMLSelectElement;
+  effort.value = 'high'; effort.dispatchEvent(new dom.window.Event('change'));
+  applyComposerSessionModel(null, null, { ...project });
+  expect(composerSendModel()).toEqual({ model: 'sol', reasoningEffort: 'high' });
+  // An unfiled new chat, or a project without its own pair, uses the Settings default.
+  applyComposerSessionModel(null, null, null);
+  expect(composerSendModel()).toEqual({ model: 'gpt-6', reasoningEffort: 'low' });
+  // A chat's own model still wins over both.
+  applyComposerSessionModel('chat:1', { model: 'gpt-6', reasoningEffort: 'high', observedAt: 1 }, project);
+  expect(composerSendModel()).toEqual({ model: 'gpt-6', reasoningEffort: 'high' });
+  applyComposerSessionModel(null, null, project);
+  expect(composerSendModel()).toEqual({ model: 'sol', reasoningEffort: 'medium' });
+});

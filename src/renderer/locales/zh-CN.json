@@ -2752,5 +2752,11 @@
   "{0} characters": "{0} 个字符",
   "from {0} events": "来自 {0} 个事件",
   "(~{0} tokens)": "（约 {0} Token）",
-  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}",
+  "New-chat model": "新聊天模型",
+  "The model and effort a new chat in this project starts with": "此项目中新聊天开始时使用的模型和思考强度",
+  "Same as Settings": "与设置相同",
+  "Use {0} for new chats here": "此处新聊天使用 {0}",
+  "Start new chats here with the model and effort the composer shows": "此处的新聊天使用输入框当前显示的模型和思考强度",
+  "Pick a model in the composer first": "请先在输入框中选择模型"
 }

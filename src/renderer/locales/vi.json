@@ -2752,5 +2752,11 @@
   "{0} characters": "{0} ký tự",
   "from {0} events": "từ {0} sự kiện",
   "(~{0} tokens)": "(~{0} token)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "New-chat model": "Mô hình cho chat mới",
+  "The model and effort a new chat in this project starts with": "Mô hình và mức suy luận mà chat mới trong dự án này dùng lúc bắt đầu",
+  "Same as Settings": "Giống trong Cài đặt",
+  "Use {0} for new chats here": "Dùng {0} cho chat mới ở đây",
+  "Start new chats here with the model and effort the composer shows": "Bắt đầu chat mới ở đây với mô hình và mức suy luận đang hiện trong ô soạn",
+  "Pick a model in the composer first": "Hãy chọn mô hình trong ô soạn trước"
 }

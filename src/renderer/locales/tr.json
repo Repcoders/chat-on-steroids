@@ -2797,5 +2797,11 @@
   "from {0} events|one": "{0} olaydan",
   "(~{0} tokens)": "(~{0} token)",
   "(~{0} tokens)|one": "(~{0} token)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "New-chat model": "Yeni sohbet modeli",
+  "The model and effort a new chat in this project starts with": "Bu projedeki yeni bir sohbetin başladığı model ve düzey",
+  "Same as Settings": "Ayarlardaki gibi",
+  "Use {0} for new chats here": "Buradaki yeni sohbetlerde {0} kullan",
+  "Start new chats here with the model and effort the composer shows": "Buradaki yeni sohbetleri yazma alanında görünen model ve düzeyle başlat",
+  "Pick a model in the composer first": "Önce yazma alanında bir model seçin"
 }
