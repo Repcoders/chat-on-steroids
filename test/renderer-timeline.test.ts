@@ -1373,6 +1373,47 @@ it('replaces a staged screenshot with its redacted copy before Send', async () =
   expect(app.live.sent.at(-1)?.attachments).toEqual([edited]);
 });
 
+it('holds Send while the edited copy stages, offers Edit without a preview and keeps the original past the message limit', async () => {
+  const app = await boot([]);
+  const w = app.w as any;
+  const shot = { id: '11111111-2222-4333-8444-555555555555', name: 'screen.png', mimeType: 'image/png', size: 42 };
+  const big = { id: '22222222-2222-4333-8444-555555555555', name: 'big.bin', mimeType: 'application/octet-stream', size: 512 * 1024 * 1024 - 100 };
+  w.HTMLImageElement.prototype.decode = async () => undefined;
+  w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: () => () => undefined, set: () => true });
+  w.HTMLCanvasElement.prototype.toBlob = (done: BlobCallback, type?: string) => done(new Blob(['redacted'], { type }));
+  w.HTMLCanvasElement.prototype.getBoundingClientRect = function () { return { left: 0, top: 0, width: this.width, height: this.height }; };
+  w.api.attachmentImage = async () => ({ ok: true, data: { dataUrl: 'data:image/png;base64,YQ==', width: 320, height: 180 } });
+  const edit = async (staging: Promise<unknown>) => {
+    w.api.dropFiles = vi.fn(() => staging);
+    (w.document.querySelector('[aria-label="Edit screen.png"]') as HTMLButtonElement).click(); await settle();
+    const canvas = w.document.querySelector('.image-editor-canvas') as HTMLCanvasElement;
+    for (const [type, x, y] of [['pointerdown', 40, 30], ['pointermove', 120, 60], ['pointerup', 120, 60]] as const)
+      canvas.dispatchEvent(new w.MouseEvent(type, { clientX: x, clientY: y, button: 0, bubbles: true }));
+    [...w.document.querySelectorAll('.image-editor-dialog button')].find((node: any) => node.textContent === 'Save')!.click();
+    await settle();
+  };
+  w.api.chooseFiles = async () => ({ ok: true, data: [shot] });
+  w.document.getElementById('attachImages')!.click(); await settle();
+  let finish!: (value: unknown) => void;
+  await edit(new Promise(resolve => { finish = resolve; }));
+  const field = w.document.getElementById('chatInput') as HTMLTextAreaElement;
+  field.value = 'Too early'; field.dispatchEvent(new w.Event('input', { bubbles: true }));
+  w.document.getElementById('composer')!.dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+  await settle();
+  expect(app.live.sent).toHaveLength(0);
+  expect(w.document.querySelector('.toast')?.textContent).toBe('Wait until the edited image is attached');
+  finish({ ok: true, data: [{ ...shot, id: '33333333-2222-4333-8444-555555555555', name: 'screen-edited.png', size: 99 }] });
+  await settle();
+  expect(w.document.querySelector('[aria-label="Remove screen-edited.png"]')).not.toBeNull();
+  w.document.querySelector('[aria-label="Remove screen-edited.png"]')!.click();
+  w.api.chooseFiles = async () => ({ ok: true, data: [shot, big] });
+  w.document.getElementById('attachImages')!.click(); await settle();
+  await edit(Promise.resolve({ ok: true, data: [{ ...shot, id: '44444444-2222-4333-8444-555555555555', name: 'screen-edited.png', size: 200 }] }));
+  expect(w.document.querySelector('[aria-label="Remove screen.png"]')).not.toBeNull();
+  expect(w.document.querySelector('[aria-label="Remove screen-edited.png"]')).toBeNull();
+  expect(w.document.querySelector('.toast')?.textContent).toBe('Attach up to 20 files and 512 MB per message');
+});
+
 it.each([7, 10, 11])('uses the same visible delivery choice and payload for %s attached images', async count => {
   const { w, live } = await boot([]);
   const files = Array.from({ length: count }, (_, index) => ({

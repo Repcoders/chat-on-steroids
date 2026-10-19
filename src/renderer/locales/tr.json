@@ -2805,5 +2805,7 @@
   "Undo": "Geri al",
   "Drag across the image. Redact covers that area with solid black; only the edited copy is attached.": "Görselin üzerinde sürükleyin. Karart o alanı düz siyahla kapatır; yalnızca düzenlenen kopya eklenir.",
   "Could not save the edited image": "Düzenlenen görsel kaydedilemedi",
-  "Could not open this image for editing": "Bu görsel düzenleme için açılamadı"
+  "Could not open this image for editing": "Bu görsel düzenleme için açılamadı",
+  "Wait until the edited image is attached": "Düzenlenen görsel eklenene kadar bekleyin",
+  "Animated images cannot be edited": "Hareketli görseller düzenlenemez"
 }

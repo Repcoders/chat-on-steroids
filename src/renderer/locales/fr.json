@@ -2850,5 +2850,7 @@
   "Undo": "Défaire",
   "Drag across the image. Redact covers that area with solid black; only the edited copy is attached.": "Faites glisser sur l'image. Masquer recouvre cette zone de noir opaque ; seule la copie modifiée est jointe.",
   "Could not save the edited image": "Impossible d'enregistrer l'image modifiée",
-  "Could not open this image for editing": "Impossible d'ouvrir cette image pour la modifier"
+  "Could not open this image for editing": "Impossible d'ouvrir cette image pour la modifier",
+  "Wait until the edited image is attached": "Attendez que l'image modifiée soit jointe",
+  "Animated images cannot be edited": "Les images animées ne peuvent pas être modifiées"
 }

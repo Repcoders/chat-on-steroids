@@ -77,9 +77,11 @@ export function openImageEditor(picture: { image: CanvasImageSource; width: numb
     for (const node of [redact, box]) { const on = node.dataset.tool === tool; node.classList.toggle('is-on', on); node.setAttribute('aria-pressed', String(on)); }
     undo.disabled = !edits.length; save.disabled = !edits.length;
   };
+  // The canvas has a border: map from its content box, or a box drawn to an edge stops short of it.
   const point = (event: PointerEvent) => {
     const frame = canvas.getBoundingClientRect();
-    return { x: (event.clientX - frame.left) * width / (frame.width || width), y: (event.clientY - frame.top) * height / (frame.height || height) };
+    const shownWidth = canvas.clientWidth || frame.width || width, shownHeight = canvas.clientHeight || frame.height || height;
+    return { x: (event.clientX - frame.left - canvas.clientLeft) * width / shownWidth, y: (event.clientY - frame.top - canvas.clientTop) * height / shownHeight };
   };
   canvas.addEventListener('pointerdown', event => {
     if (event.button !== 0 || drag) return;

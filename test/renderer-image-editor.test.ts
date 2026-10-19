@@ -88,3 +88,17 @@ it('draws a Box outline, undoes the last edit and returns nothing on Cancel', as
   expect(await result).toBeNull();
   expect(document.querySelector('.image-editor-dialog')).toBeNull();
 });
+
+it('maps the pointer from the canvas content box, so a redaction reaches the edge under its border', async () => {
+  const { openImageEditor } = await import('../src/renderer/image-editor.js');
+  const result = openImageEditor({ image: {} as CanvasImageSource, width: 400, height: 200, name: 'screen.png' });
+  const canvas = document.querySelector<HTMLCanvasElement>('.image-editor-canvas')!;
+  // Shown at half size inside a 1px border: the box is 200x100, its content 198x98.
+  canvas.getBoundingClientRect = () => ({ left: 10, top: 20, width: 200, height: 100 }) as DOMRect;
+  for (const [key, value] of [['clientLeft', 1], ['clientTop', 1], ['clientWidth', 198], ['clientHeight', 98]] as const) Object.defineProperty(canvas, key, { value });
+  drag(canvas, [11, 21], [209, 119]);
+  calls = [];
+  named('Save').click();
+  await result;
+  expect(calls.find(call => call[0] === 'fillRect')).toEqual(['fillRect', 0, 0, 400, 200]);
+});

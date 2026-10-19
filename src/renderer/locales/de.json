@@ -2805,5 +2805,7 @@
   "Undo": "Rückgängig",
   "Drag across the image. Redact covers that area with solid black; only the edited copy is attached.": "Zieh über das Bild. Schwärzen deckt diesen Bereich mit Schwarz ab; angehängt wird nur die bearbeitete Kopie.",
   "Could not save the edited image": "Das bearbeitete Bild konnte nicht gespeichert werden",
-  "Could not open this image for editing": "Dieses Bild konnte nicht zum Bearbeiten geöffnet werden"
+  "Could not open this image for editing": "Dieses Bild konnte nicht zum Bearbeiten geöffnet werden",
+  "Wait until the edited image is attached": "Warte, bis das bearbeitete Bild angehängt ist",
+  "Animated images cannot be edited": "Animierte Bilder können nicht bearbeitet werden"
 }

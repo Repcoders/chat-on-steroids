@@ -2760,5 +2760,7 @@
   "Undo": "復原",
   "Drag across the image. Redact covers that area with solid black; only the edited copy is attached.": "在圖片上拖曳。塗黑會以純黑色蓋住該區域；只附加編輯後的副本。",
   "Could not save the edited image": "無法儲存編輯後的圖片",
-  "Could not open this image for editing": "無法開啟此圖片進行編輯"
+  "Could not open this image for editing": "無法開啟此圖片進行編輯",
+  "Wait until the edited image is attached": "請等候編輯後的圖片附加完成",
+  "Animated images cannot be edited": "無法編輯動態圖片"
 }

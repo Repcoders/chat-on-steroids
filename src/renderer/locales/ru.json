@@ -2895,5 +2895,7 @@
   "Undo": "Отменить",
   "Drag across the image. Redact covers that area with solid black; only the edited copy is attached.": "Проведите по изображению. «Закрасить» закрывает эту область сплошным чёрным; прикрепляется только изменённая копия.",
   "Could not save the edited image": "Не удалось сохранить изменённое изображение",
-  "Could not open this image for editing": "Не удалось открыть это изображение для изменения"
+  "Could not open this image for editing": "Не удалось открыть это изображение для изменения",
+  "Wait until the edited image is attached": "Подождите, пока изменённое изображение прикрепится",
+  "Animated images cannot be edited": "Анимированные изображения нельзя изменять"
 }

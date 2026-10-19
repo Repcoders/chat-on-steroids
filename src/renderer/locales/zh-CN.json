@@ -2760,5 +2760,7 @@
   "Undo": "撤销",
   "Drag across the image. Redact covers that area with solid black; only the edited copy is attached.": "在图片上拖动。涂黑会用纯黑色盖住该区域；只附加编辑后的副本。",
   "Could not save the edited image": "无法保存编辑后的图片",
-  "Could not open this image for editing": "无法打开此图片进行编辑"
+  "Could not open this image for editing": "无法打开此图片进行编辑",
+  "Wait until the edited image is attached": "请等待编辑后的图片附加完成",
+  "Animated images cannot be edited": "无法编辑动态图片"
 }

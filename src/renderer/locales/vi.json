@@ -2760,5 +2760,7 @@
   "Undo": "Hoàn tác",
   "Drag across the image. Redact covers that area with solid black; only the edited copy is attached.": "Kéo trên ảnh. Che phủ vùng đó bằng màu đen đặc; chỉ bản sao đã sửa được đính kèm.",
   "Could not save the edited image": "Không thể lưu ảnh đã sửa",
-  "Could not open this image for editing": "Không thể mở ảnh này để sửa"
+  "Could not open this image for editing": "Không thể mở ảnh này để sửa",
+  "Wait until the edited image is attached": "Hãy đợi đến khi ảnh đã sửa được đính kèm",
+  "Animated images cannot be edited": "Không thể sửa ảnh động"
 }

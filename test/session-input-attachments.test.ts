@@ -88,3 +88,10 @@ it('opens a staged image upright within the edit bound for the editor, never cha
   await expect(readInputAttachmentImage({ ...photo, name: 'other.jpg' })).rejects.toThrow('changed');
   await expect(readInputAttachmentImage(await stageInputAttachment({ text: 'notes' }, new Set()))).rejects.toThrow('PNG, JPEG and WebP');
 });
+it('refuses to open an animated WebP for editing, which would keep only its first frame', async () => {
+  const frame = (background: string) => sharp({ create: { width: 4, height: 4, channels: 3, background } }).png().toBuffer();
+  const animated = await sharp([await frame('#ff0000'), await frame('#0000ff')], { join: { animated: true } }).webp().toBuffer();
+  await expect(readInputAttachmentImage(await stageInputAttachment({ name: 'loop.webp', bytes: animated }, new Set()))).rejects.toThrow('Animated');
+  const still = await stageInputAttachment({ name: 'still.webp', bytes: await sharp(await frame('#00ff00')).webp().toBuffer() }, new Set());
+  expect(await readInputAttachmentImage(still)).toMatchObject({ width: 4, height: 4 });
+});

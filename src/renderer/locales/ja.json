@@ -2760,5 +2760,7 @@
   "Undo": "元に戻す",
   "Drag across the image. Redact covers that area with solid black; only the edited copy is attached.": "画像の上をドラッグします。黒塗りはその範囲を不透明な黒で覆い、添付されるのは編集したコピーだけです。",
   "Could not save the edited image": "編集した画像を保存できませんでした",
-  "Could not open this image for editing": "この画像を編集用に開けませんでした"
+  "Could not open this image for editing": "この画像を編集用に開けませんでした",
+  "Wait until the edited image is attached": "編集した画像が添付されるまでお待ちください",
+  "Animated images cannot be edited": "アニメーション画像は編集できません"
 }

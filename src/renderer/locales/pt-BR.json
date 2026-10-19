@@ -2850,5 +2850,7 @@
   "Undo": "Desfazer",
   "Drag across the image. Redact covers that area with solid black; only the edited copy is attached.": "Arraste sobre a imagem. Tarjar cobre essa área com preto sólido; só a cópia editada é anexada.",
   "Could not save the edited image": "Não foi possível salvar a imagem editada",
-  "Could not open this image for editing": "Não foi possível abrir esta imagem para edição"
+  "Could not open this image for editing": "Não foi possível abrir esta imagem para edição",
+  "Wait until the edited image is attached": "Aguarde até a imagem editada ser anexada",
+  "Animated images cannot be edited": "Imagens animadas não podem ser editadas"
 }
