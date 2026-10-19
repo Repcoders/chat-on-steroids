@@ -2067,7 +2067,13 @@ lookup tool calls remain displayable in existing transcripts.
 
 Desktop session lists use stable `(updatedAt,id)` pagination. Each session selection loads a
 recent tail and opens at the bottom after its current load renders, including A -> B -> A;
-the previous chat's viewport does not decide the new chat's position. Timeline
+the previous chat's viewport does not decide the new chat's position. The one exception is the
+chat's own reading position: leaving a chat the reader scrolled up in by their own input (the jump
+control showing) notes its first message on screen, that row's offset and the live cursor, in
+renderer memory per session id. Coming back loads the page around that message
+(`loadChatLocation`, as a search result does) and puts it at the same offset, with "New since you
+read" above the first message from that cursor on. A chat left at its end, a message that is gone
+(an edit replaced it) and a search or branch-source reveal open as before. Timeline
 opens, pages older/newer and drains live deltas in 30-record stages, targets 160 resident records,
 and navigates/evicts by immutable canonical `origin` (or original `seq`). Revision `seq`
 belongs only to live delta delivery; a later revision cannot relocate an answer, skip a page,

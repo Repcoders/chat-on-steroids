@@ -2912,5 +2912,6 @@
   "Switch at any time. Your chats stay as they are.": "Переключиться можно в любой момент. Чаты останутся как есть.",
   "Chats sit under their project folders.": "Чаты лежат в папках своих проектов.",
   "All chats in one list, active ones on top.": "Все чаты в одном списке, активные сверху.",
-  "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Сколько чатов субагентов один чат может запускать одновременно. Нужно подключённое расширение браузера."
+  "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Сколько чатов субагентов один чат может запускать одновременно. Нужно подключённое расширение браузера.",
+  "New since you read": "Новое с вашего прошлого прочтения"
 }

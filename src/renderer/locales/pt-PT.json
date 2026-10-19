@@ -2867,5 +2867,6 @@
   "Switch at any time. Your chats stay as they are.": "Pode mudar a qualquer momento. Os seus chats ficam como estão.",
   "Chats sit under their project folders.": "Os chats ficam sob as pastas dos projetos.",
   "All chats in one list, active ones on top.": "Todos os chats numa só lista, os ativos no topo.",
-  "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "O máximo de chats de subagentes que um chat pode ter ao mesmo tempo. Requer a extensão do navegador ligada."
+  "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "O máximo de chats de subagentes que um chat pode ter ao mesmo tempo. Requer a extensão do navegador ligada.",
+  "New since you read": "Novo desde a sua última leitura"
 }

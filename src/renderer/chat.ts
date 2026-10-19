@@ -2295,6 +2295,7 @@ function questionActions(event: Extract<SessionEvent, { kind: 'user_message' }>,
 /** Opens the chat a branch came from, at the exact reply it was branched from. */
 async function openBranchSource(sessionId: string, messageId: string): Promise<void> {
   selectSession(sessionId);
+  readingReturn = null;
   const selection = selectionGeneration;
   const location = await run(api.locateMessage(sessionId, messageId));
   if (!location || selection !== selectionGeneration || selectedId !== sessionId) return;
@@ -2983,6 +2984,12 @@ async function loadDetail(navigate = false, olderBefore?: number, newerFrom?: nu
   // a reading position in this one. Apply only after the current load has rendered.
   if (opening) $('chatBody').scrollTop = $('chatBody').scrollHeight;
   if (opening) requestHistory(-1, true);
+  // Unless its reader had scrolled up in it: then it opens where they left it.
+  if (opening && readingReturn?.session === wanted && readingReturn.selection === selection) {
+    const { saved } = readingReturn;
+    readingReturn = null;
+    void returnToReading(wanted, saved);
+  }
   void loadHandoff();
   // A burst can contain more than one renderer-sized page between coalesced notifications.
   // Drain it page by page rather than silently jumping the cursor or lifting the payload cap.
@@ -3960,6 +3967,8 @@ function jumpToLatest(): void {
  * history reading, so the chat no longer follows its end until the reader goes back down.
  */
 async function revealSearchMatch(id: string, query: string): Promise<void> {
+  // The match decides where the chat opens, not where its reader last left it.
+  readingReturn = null;
   const selection = selectionGeneration;
   const location = await run(api.locateSearchMatch(id, query));
   if (!location || selection !== selectionGeneration || selectedId !== id) return;
@@ -3975,16 +3984,23 @@ function rowForLocation(location: SessionSearchLocation): HTMLElement | null {
   return [...$('timeline').querySelectorAll<HTMLElement>('[data-timeline-key]')].find(row => row.dataset.timelineKey === key) ?? null;
 }
 
-/** Scrolls the open chat to one recorded message, loading the history page around it when needed. */
-async function revealChatLocation(id: string, location: SessionSearchLocation): Promise<void> {
-  const selection = selectionGeneration;
-  const current = (): boolean => selection === selectionGeneration && selectedId === id;
-  if (!current()) return;
+/** Counts reveals: the newest one owns the position, an older one still loading gives way. */
+let revealGeneration = 0;
+
+/**
+ * The loaded row of one recorded message in the open chat, loading the history page around it
+ * when needed. Null when that page does not hold it; undefined when the chat changed, a later
+ * reveal took over or the read failed (the chat then opens at its end).
+ */
+async function loadChatLocation(id: string, location: SessionSearchLocation): Promise<HTMLElement | null | undefined> {
+  const selection = selectionGeneration, reveal = ++revealGeneration;
+  const current = (): boolean => selection === selectionGeneration && selectedId === id && reveal === revealGeneration;
   // The chat's own first page, and the fill that follows it, settle first.
   for (const deadline = Date.now() + 5000; detailFor !== id || historyLoading || historyDemand !== null;) {
-    if (Date.now() > deadline || !current()) return;
+    if (Date.now() > deadline || !current()) return undefined;
     await new Promise<void>(resolve => window.requestAnimationFrame(() => resolve()));
   }
+  if (!current()) return undefined;
   const rowFor = (): HTMLElement | null => rowForLocation(location);
   let row = rowFor();
   if (!row) {
@@ -3994,11 +4010,17 @@ async function revealChatLocation(id: string, location: SessionSearchLocation): 
     historyStart = null;
     historyBefore = boundary;
     const loaded = await loadDetail(true, boundary);
-    if (!current()) return;
+    if (!current()) return undefined;
     // A failed read leaves nothing to show: open the chat at its end instead.
-    if (!loaded || !events.length) { historyBefore = null; detailFor = null; void loadDetail(); return; }
+    if (!loaded || !events.length) { historyBefore = null; detailFor = null; void loadDetail(); return undefined; }
     row = rowFor();
   }
+  return row;
+}
+
+/** Scrolls the open chat to one recorded message, loading the history page around it when needed. */
+async function revealChatLocation(id: string, location: SessionSearchLocation): Promise<void> {
+  const row = await loadChatLocation(id, location);
   if (!row) return;
   readTimeline();
   row.scrollIntoView({ block: 'center' });
@@ -4011,6 +4033,77 @@ async function revealChatLocation(id: string, location: SessionSearchLocation): 
 /** Explicit history inspection releases the same follow/send hold as reading upwards. */
 function readTimeline(): void {
   readerAtEnd = false; sendAnchor = null; readingAfterSend = true;
+}
+
+/**
+ * Where the reader left a chat they had scrolled up in: the first message on screen, how far its
+ * top was from the top of the view, and the live cursor then. Rows from that cursor on arrived
+ * after they left. Kept per chat for this window; a chat left at its end keeps nothing.
+ */
+type ReadingPosition = { location: SessionSearchLocation; offset: number; from: number };
+const readingPositions = new Map<string, ReadingPosition>();
+const MAX_READING_POSITIONS = 50;
+/** The selection that opens at its reading position once its first page has painted. */
+let readingReturn: { session: string; selection: number; saved: ReadingPosition } | null = null;
+/** Where "New since you read" goes in the open chat: above its first message from this cursor on. */
+let newSince: { session: string; from: number } | null = null;
+const newSinceDivider = el('div', 'new-since-read');
+
+/** A message row, outside any collapsed activity: what a reading position and the divider name. */
+function messageRowEvent(row: HTMLElement): Extract<SessionEvent, { kind: 'user_message' | 'assistant_message' }> | null {
+  const event = rowEvents.get(row);
+  return (event?.kind === 'user_message' || event?.kind === 'assistant_message') && !row.closest('details:not([open])') ? event : null;
+}
+
+/** Notes where the reader is in the open chat before another one replaces it. */
+function rememberReading(): void {
+  const id = selectedId;
+  // Another view of the pane (Agents & automation) hides the rows: the last note stays.
+  if (id === null || detailFor !== id || detailCursor === null || !timelineShown()) return;
+  readingPositions.delete(id);
+  // Only the reader's own scrolling (or a search result) leaves the end, as for Follow new output.
+  if (readerAtEnd || (!onHistoryPage() && distanceFromTail() <= JUMP_DISTANCE)) return;
+  const pane = $('chatBody'), edge = pane.getBoundingClientRect().top;
+  for (const row of $('timeline').querySelectorAll<HTMLElement>('[data-timeline-key]')) {
+    const event = messageRowEvent(row);
+    if (!event) continue;
+    const rect = row.getBoundingClientRect();
+    if (rect.height <= 0 || rect.bottom <= edge) continue;
+    if (rect.top >= edge + pane.clientHeight) return;
+    readingPositions.set(id, { offset: rect.top - edge, from: detailCursor,
+      location: { seq: event.seq, kind: event.kind, messageId: event.messageId ?? null, position: residenceOf(event) } });
+    if (readingPositions.size > MAX_READING_POSITIONS) readingPositions.delete(readingPositions.keys().next().value!);
+    return;
+  }
+}
+
+/** Opens a chat on the message its reader left it at, loading older pages up to it. A message
+ * that is gone (an edit replaced it, or it is no longer recorded) opens the chat at its end. */
+async function returnToReading(id: string, saved: ReadingPosition): Promise<void> {
+  const row = await loadChatLocation(id, saved.location);
+  if (row === undefined) return;
+  if (row === null) {
+    readingPositions.delete(id);
+    newSince = null;
+    historyBefore = null; detailFor = null; void loadDetail();
+    return;
+  }
+  readTimeline();
+  const pane = $('chatBody');
+  pane.scrollTop += row.getBoundingClientRect().top - pane.getBoundingClientRect().top - saved.offset;
+  paintJumpLatest();
+}
+
+/** Draws "New since you read" above the first message that arrived after the reader left. */
+function placeNewSince(rows: readonly HTMLElement[]): void {
+  const from = newSince?.session === selectedId ? newSince.from : null;
+  const first = from === null ? undefined : rows.find(row => {
+    const event = messageRowEvent(row);
+    return !!event && row.isConnected && residenceOf(event) >= from;
+  });
+  if (!first) { newSinceDivider.remove(); return; }
+  newSinceDivider.textContent = t('New since you read');
+  if (first.previousSibling !== newSinceDivider) first.before(newSinceDivider);
 }
 
 function roundWorkers(ids: string[], button = el('button', 'activity-workers') as HTMLButtonElement): HTMLButtonElement {
@@ -5643,6 +5736,7 @@ function paintDetail(followBottom = historyBefore === null): void {
   placeTurnLines(timelineRows, workedSeconds);
   reconcileChildren($('timeline'), groupImageRows(renderRounds(timelineRows, tracesFor === selectedId ? traces : {}, turnWorking,
     turnWorking ? openTurnId(events) : null, selectedId, toolGroups, sayRows, true)));
+  placeNewSince(timelineRows);
   // Rounds that arrive after this paint enter with a fade; the chat as it opened does not.
   roundsEnter = timelineRows.length > 0;
   paintPendingInputs();
@@ -7831,6 +7925,7 @@ function selectSession(id: string): void {
   // An edit belongs to its chat: leaving it gives the composer back the draft it held before.
   if (editingQuestion) endEditing(true);
   const ownerChanged = id !== selectedId;
+  if (ownerChanged) rememberReading();
   rememberDraft();
   selectionGeneration++; chatFind?.selectionChanged(); replaceComposerDraft();
   inputQueueGeneration++;
@@ -7851,6 +7946,9 @@ function selectSession(id: string): void {
     // selected detail arrives. Existing async image/load generation fences still apply.
     // Reading away from a sent message belongs to the chat it happened in.
     sendAnchor = null; readingAfterSend = false; readerAtEnd = true;
+    const saved = readingPositions.get(id);
+    readingReturn = saved ? { session: id, selection: selectionGeneration, saved } : null;
+    newSince = saved ? { session: id, from: saved.from } : null;
     events = [];
     totalEvents = 0;
     historyBefore = null;
@@ -7877,6 +7975,7 @@ function selectSession(id: string): void {
 function selectNewChat(projectId: string | null = null, branch: typeof newChatBranch = null): void {
   if (editingQuestion) endEditing(true);
   newChatBranch = branch;
+  rememberReading(); readingReturn = null; newSince = null;
   rememberDraft(); selectionGeneration++; chatFind?.selectionChanged(); replaceComposerDraft(); pendingNewInput = null;
   inputQueueGeneration++;
   $('finishQueue').replaceChildren(); $('finishQueue').hidden = true;
