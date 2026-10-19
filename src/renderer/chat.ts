@@ -7383,6 +7383,11 @@ async function adoptAcceptedOpening(entry: InputEntry): Promise<boolean> {
   inputDrafts.delete(from); imageDrafts.delete(from); newChatTasks.delete(from);
   return true;
 }
+/** A failed or cancelled row whose delivery notice (with Dismiss and Retry) is still shown. */
+function deliveryNotice(entry: InputEntry): boolean {
+  return entry.purpose !== 'decision' && entry.purpose !== 'rotation' &&
+    ['failed', 'cancelled'].includes(entry.state) && !!entry.error && !dismissedInputNotices.has(entry.id);
+}
 function paintPendingInputs(): void {
   const all = pendingComposerInputs;
   const belongsToSelection = (entry: InputEntry): boolean => selectedId === null
@@ -7391,8 +7396,7 @@ function paintPendingInputs(): void {
   // A pre-acceptance or failed-materialization row belongs only to its exact draft.
   // A fresh New Chat never inherits another opening.
   const unbound = (entry: InputEntry) => selectedId === null && pendingNewInput?.id === entry.id && pendingNewInput.generation === selectionGeneration && !entry.deliveredSessionId && entry.purpose !== 'decision' && ['queued', 'browser'].includes(entry.state);
-  const notice = (entry: InputEntry) => belongsToSelection(entry) && entry.purpose !== 'decision' && entry.purpose !== 'rotation' &&
-    ['failed', 'cancelled'].includes(entry.state) && !!entry.error && !dismissedInputNotices.has(entry.id);
+  const notice = (entry: InputEntry) => belongsToSelection(entry) && deliveryNotice(entry);
   const anchored = (entry: InputEntry) => detailFor === selectedId && (events.some(event =>
     event.kind === 'user_message' && (event.inputId === entry.id ||
       event.messageId === (entry.messageId ?? `input:${entry.id}`))) ||
@@ -8471,8 +8475,8 @@ export function initChat(next: Deps): void {
       : entry.recovery ? t('Automatic Continue')
       : entry.state === 'queued' ? (entry.mode === 'after-turn' ? t("After the next completed answer") : t("At Session finish or after a completed answer"))
       : t("Awaiting receipt"),
-    notice: entry => !dismissedInputNotices.has(entry.id) && !historicalAutomaticInput(entry) && entry.purpose !== 'rotation' &&
-      (entry.state === 'failed' || !!entry.error),
+    // The chat queue's own notice rule, without its selection check.
+    notice: entry => deliveryNotice(entry) && !historicalAutomaticInput(entry),
     cancel: async id => {
       const result = await run(api.cancelInput(id));
       if (result) dismissInputNotice(id);
