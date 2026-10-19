@@ -6228,6 +6228,24 @@ it('saves a typed /template instead of sending it when the Skill list cannot be 
   expect(app.w.document.body.textContent).toContain('Template “Private draft for {{client}}” saved.');
 });
 
+it('saves a typed /template once when it is submitted again while the Skill list loads', async () => {
+  const app = await boot([]);
+  const answers: Array<(value: unknown) => void> = [];
+  (app.w as any).api.skillLibrary = () => new Promise(resolve => { answers.push(resolve); });
+  const input = app.w.document.getElementById('chatInput') as HTMLTextAreaElement;
+  input.value = '/template Weekly update for {{team}}';
+  const submit = () => app.w.document.getElementById('composer')!.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true }));
+  submit(); submit();
+  await settle();
+  expect(answers).toHaveLength(2);
+  for (const answer of answers) answer({ ok: true, data: { skills: [], roots: [], errors: [], includeInstructions: true } });
+  await settle(); await settle();
+  expect(app.live.sent).toHaveLength(0);
+  expect(input.value).toBe('Weekly update for {{team}}');
+  const stored = JSON.parse(app.w.localStorage.getItem('chat-on-steroids.prompt-templates') ?? '[]');
+  expect(stored.map((row: { text: string }) => row.text)).toEqual(['Weekly update for {{team}}']);
+});
+
 it('opens New chat, Usage, Plugins, Pets and the diagnostics report from their commands', async () => {
   const { w, row } = await slash('usage');
   row!.click(); await settle();

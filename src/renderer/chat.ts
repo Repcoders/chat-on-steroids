@@ -1090,6 +1090,7 @@ async function sendTypedCommand(controlAction: boolean): Promise<void> {
   const typed = /^\s*\/([a-z][a-z-]*)(?=\s|$)/i.exec(input.value);
   const name = typed?.[1]!.toLowerCase();
   const known = name && APP_COMMANDS.some(row => row.command === name) && (!CHAT_COMMANDS.has(name) || openChatSummary() !== null);
+  const submitted = input.value, owner = draftKey();
   const library = known ? await run(api.skillLibrary({ sessionId: selectedId, projectId: selectedLocalProject()?.id ?? selectedProjectId })) : null;
   // A typed /template is never sent: when the Skill list cannot be read, the draft is saved as asked.
   if (!typed || !known || (!library && name !== 'template') || library?.skills.some(skill => skill.id === name)) {
@@ -1097,6 +1098,8 @@ async function sendTypedCommand(controlAction: boolean): Promise<void> {
     else void sendComposer(undefined, undefined, undefined, controlAction);
     return;
   }
+  // The draft changed while the Skill list loaded, or an earlier Enter already took the command out.
+  if (input.value !== submitted || draftKey() !== owner) return;
   const rest = input.value.slice(typed[0].length).replace(/^\s+/, '');
   input.value = rest;
   input.dispatchEvent(new Event('input', { bubbles: true }));
