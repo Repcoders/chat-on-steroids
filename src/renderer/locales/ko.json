@@ -2752,5 +2752,13 @@
   "{0} characters": "{0}자",
   "from {0} events": "이벤트 {0}개에서 생성",
   "(~{0} tokens)": "(~{0} 토큰)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Edit {0}": "{0} 편집",
+  "Image tools": "이미지 도구",
+  "Redact": "가리기",
+  "Box": "상자",
+  "Undo": "실행 취소",
+  "Drag across the image. Redact covers that area with solid black; only the edited copy is attached.": "이미지 위로 드래그하세요. 가리기는 그 영역을 불투명한 검은색으로 덮으며, 편집한 사본만 첨부됩니다.",
+  "Could not save the edited image": "편집한 이미지를 저장하지 못했습니다",
+  "Could not open this image for editing": "이 이미지를 편집용으로 열지 못했습니다"
 }

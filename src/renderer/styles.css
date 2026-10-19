@@ -3726,6 +3726,14 @@ nav button:hover, nav button.is-sel { background: var(--hover); color: var(--ink
 .composer-image { position: relative; width: 78px; height: 66px; }
 .composer-image img { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); }
 .image-remove { position: absolute; top: -4px; right: -4px; border: 0; width: 20px; height: 20px; border-radius: 50%; background: var(--ink); color: var(--page); cursor: pointer; }
+.composer-image:has(.image-edit) img { cursor: pointer; }
+.image-edit { position: absolute; right: -4px; bottom: -4px; display: grid; place-items: center; border: 0; width: 20px; height: 20px; padding: 0; border-radius: 50%; background: var(--ink); color: var(--page); cursor: pointer; }
+.image-edit .ico { --ico: 12px; }
+.image-editor-dialog { width: min(960px, calc(100vw - 40px)); }
+.image-editor-tools { display: flex; gap: 8px; }
+.image-editor-tools .btn { min-height: 32px; padding: 6px 12px; }
+.image-editor-hint { margin: 12px 0; color: var(--soft); }
+.image-editor-canvas { display: block; max-width: 100%; max-height: min(62dvh, 720px); margin: 0 auto; border: 1px solid var(--line); border-radius: 8px; cursor: crosshair; touch-action: none; }
 
 /* The workspace shell follows the observed Codex chat/settings hierarchy. */
 .chat-head { min-height: 48px; border-bottom: 0; padding: 8px 24px; }

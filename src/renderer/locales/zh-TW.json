@@ -2752,5 +2752,13 @@
   "{0} characters": "{0} 個字元",
   "from {0} events": "來自 {0} 個事件",
   "(~{0} tokens)": "（約 {0} Token）",
-  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}",
+  "Edit {0}": "編輯 {0}",
+  "Image tools": "圖片工具",
+  "Redact": "塗黑",
+  "Box": "方框",
+  "Undo": "復原",
+  "Drag across the image. Redact covers that area with solid black; only the edited copy is attached.": "在圖片上拖曳。塗黑會以純黑色蓋住該區域；只附加編輯後的副本。",
+  "Could not save the edited image": "無法儲存編輯後的圖片",
+  "Could not open this image for editing": "無法開啟此圖片進行編輯"
 }

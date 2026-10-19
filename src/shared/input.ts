@@ -6,6 +6,8 @@ export interface InputImage { name: string; dataUrl: string; }
  * recorded native-message ids are presentation metadata and grant no file access. */
 export interface InputAttachment { id: string; name: string; size: number; mimeType: string; preview?: string; }
 export const MAX_INPUT_IMAGES = 10;
+/** Staged images the composer can redact or mark up before Send; a GIF would lose its animation. */
+export const EDITABLE_IMAGE_TYPES: readonly string[] = ['image/png', 'image/jpeg', 'image/webp'];
 export function injectableAttachments(files: Array<InputImage | InputAttachment>): boolean {
   return files.length > 0 && files.length <= MAX_INPUT_IMAGES && files.every(file => 'dataUrl' in file ||
     ['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.mimeType));

@@ -28,7 +28,7 @@ import { getChatModels, startChatModelDiscovery, configureChatModelDiscovery } f
 import { releaseSessionFinish, requestSessionFinishGoal } from './session/finish.js';
 import { GOAL_MARKER_INSTRUCTION } from '../shared/goal-templates.js';
 import { validateInputImages } from './session/input-images.js';
-import { stageInputAttachment, stageInputAttachments, type AttachmentSource } from './session/input-attachments.js';
+import { attachmentSchema, readInputAttachmentImage, stageInputAttachment, stageInputAttachments, type AttachmentSource } from './session/input-attachments.js';
 import { recordDeliveredInput, recordedInputImage } from './session/input-history.js';
 import { UI_BASE_ZOOM, titleBarOverlayForTheme, windowBackgroundForTheme } from './window-layout.js';
 import { usageOverview } from './session/usage.js';
@@ -1426,6 +1426,10 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
       z.object({ name: z.string().min(1).max(255), bytes: z.instanceof(Uint8Array).refine(bytes => bytes.byteLength > 0 && bytes.byteLength <= 12 * 1024 * 1024) }).strict()
     ])).min(1).max(20) }).strict().parse(payload);
     return stageFiles(files);
+  });
+  handle('sessions:attachmentImage', async payload => {
+    const { attachment } = z.object({ attachment: attachmentSchema.strict() }).strict().parse(payload);
+    return readInputAttachmentImage(attachment);
   });
   handle('sessions:attachText', async payload => {
     const { text } = z.object({ text: z.string().min(1).max(4 * 1024 * 1024) }).parse(payload);

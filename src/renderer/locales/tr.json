@@ -2797,5 +2797,13 @@
   "from {0} events|one": "{0} olaydan",
   "(~{0} tokens)": "(~{0} token)",
   "(~{0} tokens)|one": "(~{0} token)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Edit {0}": "Düzenle: {0}",
+  "Image tools": "Görsel araçları",
+  "Redact": "Karart",
+  "Box": "Çerçeve",
+  "Undo": "Geri al",
+  "Drag across the image. Redact covers that area with solid black; only the edited copy is attached.": "Görselin üzerinde sürükleyin. Karart o alanı düz siyahla kapatır; yalnızca düzenlenen kopya eklenir.",
+  "Could not save the edited image": "Düzenlenen görsel kaydedilemedi",
+  "Could not open this image for editing": "Bu görsel düzenleme için açılamadı"
 }

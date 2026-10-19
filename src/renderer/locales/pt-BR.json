@@ -2842,5 +2842,13 @@
   "(~{0} tokens)": "(~{0} tokens)",
   "(~{0} tokens)|one": "(~{0} token)",
   "(~{0} tokens)|many": "(~{0} de tokens)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Edit {0}": "Editar {0}",
+  "Image tools": "Ferramentas de imagem",
+  "Redact": "Tarjar",
+  "Box": "Caixa",
+  "Undo": "Desfazer",
+  "Drag across the image. Redact covers that area with solid black; only the edited copy is attached.": "Arraste sobre a imagem. Tarjar cobre essa área com preto sólido; só a cópia editada é anexada.",
+  "Could not save the edited image": "Não foi possível salvar a imagem editada",
+  "Could not open this image for editing": "Não foi possível abrir esta imagem para edição"
 }

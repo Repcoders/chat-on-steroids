@@ -2842,5 +2842,13 @@
   "(~{0} tokens)": "(~{0} tokens)",
   "(~{0} tokens)|one": "(~{0} token)",
   "(~{0} tokens)|many": "(~{0} de tokens)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Edit {0}": "Editar {0}",
+  "Image tools": "Herramientas de imagen",
+  "Redact": "Tapar",
+  "Box": "Recuadro",
+  "Undo": "Deshacer",
+  "Drag across the image. Redact covers that area with solid black; only the edited copy is attached.": "Arrastra sobre la imagen. Tapar cubre esa zona con negro sólido; solo se adjunta la copia editada.",
+  "Could not save the edited image": "No se pudo guardar la imagen editada",
+  "Could not open this image for editing": "No se pudo abrir esta imagen para editarla"
 }

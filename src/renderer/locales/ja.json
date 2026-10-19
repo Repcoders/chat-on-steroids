@@ -2752,5 +2752,13 @@
   "{0} characters": "{0}文字",
   "from {0} events": "{0}件のイベントから",
   "(~{0} tokens)": "（約{0}トークン）",
-  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1}{2} · {3}",
+  "Edit {0}": "{0}を編集",
+  "Image tools": "画像ツール",
+  "Redact": "黒塗り",
+  "Box": "枠",
+  "Undo": "元に戻す",
+  "Drag across the image. Redact covers that area with solid black; only the edited copy is attached.": "画像の上をドラッグします。黒塗りはその範囲を不透明な黒で覆い、添付されるのは編集したコピーだけです。",
+  "Could not save the edited image": "編集した画像を保存できませんでした",
+  "Could not open this image for editing": "この画像を編集用に開けませんでした"
 }

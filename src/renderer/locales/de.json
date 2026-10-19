@@ -2797,5 +2797,13 @@
   "from {0} events|one": "aus {0} Ereignis",
   "(~{0} tokens)": "(ca. {0} Tokens)",
   "(~{0} tokens)|one": "(ca. {0} Token)",
-  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}"
+  "{0} · {1} {2} · {3}": "{0} · {1} {2} · {3}",
+  "Edit {0}": "{0} bearbeiten",
+  "Image tools": "Bildwerkzeuge",
+  "Redact": "Schwärzen",
+  "Box": "Rahmen",
+  "Undo": "Rückgängig",
+  "Drag across the image. Redact covers that area with solid black; only the edited copy is attached.": "Zieh über das Bild. Schwärzen deckt diesen Bereich mit Schwarz ab; angehängt wird nur die bearbeitete Kopie.",
+  "Could not save the edited image": "Das bearbeitete Bild konnte nicht gespeichert werden",
+  "Could not open this image for editing": "Dieses Bild konnte nicht zum Bearbeiten geöffnet werden"
 }
