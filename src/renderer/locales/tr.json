@@ -2373,6 +2373,7 @@
   "Save this draft as a template; each {{name}} in it is a field to fill in.": "Bu taslağı şablon olarak kaydet; içindeki her {{name}} doldurulacak bir alandır.",
   "Templates": "Şablonlar",
   "Template “{0}” saved. Type / to insert it.": "“{0}” şablonu kaydedildi. Eklemek için / yazın.",
+  "Template “{0}” saved for this window only: the app could not store it.": "“{0}” şablonu yalnızca bu pencere için kaydedildi: uygulama onu depolayamadı.",
   "This draft is too long for a template.": "Bu taslak bir şablon için çok uzun.",
   "Type the template first, then save it with /template.": "Önce şablonu yazın, sonra /template ile kaydedin.",
   "Open usage and token statistics.": "Kullanımı ve token istatistiklerini aç.",

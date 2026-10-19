@@ -2409,6 +2409,7 @@
   "Save this draft as a template; each {{name}} in it is a field to fill in.": "Guardar este borrador como plantilla; cada {{name}} en él es un campo para rellenar.",
   "Templates": "Plantillas",
   "Template “{0}” saved. Type / to insert it.": "Plantilla «{0}» guardada. Escribe / para insertarla.",
+  "Template “{0}” saved for this window only: the app could not store it.": "Plantilla «{0}» guardada solo para esta ventana: la aplicación no pudo almacenarla.",
   "This draft is too long for a template.": "Este borrador es demasiado largo para una plantilla.",
   "Type the template first, then save it with /template.": "Escribe primero la plantilla y luego guárdala con /template.",
   "Open usage and token statistics.": "Abrir el uso y las estadísticas de tokens.",

@@ -15,25 +15,35 @@ export type TemplateField = { start: number; end: number; name: string };
 /** `{{name}}`, `{{ name }}`: one line, no braces inside, the name 60 characters at most. */
 const FIELD = /\{\{[ \t]*([^{}\s][^{}\r\n]{0,59}?)[ \t]*\}\}/g;
 
-const ticks = (text: string): number => [...text.matchAll(/(?<!\\)`/g)].length;
+/**
+ * The inline code span still open after this text, as the length of its backtick run (0: none). A
+ * span closes only on a run of the same length, so ``a ` b`` is one span (CommonMark).
+ */
+function openSpan(text: string, open: number): number {
+  for (const [run] of text.matchAll(/(?<!\\)`+/g)) open = !open ? run.length : run.length === open ? 0 : open;
+  return open;
+}
 
 /**
  * The fields of a draft, in order. Braces in code are code the user is writing (a Jinja or
- * Handlebars snippet), so a field inside a fenced block or an inline code span is not one; this
- * reads code the way the slash menu does, in one pass however many braces were pasted.
+ * Handlebars snippet), so a field inside a fenced block or an inline code span is not one. A fence
+ * closes only on the same character, at least as long and with nothing after it, as in Markdown.
+ * One pass, however many braces were pasted.
  */
 export function templateFields(text: string): TemplateField[] {
   const fields: TemplateField[] = [];
-  let fenced = false, open = 0, offset = 0;
+  let fence = '', open = 0, offset = 0;
   for (const line of text.split('\n')) {
-    if (/^ {0,3}(`{3,}|~{3,})/.test(line)) { fenced = !fenced; open = 0; }
-    else if (!fenced) {
+    const marker = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (marker && !fence) { fence = marker[1]!; open = 0; }
+    else if (marker && marker[1]![0] === fence[0] && marker[1]!.length >= fence.length && !marker[2]!.trim()) fence = '';
+    else if (!fence) {
       let from = 0;
       for (const match of line.matchAll(FIELD)) {
-        open += ticks(line.slice(from, match.index)); from = match.index;
-        if (open % 2 === 0) fields.push({ start: offset + match.index, end: offset + match.index + match[0].length, name: match[1]!.trim() });
+        open = openSpan(line.slice(from, match.index), open); from = match.index;
+        if (!open) fields.push({ start: offset + match.index, end: offset + match.index + match[0].length, name: match[1]!.trim() });
       }
-      open += ticks(line.slice(from));
+      open = openSpan(line.slice(from), open);
     }
     offset += line.length + 1;
   }
@@ -66,24 +76,24 @@ export function createPromptTemplates() {
     }
   } catch { /* Unavailable or corrupt storage must not stop the composer. */ }
 
-  function store(): void {
-    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(templates)); }
-    catch { /* Keep the templates in this window when storage is unavailable. */ }
+  /** Whether the templates reached storage; when it is full or blocked they last only in this window. */
+  function store(): boolean {
+    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(templates)); return true; }
+    catch { return false; }
   }
 
   return {
     /** The newest first. */
     list: (): readonly PromptTemplate[] => templates,
     /** Saves a draft under its first line, replacing a template of the same name. */
-    save(text: string): { saved: PromptTemplate } | { error: 'empty' | 'long' } {
+    save(text: string): { saved: PromptTemplate; stored: boolean } | { error: 'empty' | 'long' } {
       const body = text.replace(/^\s*\n/, '').trimEnd();
       if (!body.trim()) return { error: 'empty' };
       if (body.length > MAX_TEMPLATE_CHARS) return { error: 'long' };
       const saved = { name: templateName(body), text: body };
       // The oldest template gives way at the bound; a save is never refused for it.
       templates = [saved, ...templates.filter(row => row.name !== saved.name)].slice(0, MAX_TEMPLATES);
-      store();
-      return { saved };
+      return { saved, stored: store() };
     },
     remove(name: string): void {
       templates = templates.filter(row => row.name !== name);

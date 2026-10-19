@@ -2337,6 +2337,7 @@
   "Save this draft as a template; each {{name}} in it is a field to fill in.": "将此草稿保存为模板；其中每个 {{name}} 都是一个待填写的字段。",
   "Templates": "模板",
   "Template “{0}” saved. Type / to insert it.": "已保存模板“{0}”。输入 / 即可插入。",
+  "Template “{0}” saved for this window only: the app could not store it.": "模板“{0}”仅在此窗口中保存：应用无法存储它。",
   "This draft is too long for a template.": "此草稿太长，无法保存为模板。",
   "Type the template first, then save it with /template.": "请先输入模板内容，再用 /template 保存。",
   "Open usage and token statistics.": "打开用量和令牌统计。",

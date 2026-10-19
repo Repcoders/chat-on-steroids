@@ -1091,7 +1091,8 @@ async function sendTypedCommand(controlAction: boolean): Promise<void> {
   const name = typed?.[1]!.toLowerCase();
   const known = name && APP_COMMANDS.some(row => row.command === name) && (!CHAT_COMMANDS.has(name) || openChatSummary() !== null);
   const library = known ? await run(api.skillLibrary({ sessionId: selectedId, projectId: selectedLocalProject()?.id ?? selectedProjectId })) : null;
-  if (!typed || !known || !library || library.skills.some(skill => skill.id === name)) {
+  // A typed /template is never sent: when the Skill list cannot be read, the draft is saved as asked.
+  if (!typed || !known || (!library && name !== 'template') || library?.skills.some(skill => skill.id === name)) {
     if (taskPlans.has(draftKey())) { if (!$('createPlan').dataset.busy) void createTaskPlan(deps.state()?.config.ui.planBackend ?? 'chatgpt'); }
     else void sendComposer(undefined, undefined, undefined, controlAction);
     return;
@@ -1143,7 +1144,10 @@ function runSlashCommand(name: string): void {
   else if (name === 'template') {
     // What is left in the composer once the command is taken out of it; it stays there.
     const result = promptTemplates?.save($<HTMLTextAreaElement>('chatInput').value);
-    if (result && 'saved' in result) toast(t('Template “{0}” saved. Type / to insert it.', [result.saved.name]));
+    if (result && 'saved' in result) {
+      toast(result.stored ? t('Template “{0}” saved. Type / to insert it.', [result.saved.name])
+        : t('Template “{0}” saved for this window only: the app could not store it.', [result.saved.name]));
+    }
     else toast(result?.error === 'long' ? t('This draft is too long for a template.') : t('Type the template first, then save it with /template.'));
   }
   else if (name === 'usage') openSettingsTab('usage');

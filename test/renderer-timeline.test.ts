@@ -6217,6 +6217,17 @@ it('saves a draft as a template with /template, inserts it from the menu and ste
   expect(app.live.sent).toHaveLength(0);
 });
 
+it('saves a typed /template instead of sending it when the Skill list cannot be read', async () => {
+  const app = await boot([]);
+  (app.w as any).api.skillLibrary = async () => ({ ok: false, error: 'The Skills folder is unavailable.' });
+  const input = app.w.document.getElementById('chatInput') as HTMLTextAreaElement;
+  input.value = '/template Private draft for {{client}}';
+  app.w.document.getElementById('composer')!.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true }));
+  await settle(); await settle();
+  expect(app.live.sent).toHaveLength(0);
+  expect(app.w.document.body.textContent).toContain('Template “Private draft for {{client}}” saved.');
+});
+
 it('opens New chat, Usage, Plugins, Pets and the diagnostics report from their commands', async () => {
   const { w, row } = await slash('usage');
   row!.click(); await settle();

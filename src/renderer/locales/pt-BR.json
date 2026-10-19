@@ -2409,6 +2409,7 @@
   "Save this draft as a template; each {{name}} in it is a field to fill in.": "Salvar este rascunho como modelo; cada {{name}} nele é um campo a preencher.",
   "Templates": "Modelos",
   "Template “{0}” saved. Type / to insert it.": "Modelo “{0}” salvo. Digite / para inseri-lo.",
+  "Template “{0}” saved for this window only: the app could not store it.": "Modelo “{0}” salvo só para esta janela: o app não conseguiu armazená-lo.",
   "This draft is too long for a template.": "Este rascunho é longo demais para um modelo.",
   "Type the template first, then save it with /template.": "Escreva o modelo primeiro e depois salve-o com /template.",
   "Open usage and token statistics.": "Abrir o uso e as estatísticas de tokens.",

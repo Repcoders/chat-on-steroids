@@ -20,6 +20,15 @@ it('reads each {{name}} of a draft as a field, but not braces in code', () => {
   expect(names('An escaped \\` tick is not code: {{field}}')).toEqual(['field']);
 });
 
+it('reads code spans and fences the way Markdown does', () => {
+  // A double-backtick span may hold a single backtick; only a run of the same length closes it.
+  expect(names('``{{inside}} ` still code`` then {{outside}}')).toEqual(['outside']);
+  // A fence closes only on the same character, at least as long, with nothing after it.
+  expect(names('~~~\n```\n{{literal}}\n~~~\n{{actual}}')).toEqual(['actual']);
+  expect(names('````\n```\n{{literal}}\n````\n{{actual}}')).toEqual(['actual']);
+  expect(names('```\n```js\n{{literal}}\n```\n{{actual}}')).toEqual(['actual']);
+});
+
 it('reads a pasted page of braces in one pass', () => {
   const text = `\`\`\`\n${'{{x}} '.repeat(20_000)}\n\`\`\`\n${'{{y}} '.repeat(20_000)}`;
   const started = performance.now();
@@ -51,7 +60,7 @@ it('saves the newest first, replaces a template of the same name and keeps them 
   const templates = createPromptTemplates();
   expect(templates.save('  \n')).toEqual({ error: 'empty' });
   expect(templates.save('x'.repeat(10_001))).toEqual({ error: 'long' });
-  expect(templates.save('Bug report\nSteps: {{steps}}')).toEqual({ saved: { name: 'Bug report', text: 'Bug report\nSteps: {{steps}}' } });
+  expect(templates.save('Bug report\nSteps: {{steps}}')).toEqual({ saved: { name: 'Bug report', text: 'Bug report\nSteps: {{steps}}' }, stored: true });
   templates.save('Review {{file}}');
   templates.save('Bug report\nSteps: {{steps}}\nExpected: {{expected}}');
   expect(templates.list().map(row => row.name)).toEqual(['Bug report', 'Review {{file}}']);
@@ -59,6 +68,14 @@ it('saves the newest first, replaces a template of the same name and keeps them 
   expect(reloaded.list()[0]!.text).toBe('Bug report\nSteps: {{steps}}\nExpected: {{expected}}');
   reloaded.remove('Bug report');
   expect(createPromptTemplates().list().map(row => row.name)).toEqual(['Review {{file}}']);
+});
+
+it('says when a template could not be stored and lasts only in this window', () => {
+  const templates = createPromptTemplates();
+  expect(templates.save('Stored {{x}}')).toMatchObject({ stored: true });
+  dom.window.Storage.prototype.setItem = () => { throw new Error('QuotaExceededError'); };
+  expect(templates.save('Not stored {{x}}')).toMatchObject({ saved: { name: 'Not stored {{x}}' }, stored: false });
+  expect(templates.list().map(row => row.name)).toEqual(['Not stored {{x}}', 'Stored {{x}}']);
 });
 
 it('keeps at most 50 templates and ignores a corrupt or oversized store', () => {

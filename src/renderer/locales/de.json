@@ -2373,6 +2373,7 @@
   "Save this draft as a template; each {{name}} in it is a field to fill in.": "Diesen Entwurf als Vorlage speichern; jedes {{name}} darin ist ein Feld zum Ausfüllen.",
   "Templates": "Vorlagen",
   "Template “{0}” saved. Type / to insert it.": "Vorlage „{0}“ gespeichert. Mit / einfügen.",
+  "Template “{0}” saved for this window only: the app could not store it.": "Vorlage „{0}“ nur für dieses Fenster gespeichert: Die App konnte sie nicht dauerhaft speichern.",
   "This draft is too long for a template.": "Dieser Entwurf ist zu lang für eine Vorlage.",
   "Type the template first, then save it with /template.": "Zuerst die Vorlage schreiben, dann mit /template speichern.",
   "Open usage and token statistics.": "Nutzung und Token-Statistik öffnen.",
