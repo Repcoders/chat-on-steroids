@@ -1188,6 +1188,33 @@ it('wakes a snoozed chat on new activity, on an approval waiting, and at its tim
   expect(doc.querySelector('#chatList > details.session-diagnostics')).toBeNull();
 });
 
+it('wakes a snoozed chat when one of its sub-agents waits on an approval or a stopped recovery', async () => {
+  const now = Date.now();
+  const worker = (id: string, parent: string) => inboxChat(id, { updatedAt: now - 5000, origin: { kind: 'worker', fromSessionId: parent, agentId: id, task: '' } });
+  const rows = [inboxChat('p1', { updatedAt: now - 1000 }), worker('w1', 'p1'), inboxChat('p2', { updatedAt: now - 2000 }), worker('w2', 'p2'), inboxChat('plain', { updatedAt: now - 3000 })];
+  let state: Record<string, string[]> = {};
+  let changed: () => void = () => undefined;
+  const mounted = await mountInbox({
+    listSessions: async () => listed(rows, state),
+    onSessionChanged: (fn: () => void) => { changed = fn; return () => undefined; }
+  });
+  const doc = mounted.window.document;
+  const row = (id: string) => doc.querySelector<HTMLElement>(`.sess[data-id="${id}"]`);
+  await vi.waitFor(() => expect(inboxCardIds(doc)).toEqual(['p1', 'p2', 'plain']));
+  for (const id of ['p1', 'p2']) {
+    rowMenuItem(row(id)!, 'snooze')!.click();
+    doc.querySelector<HTMLButtonElement>('[data-row-action="snooze-week"]')!.click();
+  }
+  expect(inboxCardIds(doc)).toEqual(['plain']);
+  // Nothing new was recorded, but the person has to answer the worker: its parent comes back.
+  state = { approval: ['c-w1'] };
+  changed();
+  await vi.waitFor(() => expect(inboxCardIds(doc)).toEqual(['p1', 'plain']));
+  state = { recoveryStopped: ['c-w2'] };
+  changed();
+  await vi.waitFor(() => expect(inboxCardIds(doc)).toEqual(['p2', 'p1', 'plain']));
+});
+
 it('draws the inbox when the layout changes before any chat is loaded, and the tree again when it changes back', async () => {
   const mounted = await mountChat();
   await settle();

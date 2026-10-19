@@ -331,12 +331,12 @@ const snoozeActivity = (entry: SessionSummary, workers: SessionSummary[] = []): 
   Math.max(entry.updatedAt, ...workers.map(worker => worker.updatedAt));
 /**
  * When a snoozed chat wakes, or null when it is in its list: its time, new activity, or an approval
- * or a stopped recovery waiting on the person brings it back.
+ * or a stopped recovery waiting on the person, its own or a sub-agent's, brings it back.
  */
-function snoozedUntil(entry: SessionSummary, workers?: SessionSummary[]): number | null {
+function snoozedUntil(entry: SessionSummary, workers: SessionSummary[] = []): number | null {
   if (!sidebarSnooze || !pinnable(entry)) return null;
-  const attention = chatAttention(entry);
-  if (attention === 'approval' || attention === 'recovery') { sidebarSnooze.wake(entry.id); return null; }
+  const waits = (summary: SessionSummary) => ['approval', 'recovery'].includes(chatAttention(summary) ?? '');
+  if (waits(entry) || workers.some(waits)) { sidebarSnooze.wake(entry.id); return null; }
   return sidebarSnooze.until(entry.id, snoozeActivity(entry, workers));
 }
 const wakeTime = (at: number): string => wakeLabel(at, Date.now(), currentLanguage());
