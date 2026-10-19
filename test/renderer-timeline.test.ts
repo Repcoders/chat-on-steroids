@@ -5585,6 +5585,24 @@ it('lists your messages beside the chat and moves to one without being pulled ba
   expect(pane.scrollTop).toBe(988);
 });
 
+it('hides the previous chat minimap while another chat loads', async () => {
+  const ask = (seq: number, words: string): SessionEvent => ({ kind: 'user_message', seq, time: T0 + seq * 1000, source: 'extension', messageId: `ask-${seq}`, message: text(words) });
+  const rows = [ask(1, 'Plan the login page'), ask(2, 'Add a remember-me box')];
+  const first = summary(rows), second = { ...summary([]), id: 'other', title: 'Other session' };
+  const { w, append } = await boot(rows, true, [], [], { sessions: [first, second] });
+  const pane = w.document.getElementById('chatBody')!;
+  Object.defineProperties(pane, { clientHeight: { value: 400, configurable: true }, scrollHeight: { value: 2000, configurable: true } });
+  await append([ask(3, 'Write the tests')]);
+  const map = w.document.querySelector<HTMLElement>('.timeline-minimap')!;
+  expect(map.hidden).toBe(false);
+  (w as any).api.getSession = () => new Promise(() => {});
+  (w.document.querySelector(`#sessionList [data-id="${second.id}"]`) as HTMLElement).click();
+  await settle();
+  // The old rows stay painted, inert, until the other chat arrives; their dashes are not offered.
+  expect(w.document.getElementById('timeline')!.textContent).toContain('Plan the login page');
+  expect(map.hidden).toBe(true);
+});
+
 it('keeps the chat reading state out of Agents & automation, which shares its scroll pane', async () => {
   const { w, append } = await boot([{ kind: 'assistant_message', seq: 1, time: T0 + 1000, source: 'extension', messageId: 'first', message: text('Hello'), final: false }]);
   const pane = w.document.getElementById('chatBody')!;

@@ -5537,6 +5537,7 @@ function paintDetail(followBottom = historyBefore === null): void {
     $('inputQueue').setAttribute('inert', '');
     $('timelineEmpty').hidden = true;
     $('chatFoot').hidden = true;
+    timelineMinimap?.paint();
     return;
   }
   $('timeline').removeAttribute('inert');
@@ -8412,7 +8413,7 @@ export function initChat(next: Deps): void {
     jump.addEventListener('click', jumpToLatest);
     dock.append(jump); pane.append(dock);
     // Beside the pane rather than in it, so it stays put while the chat scrolls.
-    timelineMinimap = initTimelineMinimap({ pane, timeline: $('timeline'), shown: () => !!selectedId && timelineShown(),
+    timelineMinimap = initTimelineMinimap({ pane, timeline: $('timeline'), shown: () => !!selectedId && detailFor === selectedId && timelineShown(),
       jumped: () => { readTimeline(); paintJumpLatest(); } });
     pane.after(timelineMinimap.element);
   }

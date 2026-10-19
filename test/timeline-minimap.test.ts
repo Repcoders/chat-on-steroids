@@ -105,6 +105,25 @@ it('stays out of the way with fewer than two messages, a chat that fits, or anot
   expect(map.element.hidden).toBe(true);
 });
 
+it('checks again whether the chat fits when the pane or its rows change size', async () => {
+  const observers: Array<{ callback: () => void; targets: Element[] }> = [];
+  vi.stubGlobal('ResizeObserver', class {
+    targets: Element[] = [];
+    constructor(public callback: () => void) { observers.push(this); }
+    observe(target: Element) { this.targets.push(target); }
+    disconnect() {}
+  });
+  const { map, pane, timeline } = await minimap();
+  expect(observers.flatMap(observer => observer.targets)).toEqual([pane, timeline]);
+  // A wider window: the chat now fits, then an opened disclosure makes it overflow again.
+  Object.defineProperty(pane, 'scrollHeight', { value: 400, configurable: true });
+  observers.forEach(observer => observer.callback());
+  expect(map.element.hidden).toBe(true);
+  Object.defineProperty(pane, 'scrollHeight', { value: 4000, configurable: true });
+  observers.forEach(observer => observer.callback());
+  expect(map.element.hidden).toBe(false);
+});
+
 it('jumps to a message on click, releasing the follow hold first', async () => {
   const { dashes, jumped, pane } = await minimap();
   const { TOP_GAP } = await import('../src/renderer/timeline-minimap.js');

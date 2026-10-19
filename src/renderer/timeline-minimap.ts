@@ -154,7 +154,12 @@ export function initTimelineMinimap(options: TimelineMinimapOptions): TimelineMi
   pane.addEventListener('scrollend', () => { heading = null; }, { passive: true });
   // The reader's own scrolling takes over from a jump still on its way.
   for (const type of ['wheel', 'touchstart', 'pointerdown'] as const) pane.addEventListener(type, () => { heading = null; }, { passive: true });
-  window.addEventListener('resize', schedule);
+  // Whether the chat still overflows can change without a scroll or a new row: a resized window or
+  // pane, an opened disclosure. Check again whenever the pane or its rows change size.
+  if (typeof ResizeObserver === 'function') {
+    const sizes = new ResizeObserver(() => paint());
+    sizes.observe(pane); sizes.observe(timeline);
+  } else window.addEventListener('resize', paint);
 
   document.addEventListener('keydown', event => {
     if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing || event.defaultPrevented) return;
