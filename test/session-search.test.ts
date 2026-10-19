@@ -252,8 +252,8 @@ it('lists every page a chat cites once, with each answer that cites it and its q
   // In the order first cited; one page however its link was written, with what later citations add.
   expect(await sourcesInSession(session.id)).toEqual([
     { url: 'https://docs.example.org/notes', title: 'Release notes', date: 1_760_000_000_000,
-      citedBy: [{ question: 'What changed in the release?', location: at('a1') }] },
+      citedBy: [{ answer: 1, question: 'What changed in the release?', location: at('a1') }] },
     { url: 'https://example.com/changelog#top', title: 'Changelog', source: 'Example', snippet: 'Fixed the crash.',
-      citedBy: [{ question: 'What changed in the release?', location: at('a1') }, { question: 'And the bug fixes?', location: at('a2') }] }
+      citedBy: [{ answer: 1, question: 'What changed in the release?', location: at('a1') }, { answer: 2, question: 'And the bug fixes?', location: at('a2') }] }
   ]);
 });

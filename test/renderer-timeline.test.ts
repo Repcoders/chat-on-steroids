@@ -5340,9 +5340,9 @@ it('opens the chat Sources from the globe under an answer that cites any, and co
   const api = (w as any).api;
   const listed = [
     { url: 'https://example.com/b', title: 'Release [B] notes', source: 'Example', snippet: 'B ships Friday.',
-      citedBy: [{ question: 'Compare the two releases', location: { seq: 2, kind: 'assistant_message', messageId: 'reply', position: 2 } }] },
+      citedBy: [{ answer: 1, question: 'Compare the two releases', location: { seq: 2, kind: 'assistant_message', messageId: 'reply', position: 2 } }] },
     { url: 'https://docs.example.org/a_(old)', title: 'Release A',
-      citedBy: [{ question: '', location: { seq: 2, kind: 'assistant_message', messageId: 'reply', position: 2 } }] }
+      citedBy: [{ answer: 3, question: '', location: { seq: 2, kind: 'assistant_message', messageId: 'reply', position: 2 } }] }
   ];
   api.chatSources = vi.fn(async () => ({ ok: true, data: listed }));
   api.openLink = vi.fn(async () => ({ ok: true, data: true }));
@@ -5359,8 +5359,8 @@ it('opens the chat Sources from the globe under an answer that cites any, and co
   const titles = () => [...dialog.querySelectorAll('.source-title')].map(node => node.textContent);
   expect(titles()).toEqual(['Release [B] notes', 'Release A']);
   expect([...dialog.querySelectorAll('.source-meta')].map(node => node.textContent)).toEqual(['Example', 'docs.example.org']);
-  // An answer is named by the question it answered, or by its number without one.
-  expect([...dialog.querySelectorAll('.source-answer')].map(node => node.textContent)).toEqual(['Compare the two releases', 'Answer 1']);
+  // An answer is named by the question it answered, or by its number in the chat without one.
+  expect([...dialog.querySelectorAll('.source-answer')].map(node => node.textContent)).toEqual(['Compare the two releases', 'Answer 3']);
   dialog.querySelector<HTMLButtonElement>('.source-title')!.click();
   expect(api.openLink).toHaveBeenCalledWith('https://example.com/b');
   w.document.getElementById('sourcesCopy')!.click(); await settle();

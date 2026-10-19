@@ -1318,8 +1318,11 @@ export interface SessionSource {
   source?: string;
   date?: number;
   snippet?: string;
-  /** The citing answers in the order they were said: the question each answered, and where it is. */
-  citedBy: Array<{ question: string; location: SessionSearchLocation }>;
+  /**
+   * The citing answers in the order they were said: each one's number among the chat's answers,
+   * the question it answered (empty before any question), and where it is.
+   */
+  citedBy: Array<{ answer: number; question: string; location: SessionSearchLocation }>;
 }
 
 /**

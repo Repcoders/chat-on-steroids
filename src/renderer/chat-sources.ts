@@ -62,8 +62,8 @@ export function initChatSources(deps: ChatSourcesDeps): { open(id: string): void
     }
     const cited = el('div', 'source-cited');
     cited.append(el('span', 'source-cited-label', () => t('Cited in')));
-    source.citedBy.forEach(({ question, location }, at) => {
-      const answer = el('button', 'source-answer', question || (() => t('Answer {0}', [at + 1]))) as HTMLButtonElement;
+    for (const { answer: number, question, location } of source.citedBy) {
+      const answer = el('button', 'source-answer', question || (() => t('Answer {0}', [number]))) as HTMLButtonElement;
       answer.type = 'button';
       answer.dir = 'auto';
       if (question) answer.title = question;
@@ -73,7 +73,7 @@ export function initChatSources(deps: ChatSourcesDeps): { open(id: string): void
         if (id) deps.reveal(id, location);
       });
       cited.append(answer);
-    });
+    }
     box.append(cited);
     return box;
   };

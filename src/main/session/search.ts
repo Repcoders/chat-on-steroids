@@ -267,12 +267,13 @@ function sourceKey(url: string): string {
 export async function sourcesInSession(id: string): Promise<SessionSource[]> {
   const events = await readEvents(id, { kinds: ['user_message', 'assistant_message'] });
   const sources = new Map<string, SessionSource>();
-  let question = '';
+  let question = '', answer = 0;
   for (const entry of transcriptEntries(events)) {
     if (entry.role === 'user') {
       question = entry.stored.text.replace(/\s+/g, ' ').trim().slice(0, QUESTION_CHARS);
       continue;
     }
+    answer++;
     const event = events.find(candidate => candidate.seq === entry.seq);
     if (event?.kind !== 'assistant_message' || !event.references?.length) continue;
     const messageId = event.messageId ?? null;
@@ -294,7 +295,7 @@ export async function sourcesInSession(id: string): Promise<SessionSource[]> {
         if (date && !known.date) known.date = date;
         if (snippet && !known.snippet) known.snippet = snippet;
         if (known.title === known.url && title !== url) known.title = title;
-        if (known.citedBy.at(-1)?.location.seq !== event.seq) known.citedBy.push({ question, location });
+        if (known.citedBy.at(-1)?.location.seq !== event.seq) known.citedBy.push({ answer, question, location });
       }
     }
   }
