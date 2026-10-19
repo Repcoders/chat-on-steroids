@@ -2536,6 +2536,8 @@
   "Projects groups chats by project. Inbox lists them together, active chats first.": "Projetos agrupa os chats por projeto. Caixa de entrada mostra-os todos numa só lista, com os chats ativos primeiro.",
   "Inbox": "Caixa de entrada",
   "Needs approval": "Requer aprovação",
+  "Needs you": "Precisa de si",
+  "Filter chats": "Filtrar chats",
   "Blocked": "Bloqueado",
   "Search": "Pesquisar",
   "Settled": "Inativos",

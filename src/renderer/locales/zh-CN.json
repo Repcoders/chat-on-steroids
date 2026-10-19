@@ -2464,6 +2464,8 @@
   "Projects groups chats by project. Inbox lists them together, active chats first.": "“项目”按项目分组显示聊天。“收件箱”将所有聊天放在同一列表中，进行中的聊天排在最前。",
   "Inbox": "收件箱",
   "Needs approval": "需要审批",
+  "Needs you": "待你处理",
+  "Filter chats": "筛选聊天",
   "Blocked": "已阻止",
   "Search": "搜索",
   "Settled": "不活跃",

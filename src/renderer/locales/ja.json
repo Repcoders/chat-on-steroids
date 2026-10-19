@@ -2464,6 +2464,8 @@
   "Projects groups chats by project. Inbox lists them together, active chats first.": "「プロジェクト」はチャットをプロジェクトごとにまとめます。「受信トレイ」はすべてを1つのリストに並べ、作業中のチャットを先頭に表示します。",
   "Inbox": "受信トレイ",
   "Needs approval": "承認待ち",
+  "Needs you": "対応待ち",
+  "Filter chats": "チャットを絞り込む",
   "Blocked": "ブロック中",
   "Search": "検索",
   "Settled": "非アクティブ",

@@ -2572,6 +2572,8 @@
   "Projects groups chats by project. Inbox lists them together, active chats first.": "«Проекты» группирует чаты по проектам. «Входящие» показывает их одним списком, активные чаты сверху.",
   "Inbox": "Входящие",
   "Needs approval": "Требует подтверждения",
+  "Needs you": "Ждёт вас",
+  "Filter chats": "Фильтр чатов",
   "Blocked": "Заблокирован",
   "Search": "Поиск",
   "Settled": "Неактивные",

@@ -2464,6 +2464,8 @@
   "Projects groups chats by project. Inbox lists them together, active chats first.": "프로젝트는 채팅을 프로젝트별로 묶습니다. 받은편지함은 모든 채팅을 한 목록에 보여 주며 활성 채팅을 먼저 표시합니다.",
   "Inbox": "받은편지함",
   "Needs approval": "승인 필요",
+  "Needs you": "조치 필요",
+  "Filter chats": "채팅 필터",
   "Blocked": "차단됨",
   "Search": "검색",
   "Settled": "비활성",

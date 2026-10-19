@@ -2500,6 +2500,8 @@
   "Projects groups chats by project. Inbox lists them together, active chats first.": "Projekte gruppiert Chats nach Projekt. Posteingang zeigt alle in einer Liste, aktive Chats zuerst.",
   "Inbox": "Posteingang",
   "Needs approval": "Wartet auf Freigabe",
+  "Needs you": "Braucht dich",
+  "Filter chats": "Chats filtern",
   "Blocked": "Blockiert",
   "Search": "Suchen",
   "Settled": "Ruhig",

@@ -2464,6 +2464,8 @@
   "Projects groups chats by project. Inbox lists them together, active chats first.": "Dự án nhóm các cuộc trò chuyện theo dự án. Hộp thư đến hiển thị tất cả trong một danh sách, cuộc trò chuyện đang hoạt động ở trên cùng.",
   "Inbox": "Hộp thư đến",
   "Needs approval": "Cần phê duyệt",
+  "Needs you": "Cần bạn",
+  "Filter chats": "Lọc cuộc trò chuyện",
   "Blocked": "Bị chặn",
   "Search": "Tìm kiếm",
   "Settled": "Không hoạt động",

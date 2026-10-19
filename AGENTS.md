@@ -958,6 +958,12 @@ holds as many chats as its tree section, cards and Settled counted together in d
 and every chat that needs the person stay visible beyond the page. While that project's own history
 is unread its empty state says "Loading chats…", and after a failed read it offers Retry.
 The filter is window-local, like disclosure state.
+Both layouts draw one state filter (`renderer/sidebar-filter.ts`, the `.seg` control): All, Working
+(`sessionWorking`), Needs you (`chatAttention`) and Pinned (`pinnedChat`), a running or attention
+worker counting as its parent's state. It narrows the loaded parent chats only (unattributed
+activity and orphaned sub-agents wait for All) and is window-local too. In the tree it shows only
+projects holding a match, open and unpaged; closing one there leaves `expandedProjects` alone, and
+a section with no match is hidden. In the Inbox it sits under the project filter.
 
 Removing a project marks the catalog row `ungrouped`. Existing and unloaded sessions, pending
 inputs and workers keep their durable project association; their chats return to the ordinary

@@ -2500,6 +2500,8 @@
   "Projects groups chats by project. Inbox lists them together, active chats first.": "Projeler, sohbetleri projeye göre gruplar. Gelen kutusu hepsini tek listede gösterir, etkin sohbetler önce gelir.",
   "Inbox": "Gelen kutusu",
   "Needs approval": "Onay bekliyor",
+  "Needs you": "Sizi bekliyor",
+  "Filter chats": "Sohbetleri filtrele",
   "Blocked": "Engellendi",
   "Search": "Ara",
   "Settled": "Sakin",
