@@ -5600,6 +5600,21 @@ it('pins the question of the answer being read to the top of the chat, and goes 
   // Going back up is reading: new output no longer pulls the view to the end.
   await append([answer(5, 'long', 'A long answer, still being written.')]);
   expect(pane.scrollTop).toBe(144);
+  // History paging can trim the question off the page while its answer is still read: the pin stays,
+  // and a click opens the page around the question, as a search result does.
+  read(900);
+  // Trimmed from the top: the first exchange and the question, leaving the answer being read.
+  const rows = [...timeline.querySelectorAll<HTMLElement>('[data-timeline-key]')];
+  const asked = rows.findIndex(row => row.textContent!.includes('Explain the'));
+  rows.slice(0, asked + 1).forEach(row => row.remove());
+  read(600);
+  expect(pin.hidden).toBe(false);
+  expect(pin.querySelector('.prompt-pin-text')!.textContent).toBe('Explain the placeholder plan');
+  pin.click();
+  await vi.waitFor(() => expect(timeline.querySelector('.is-search-hit')?.textContent).toContain('Explain the'));
+  // Back at the first question, nothing trimmed is left pinned.
+  read(0);
+  expect(pin.hidden).toBe(true);
 });
 
 it('keeps the chat reading state out of Agents & automation, which shares its scroll pane', async () => {
@@ -7040,6 +7055,15 @@ describe('prompt recall in the composer', () => {
   ])('skips %s whose row the outbox no longer keeps', async (_, value) => {
     // The recorder keeps the input id and the sent text on the message, whoever wrote it.
     const { w, live, append } = await boot([...chat(), ask(7, value, { inputId: 'trimmed-row', inputDelivery: 'confirmed', authoredText: value }), answer(8, 'Next step done.')]);
+    live.inputs = [sentInput('q-5')]; await append([]);
+    expect(press(w, 'ArrowUp')).toBe(true);
+    expect(composer(w).value).toBe('Second question');
+  });
+
+  // Mac release round, 2026-10-19: a Goal follow-up came back first. Its page types it, so it has
+  // no outbox row or input id at all; the recorder marks it `automatic` instead.
+  it('skips a Goal or Loop follow-up its page typed', async () => {
+    const { w, live, append } = await boot([...chat(), ask(7, 'Continue with step two of the goal', { automatic: true }), answer(8, 'Step two done.')]);
     live.inputs = [sentInput('q-5')]; await append([]);
     expect(press(w, 'ArrowUp')).toBe(true);
     expect(composer(w).value).toBe('Second question');
