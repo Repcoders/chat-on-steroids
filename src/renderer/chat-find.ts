@@ -31,19 +31,24 @@ function registry(): HighlightRegistry | null {
   return css?.highlights && typeof (globalThis as { Highlight?: unknown }).Highlight === 'function' ? css.highlights : null;
 }
 
+/** Where the chat shows recorded text: messages, and an opened tool call's arguments and result. */
+const SHOWN = '.said, .ev-tool_call .tool > .raw .tool-output > .pre';
+
 /** Elements whose text is a line of its own; their words never run into a neighbour's. */
 const BLOCK = 'p, li, h1, h2, h3, h4, h5, h6, pre, td, th, blockquote, div, dt, dd';
 
 /**
- * Every occurrence of `phrase` (already folded) inside the message text of `root`, as the main
+ * Every occurrence of `phrase` (already folded) inside the recorded text of `root`, as the main
  * process matched it: ignoring case, accents and runs of white space, and across formatting, so
- * "File: /src" in "<strong>File:</strong> <code>/src</code>" is marked too.
+ * "File: /src" in "<strong>File:</strong> <code>/src</code>" is marked too. The app's own
+ * "… cut" note after a shortened text is not recorded text.
  */
 export function rangesIn(root: ParentNode, phrase: string): Range[] {
   const ranges: Range[] = [];
   if (!phrase) return ranges;
-  for (const said of root.querySelectorAll('.said')) {
-    const walker = document.createTreeWalker(said, NodeFilter.SHOW_TEXT);
+  for (const said of root.querySelectorAll(SHOWN)) {
+    const walker = document.createTreeWalker(said, NodeFilter.SHOW_TEXT,
+      { acceptNode: node => node.parentElement?.closest('.cut') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
     let text = '';
     const at: Array<[Text, number]> = [];
     let space = true;
@@ -73,6 +78,14 @@ export function rangesIn(root: ParentNode, phrase: string): Range[] {
   return ranges;
 }
 
+/** Brings a mark to the middle of the pane that scrolls it: an opened call's result can be taller than the view. */
+function centerMark(range: Range): void {
+  const pane = range.startContainer.parentElement?.closest<HTMLElement>('.scroll');
+  if (!pane || typeof range.getBoundingClientRect !== 'function') return;
+  const mark = range.getBoundingClientRect(), view = pane.getBoundingClientRect();
+  pane.scrollTop += mark.top + mark.height / 2 - (view.top + view.height / 2);
+}
+
 export function initChatFind(deps: ChatFindDeps): { selectionChanged(): void } {
   const bar = $('chatFind');
   const field = $<HTMLInputElement>('chatFindField');
@@ -83,6 +96,8 @@ export function initChatFind(deps: ChatFindDeps): { selectionChanged(): void } {
   let generation = 0;
   let typing = 0;
   let frame = 0;
+  /** A call match stepped to, whose mark is brought into view once its opened row shows it. */
+  let centering: SessionSearchLocation | null = null;
 
   const phrase = (): string => foldCase(field.value.replace(/\s+/g, ' ').trim());
   const paintCount = (): void => {
@@ -96,8 +111,10 @@ export function initChatFind(deps: ChatFindDeps): { selectionChanged(): void } {
     if (bar.hidden || !wanted) { highlights.delete(ALL); highlights.delete(CURRENT); return; }
     const Highlight = (globalThis as unknown as { Highlight: new (...ranges: Range[]) => unknown }).Highlight;
     const current = index >= 0 && matches[index] ? deps.row(matches[index]!) : null;
+    const marks = current ? rangesIn(current, wanted) : [];
     highlights.set(ALL, new Highlight(...rangesIn($('timeline'), wanted)));
-    highlights.set(CURRENT, new Highlight(...(current ? rangesIn(current, wanted) : [])));
+    highlights.set(CURRENT, new Highlight(...marks));
+    if (centering && centering === matches[index] && marks[0]) { centering = null; centerMark(marks[0]); }
   };
   // Live answers and paging replace rows; the marks follow the text that is on screen.
   const observer = typeof MutationObserver === 'function' ? new MutationObserver(() => {
@@ -108,11 +125,14 @@ export function initChatFind(deps: ChatFindDeps): { selectionChanged(): void } {
   const go = async (): Promise<void> => {
     const id = searchedFor?.id;
     const location = matches[index];
+    centering = null;
     paintCount();
     if (!id || !location) { highlight(); return; }
     const run = generation;
     await deps.reveal(id, location);
-    if (run === generation) highlight();
+    if (run !== generation) return;
+    if (location.kind === 'tool_call') centering = location;
+    highlight();
   };
   const search = async (): Promise<void> => {
     const id = deps.selectedId();

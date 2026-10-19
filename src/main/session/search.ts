@@ -10,13 +10,14 @@
  */
 import { promises as fs } from 'node:fs';
 import { setImmediate as yieldToEvents } from 'node:timers/promises';
-import type { SessionSearchLocation, SessionSearchReply, SessionSearchResult, SessionSummary } from '../../shared/session.js';
-import { positionOf } from '../../shared/chronology.js';
+import { foldProgress, type SessionSearchLocation, type SessionSearchReply, type SessionSearchResult, type SessionSummary } from '../../shared/session.js';
+import { positionOf, residenceOf } from '../../shared/chronology.js';
 import { transcriptEntries } from '../../shared/markdown-export.js';
 import { indexedSessions, readEvents, readOverflowText, sessionSearchIndexPath } from './store.js';
 import { providerEntitiesAsMarkdown } from '../../shared/content-reference.js';
 import { markdownVisibleText } from '../../shared/markdown-text.js';
 import { foldCase } from '../../shared/fold-case.js';
+import { toolCallShownText } from '../../shared/tool-result.js';
 
 export { foldCase };
 import { logWarn } from '../logger.js';
@@ -216,21 +217,27 @@ export function resetSessionSearchForTests(): void {
 const MAX_FIND_RESULTS = 500;
 
 /**
- * Find in chat (Codex's ⌘F): every message of one chat holding the phrase, in the order they were
- * said. Case and runs of white space do not matter. Read from the whole recording, so a match far
- * above the page the window holds is found too. A message matches as written or as drawn: answers
- * are recorded as Markdown, and "File: /src" is what the person reads in "**File:** `/src`".
+ * Find in chat (Codex's ⌘F): every message and tool call of one chat holding the phrase, in the
+ * order the chat draws them. Case and runs of white space do not matter. Read from the whole
+ * recording, so a match far above the page the window holds is found too. A message matches as
+ * written or as drawn: answers are recorded as Markdown, and "File: /src" is what the person reads
+ * in "**File:** `/src`". A tool call matches by what its opened row shows: its arguments and its
+ * readable result as stored inline, never the overflow asset the row does not show either.
  */
 export async function findInSession(id: string, query: string): Promise<SessionSearchLocation[]> {
   const phrase = foldCase(query.replace(/\s+/g, ' ').trim());
   if (!phrase) return [];
-  const events = await readEvents(id, { kinds: ['user_message', 'assistant_message'] });
-  const found: SessionSearchLocation[] = [];
+  const recorded = await readEvents(id, { kinds: ['user_message', 'assistant_message', 'tool_call'] });
+  const events = recorded.filter(event => event.kind !== 'tool_call');
+  // Any run of white space in the text stands for one space of the phrase. Matched in place: copying
+  // every call's text to collapse its spaces made a find in a chat of thousands of calls take seconds.
+  const pattern = new RegExp(phrase.split(' ').map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+'));
+  const matches = (written: string): boolean => pattern.test(foldCase(written));
+  const said: Array<{ at: number; location: SessionSearchLocation }> = [];
   for (const entry of transcriptEntries(events)) {
     const text = entry.stored.truncated && entry.stored.assetId
       ? (await readOverflowText(id, entry.stored.assetId)) ?? entry.stored.text
       : entry.stored.text;
-    const matches = (written: string): boolean => foldCase(written.replace(/\s+/g, ' ')).includes(phrase);
     // Only text with Markdown syntax in it can read differently once drawn.
     if (!matches(text) && !(/[*_`[\]<&|\\~#]/.test(text) && matches(markdownVisibleText(providerEntitiesAsMarkdown(text))))) continue;
     const event = events.find(candidate => candidate.seq === entry.seq);
@@ -239,10 +246,29 @@ export async function findInSession(id: string, query: string): Promise<SessionS
     const position = Math.min(...events
       .filter(other => other === event || (messageId !== null && other.kind === event.kind && other.messageId === messageId))
       .map(other => positionOf(other)));
-    found.push({ seq: event.seq, kind: event.kind, messageId, position });
-    if (found.length >= MAX_FIND_RESULTS) break;
+    // A turn's final answer is drawn at the turn's end, below the calls it ran first.
+    said.push({ at: residenceOf({ ...event, origin: position }), location: { seq: event.seq, kind: event.kind, messageId, position } });
+    if (said.length >= MAX_FIND_RESULTS) break;
   }
-  return found;
+  const calls: Array<{ at: number; location: SessionSearchLocation }> = [];
+  let read = 0;
+  for (const event of foldProgress(recorded)) {
+    if (event.kind !== 'tool_call') continue;
+    // A long recording is read between other work, not in one block of the main process.
+    if (++read % 256 === 0) await yieldToEvents();
+    if (!toolCallShownText(event.call).some(matches)) continue;
+    calls.push({ at: positionOf(event), location: { seq: event.seq, kind: 'tool_call', messageId: null, callId: event.call.callId, position: positionOf(event) } });
+  }
+  calls.sort((a, b) => a.at - b.at);
+  // Messages keep their spoken order; each call goes in before the first message drawn below it.
+  const found: SessionSearchLocation[] = [];
+  let next = 0;
+  for (const message of said) {
+    while (next < calls.length && calls[next]!.at < message.at) found.push(calls[next++]!.location);
+    found.push(message.location);
+  }
+  found.push(...calls.slice(next).map(call => call.location));
+  return found.slice(0, MAX_FIND_RESULTS);
 }
 
 /**
