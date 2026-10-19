@@ -5553,6 +5553,38 @@ it('offers a way back to the end of the chat that clears any reserved space', as
   expect(content.style.getPropertyValue('--timeline-scroll-reserve')).toBe('');
 });
 
+it('lists your messages beside the chat and moves to one without being pulled back to the end', async () => {
+  const ask = (seq: number, words: string): SessionEvent => ({ kind: 'user_message', seq, time: T0 + seq * 1000, source: 'extension', messageId: `ask-${seq}`, message: text(words) });
+  const answer = (seq: number, words: string): SessionEvent => ({ kind: 'assistant_message', seq, time: T0 + seq * 1000, source: 'extension',
+    messageId: `answer-${seq}`, message: text(words), final: true, state: 'final' });
+  const { w, append } = await boot([ask(1, 'Plan the login page'), answer(2, 'Here is a plan.'), ask(3, 'Add a remember-me box'), answer(4, 'Added.')]);
+  const pane = w.document.getElementById('chatBody')!;
+  Object.defineProperties(pane, { clientHeight: { value: 400, configurable: true }, scrollHeight: { value: 2000, configurable: true } });
+  pane.getBoundingClientRect = () => ({ top: 0 } as DOMRect);
+  // The questions start 1000px apart in the chat's content.
+  const place = () => [...w.document.querySelectorAll<HTMLElement>('#timeline .ev-user_message')].forEach((row, index) => {
+    row.getBoundingClientRect = () => ({ top: index * 1000 - pane.scrollTop, bottom: index * 1000 + 40 - pane.scrollTop, height: 40 } as DOMRect);
+  });
+  pane.scrollTop = 1600;
+  await append([answer(5, 'More output')]);
+  place();
+  const map = w.document.querySelector<HTMLElement>('.timeline-minimap')!;
+  // Beside the scroll pane, not in it: it stays put while the chat scrolls.
+  expect(map.previousElementSibling).toBe(pane);
+  expect(map.hidden).toBe(false);
+  const dashes = [...map.querySelectorAll<HTMLButtonElement>('.timeline-minimap-dash')];
+  expect(dashes.map(dash => dash.getAttribute('aria-label'))).toEqual(['Plan the login page', 'Add a remember-me box']);
+  dashes[0]!.click();
+  expect(pane.scrollTop).toBe(0);
+  // Moving there is reading: new output no longer pulls the view back to the end.
+  await append([answer(6, 'Later output')]);
+  expect(pane.scrollTop).toBe(0);
+  expect(w.document.getElementById('jumpLatest')!.classList.contains('is-shown')).toBe(true);
+  place();
+  w.document.body.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true, cancelable: true }));
+  expect(pane.scrollTop).toBe(988);
+});
+
 it('keeps the chat reading state out of Agents & automation, which shares its scroll pane', async () => {
   const { w, append } = await boot([{ kind: 'assistant_message', seq: 1, time: T0 + 1000, source: 'extension', messageId: 'first', message: text('Hello'), final: false }]);
   const pane = w.document.getElementById('chatBody')!;

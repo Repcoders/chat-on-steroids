@@ -2,6 +2,7 @@ import { hasProviderDirective, resolvedCapture, withoutProviderDirectives } from
 import { completedDilText } from '../shared/dil-tables.js';
 import { initChatSearch, type ChatSearch } from './chat-search.js';
 import { initChatFind } from './chat-find.js';
+import { initTimelineMinimap } from './timeline-minimap.js';
 import { createWorkspaceTerminal } from './workspace-terminal.js';
 import { createWorkspaceDocks } from './workspace-docks.js';
 import { currentLanguage, ui, t, tn } from './i18n.js';
@@ -101,6 +102,7 @@ import { initSshProjectDialog } from './ssh-project-dialog.js';
 const api = window.api;
 let chatSearch: ChatSearch | null = null;
 let chatFind: ReturnType<typeof initChatFind> | null = null;
+let timelineMinimap: ReturnType<typeof initTimelineMinimap> | null = null;
 
 /** Sprite id per tool-call family. Deliberately reuses the existing icon set. */
 const KIND_ICON: Record<ActivitySummary['kind'], string> = {
@@ -5664,6 +5666,7 @@ function paintDetail(followBottom = historyBefore === null): void {
   $('timelineEmpty').hidden = selectedId !== null || timelineRows.length > 0 || $('inputQueue').childElementCount > 0;
   if (timelineShown() && !holdSentMessage()) restoreViewport();
   paintJumpLatest();
+  timelineMinimap?.paint();
 
   const facts: string[] = [];
   if (summary) {
@@ -7836,6 +7839,7 @@ function showView(name: string): void {
     timelineScrollTop = null;
   }
   paintJumpLatest();
+  timelineMinimap?.paint();
 }
 
 function selectSession(id: string): void {
@@ -8407,6 +8411,10 @@ export function initChat(next: Deps): void {
     ui(jump, 'title', () => t('Jump to latest')); ui(jump, 'aria-label', () => t('Jump to latest'));
     jump.addEventListener('click', jumpToLatest);
     dock.append(jump); pane.append(dock);
+    // Beside the pane rather than in it, so it stays put while the chat scrolls.
+    timelineMinimap = initTimelineMinimap({ pane, timeline: $('timeline'), shown: () => !!selectedId && timelineShown(),
+      jumped: () => { readTimeline(); paintJumpLatest(); } });
+    pane.after(timelineMinimap.element);
   }
   $('createPlan').addEventListener('click', () => {
     // The toolbar toggle only arms planning; Send/Enter generates from the draft.

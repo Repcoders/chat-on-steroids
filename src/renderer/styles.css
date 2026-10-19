@@ -2499,7 +2499,7 @@ input[readonly] {
 .subhead:has(#chatState:empty) { display: none; }
 .card.is-session > .chat-head { grid-row: 1; }
 .card.is-session > .subhead { grid-row: 2; padding-inline: 24px; }
-.card.is-session > #chatBody { grid-row: 3; padding-top: 12px; }
+.card.is-session > #chatBody { grid-row: 3; grid-column: 1; padding-top: 12px; }
 .card.is-session > .composer-dock { grid-row: 4; }
 .card.is-session > #composer { grid-row: 5; }
 .card.is-session > #chatFoot { grid-row: 6; }
@@ -2658,6 +2658,21 @@ input[readonly] {
 .jump-latest:hover { color: var(--ink); background: var(--hover); }
 .jump-latest .ico { --ico: 16px; --glyph: 16px; }
 @media (prefers-reduced-motion: reduce) { .jump-latest { transition: none; } }
+/* Your messages as dashes at the chat's right edge (renderer/timeline-minimap.ts). It overlays the
+   pane's row so it stays put while the chat scrolls, clear of the scrollbar. */
+.timeline-minimap { grid-row: 3; grid-column: 1; justify-self: end; align-self: center; z-index: 4; display: flex; flex-direction: column; gap: 0; max-height: 60%; overflow: hidden; margin-inline-end: 14px; opacity: .5; transition: opacity 240ms ease; }
+.timeline-minimap.is-active, .timeline-minimap:hover, .timeline-minimap:focus-within { opacity: 1; }
+/* Scoped under the map so the generic `nav button` sizing and hover fill stay off the dashes. Many
+   messages squeeze the dashes together rather than run past the pane. */
+.timeline-minimap .timeline-minimap-dash { flex: 0 1 12px; min-height: 0; display: flex; align-items: center; justify-content: flex-end; width: 28px; padding: 0; border: 0; background: none; cursor: pointer; }
+.timeline-minimap-dash > span { width: 18px; height: 2px; border-radius: 1px; background: var(--faint); transform: scaleX(var(--dash-scale, .35)); transform-origin: right center; transition: transform 180ms ease, background-color 180ms ease; }
+.timeline-minimap-dash[aria-current] > span { background: var(--ink); }
+.timeline-minimap-dash:hover > span, .timeline-minimap-dash:focus-visible > span { background: var(--ink); transform: scaleX(1); }
+.timeline-minimap-dash:focus-visible { outline: none; }
+.timeline-minimap-dash:focus-visible > span { box-shadow: 0 0 0 2px var(--accent-edge); }
+/* Beside a narrow chat column there is no room left for it. */
+@container chat-session (max-width: 900px) { .timeline-minimap { display: none; } }
+@media (prefers-reduced-motion: reduce) { .timeline-minimap, .timeline-minimap-dash > span { transition: none; } }
 
 .ev {
   display: grid;
