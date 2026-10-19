@@ -1338,7 +1338,8 @@ synchronously, including New Chat and A-to-B-to-A, before any asynchronous read 
 `scripts/verify-input-queue.cjs` checks these controls with the production renderer in Chromium.
 View › Outbox (`outbox-inspector.ts`) lists the same `sessions:outbox` read for every chat at once:
 each waiting row (queued, browser, tool, decision) oldest first, then each failed or cancelled row
-whose notice its chat still shows. A row names its chat (opening it on click) and says what it waits
+whose notice its chat still shows. A row names its chat (opening it on click; a chat older than the
+loaded sidebar page is read once and joins the sidebar as a project's older chats do) and says what it waits
 for in that chat queue's own words (`inputStatus`). Its only actions are the chat queue's own: Cancel
 delivery / Remove queued task / Cancel automatic Continue, Dismiss delivery notice and Retry browser,
 through the same IPC calls. It is presentation only: it decides nothing about delivery, and the

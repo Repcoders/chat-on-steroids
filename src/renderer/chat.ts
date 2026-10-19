@@ -102,6 +102,8 @@ import { initSshProjectDialog } from './ssh-project-dialog.js';
 const api = window.api;
 let chatSearch: ChatSearch | null = null;
 let outboxInspector: ReturnType<typeof createOutboxInspector> | null = null;
+/** Chats the outbox inspector read because the sidebar had not loaded them. */
+const outboxSummaries = new Map<string, SessionSummary>();
 let chatFind: ReturnType<typeof initChatFind> | null = null;
 
 /** Sprite id per tool-call family. Deliberately reuses the existing icon set. */
@@ -8461,6 +8463,7 @@ export function initChat(next: Deps): void {
     findChat: async id => {
       const reply = await api.getSession(id, { limit: 1 });
       if (!reply.ok) throw new Error(reply.error);
+      if (reply.data?.summary) outboxSummaries.set(id, reply.data.summary);
       return reply.data?.summary ? outboxChat(reply.data.summary) : null;
     },
     // A queued follow-up waits for its chat's answer, as its card in that chat says.
@@ -8476,7 +8479,12 @@ export function initChat(next: Deps): void {
       return result;
     },
     retryBrowser: id => run(api.retryInputBrowser(id)),
-    open: id => { if (id !== selectedId) { pendingNewInput = null; selectSession(id); } }
+    open: id => {
+      // An older chat joins the sidebar as an expanded project's older chats do, so refreshes keep it open.
+      const older = sessions.some(row => row.id === id) ? undefined : outboxSummaries.get(id);
+      if (older) { mergeSessionRows([older]); loadedOlderSessions = true; }
+      if (id !== selectedId) { pendingNewInput = null; selectSession(id); }
+    }
   });
   chatSearch = initChatSearch({
     select: (id, match) => {

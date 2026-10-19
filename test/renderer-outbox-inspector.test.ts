@@ -1,6 +1,13 @@
+vi.mock('../src/renderer/workspace-terminal.js', () => ({ createWorkspaceTerminal: () => ({
+  update: vi.fn(), show: vi.fn(), hide: vi.fn(), newTab: vi.fn(() => null),
+  tabs: vi.fn(() => []), selectTab: vi.fn(), closeTab: vi.fn()
+}) }));
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 import { JSDOM } from 'jsdom';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { InputEntry } from '../src/main/session/input.js';
+import type { SessionSummary } from '../src/shared/session.js';
 
 let dom: JSDOM;
 afterEach(() => {
@@ -143,4 +150,51 @@ it('names a chat the sidebar has not loaded after reading it, and reads it again
   expect(reads).toHaveLength(2);
   view.doc.querySelector<HTMLButtonElement>('button.outbox-chat')!.click();
   expect(view.calls.at(-1)).toBe('open chat-old');
+});
+
+it('opens a chat older than the loaded sidebar page as a chat of the sidebar, and a refresh keeps it open', async () => {
+  dom = new JSDOM(await fs.readFile(path.join(process.cwd(), 'src', 'renderer', 'index.html'), 'utf8'), { url: 'https://local.test/', pretendToBeVisual: true });
+  const w = dom.window;
+  for (const name of ['window', 'document', 'HTMLElement', 'Element', 'Node', 'DocumentFragment', 'HTMLInputElement', 'HTMLSelectElement',
+    'HTMLTextAreaElement', 'HTMLButtonElement', 'Event']) vi.stubGlobal(name, name === 'window' ? w : name === 'document' ? w.document : (w as any)[name]);
+  (w.HTMLElement.prototype as any).scrollIntoView ??= () => {};
+  const chat = (id: string, title: string, updatedAt: number): SessionSummary => ({
+    id, title, conversationId: `conversation-${id}`, chatIds: [`conversation-${id}`], startedAt: updatedAt - 1_000, updatedAt, endedAt: null,
+    events: 0, userMessages: 0, toolCalls: 0, lastToolCallAt: null, processExitNonzero: 0, toolRejected: 0, toolInternalErrors: 0, errors: 0,
+    estimatedTokens: 0, contextTokens: 0, lastHandoffId: null, lastHandoffAt: null, lastTurnOutcome: null, activeTurnId: null, agents: [], origin: null
+  });
+  const recent = chat('2026-10-01-aaaaaaaa', 'Placeholder recent chat', 50_000);
+  const older = chat('2026-01-01-bbbbbbbb', 'Placeholder older chat', 10_000);
+  let lists = 0;
+  let changed: () => void = () => {};
+  const ok = (data: unknown) => Promise.resolve({ ok: true as const, data });
+  const api: any = new Proxy({
+    // The first page holds only the recent chat; the older one lies on a page not read yet.
+    listSessions: () => { lists++; return ok({ sessions: [recent], activeId: null, pressure: [], total: 2, nextCursor: { updatedAt: recent.updatedAt, id: recent.id }, blocked: [] }); },
+    listInputs: () => ok([row({ text: 'Queued in the older chat', sessionId: older.id })]),
+    getSession: (id: string) => ok({ summary: [recent, older].find(entry => entry.id === id), events: [], total: 0, nextFrom: 0 }),
+    turnTraces: () => ok({}),
+    getSwarm: () => ok({ running: false, runId: null, agents: [], maxWorkers: 2, pendingReports: 0 }),
+    onSessionChanged: (listener: () => void) => { changed = listener; return () => undefined; },
+    onSwarmChanged: () => () => undefined
+  }, { get: (target, prop) => prop in target ? (target as any)[prop] : () => ok(null) });
+  Object.defineProperty(w, 'api', { value: api, configurable: true });
+  const { chatVisible, initChat, openOutbox } = await import('../src/renderer/chat.js');
+  initChat({ save: async () => undefined,
+    state: () => ({ config: { sessions: { record: true, limitTokens: 533000 }, compaction: { auto: true, autoTokens: 400000 }, ui: {} } }) as any });
+  chatVisible(true);
+  await vi.waitFor(() => expect(w.document.querySelector(`#sessionList [data-id="${recent.id}"]`)).not.toBeNull());
+  openOutbox();
+  await vi.waitFor(() => expect(w.document.querySelector('.outbox-row .outbox-chat')?.textContent).toBe('Placeholder older chat'));
+  w.document.querySelector<HTMLButtonElement>('.outbox-row button.outbox-chat')!.click();
+  // The chat opens under its own name and is listed in the sidebar, as an older page would list it.
+  await vi.waitFor(() => expect(w.document.getElementById('chatTitle')!.textContent).toBe('Placeholder older chat'));
+  expect(w.document.querySelector(`#sessionList [data-id="${older.id}"]`)).not.toBeNull();
+  // The next catalog refresh reads only the newest page again; the opened chat stays open.
+  const before = lists;
+  changed();
+  await vi.waitFor(() => expect(lists).toBe(before + 1), { timeout: 1600 });
+  await new Promise(resolve => setTimeout(resolve, 50));
+  expect(w.document.getElementById('chatTitle')!.textContent).toBe('Placeholder older chat');
+  expect(w.document.querySelector(`#sessionList [data-id="${older.id}"]`)).not.toBeNull();
 });
