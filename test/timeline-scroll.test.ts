@@ -1,6 +1,6 @@
 import { JSDOM } from 'jsdom';
 import { expect, it } from 'vitest';
-import { preserveTimelineViewport } from '../src/renderer/timeline-scroll.js';
+import { preserveTimelineViewport, promptAboveView } from '../src/renderer/timeline-scroll.js';
 
 it('anchors the logical reader row across late growth and replacement, while retaining nested tool scroll', () => {
   const dom = new JSDOM('<div id="pane"><div id="timeline"><div data-timeline-key="reader"><details open><p>Tool result</p></details></div></div></div>');
@@ -147,5 +147,39 @@ it('keeps a followed view exactly still when the content only changes by layout 
     restore();
     expect(timeline.style.getPropertyValue('--timeline-scroll-reserve')).toBe('80px');
     expect(pane.scrollTop).toBe(height());
+  } finally { dom.window.close(); }
+});
+
+it('finds the question scrolled wholly above the view, until the next question reaches the top', () => {
+  const dom = new JSDOM('<div id="pane"></div>');
+  try {
+    const document = dom.window.document;
+    const pane = document.getElementById('pane')!;
+    pane.getBoundingClientRect = () => ({ top: 100 } as DOMRect);
+    let scroll = 0;
+    // Two questions at 0–60 and 600–660 of the timeline, a collapsed one between them.
+    const row = (top: number, height: number) => {
+      const node = document.createElement('div');
+      node.getBoundingClientRect = () => ({ top: 100 + top - scroll, bottom: 100 + top + height - scroll, height } as DOMRect);
+      return node;
+    };
+    const first = row(0, 60), folded = row(300, 0), second = row(600, 60);
+    const prompts = [first, folded, second];
+    expect(promptAboveView(pane, prompts)).toBeNull();
+    scroll = 30; // the first still shows in part
+    expect(promptAboveView(pane, prompts)).toBeNull();
+    scroll = 60;
+    expect(promptAboveView(pane, prompts)).toBe(first);
+    scroll = 599;
+    expect(promptAboveView(pane, prompts)).toBe(first);
+    scroll = 600; // the second reached the top
+    expect(promptAboveView(pane, prompts)).toBeNull();
+    // A question just below the top, under the pinned one, counts as having reached it.
+    scroll = 560;
+    expect(promptAboveView(pane, prompts)).toBe(first);
+    expect(promptAboveView(pane, prompts, 48)).toBeNull();
+    scroll = 2000;
+    expect(promptAboveView(pane, prompts)).toBe(second);
+    expect(promptAboveView(pane, [])).toBeNull();
   } finally { dom.window.close(); }
 });

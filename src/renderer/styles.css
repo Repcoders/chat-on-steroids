@@ -2658,6 +2658,14 @@ input[readonly] {
 .jump-latest:hover { color: var(--ink); background: var(--hover); }
 .jump-latest .ico { --ico: 16px; --glyph: 16px; }
 @media (prefers-reduced-motion: reduce) { .jump-latest { transition: none; } }
+/* The question of the answer being read, once it has scrolled out of view: one line pinned to the
+   top of the chat, on the user's side, that scrolls back to the message. Zero height like the dock
+   above, so it covers content instead of moving it. */
+.prompt-pin-dock { position: sticky; top: 0; z-index: 5; height: 0; display: flex; align-items: flex-start; justify-content: flex-end; pointer-events: none; }
+.prompt-pin { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: min(82%, 560px); margin-top: 6px; padding: 8px 16px 8px 12px; border: 1px solid var(--edge); border-radius: 18px; background: var(--hover); color: var(--ink); box-shadow: 0 0 0 6px var(--page), 0 6px 18px #00000024; font: inherit; font-size: calc(13.5px * var(--text-scale, 1)); line-height: 1.4; cursor: pointer; pointer-events: auto; }
+.prompt-pin:hover { border-color: var(--faint); }
+.prompt-pin .ico { --ico: 14px; --glyph: 14px; flex: none; color: var(--soft); }
+.prompt-pin-text { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
 .ev {
   display: grid;

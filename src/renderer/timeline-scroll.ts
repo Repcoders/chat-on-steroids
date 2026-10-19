@@ -67,3 +67,19 @@ export function preserveTimelineViewport(pane: HTMLElement, timeline: HTMLElemen
     pane.scrollTop = previous;
   };
 }
+
+/** The question whose answer is being read: the last of `prompts` (user message rows, in timeline
+ * order) that lies wholly above the pane's top edge, while no later one has reached that edge.
+ * None when the question still shows, even in part, or the next one has scrolled up to the top:
+ * within `inset` of it, where the pinned question itself would cover the next one. */
+export function promptAboveView(pane: HTMLElement, prompts: Iterable<HTMLElement>, inset = 0): HTMLElement | null {
+  const edge = pane.getBoundingClientRect().top;
+  let above: HTMLElement | null = null;
+  for (const row of prompts) {
+    const rect = row.getBoundingClientRect();
+    if (rect.height <= 0) continue;
+    if (rect.top > edge + inset) break;
+    above = rect.bottom <= edge ? row : null;
+  }
+  return above;
+}
