@@ -2822,5 +2822,12 @@
   "Switch at any time. Your chats stay as they are.": "İstediğin zaman değiştirebilirsin. Sohbetlerin olduğu gibi kalır.",
   "Chats sit under their project folders.": "Sohbetler proje klasörlerinin altında durur.",
   "All chats in one list, active ones on top.": "Tüm sohbetler tek listede, etkin olanlar üstte.",
-  "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Bir sohbetin aynı anda çalıştırabileceği en fazla yardımcı ajan sohbeti sayısı. Bağlı tarayıcı eklentisi gerekir."
+  "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Bir sohbetin aynı anda çalıştırabileceği en fazla yardımcı ajan sohbeti sayısı. Bağlı tarayıcı eklentisi gerekir.",
+  "Sources": "Kaynaklar",
+  "Search sources": "Kaynaklarda ara",
+  "Copy as Markdown": "Markdown olarak kopyala",
+  "Cited in": "Alıntılandığı yer",
+  "Answer {0}": "Yanıt {0}",
+  "No sources match": "Eşleşen kaynak yok",
+  "No sources in this chat": "Bu sohbet kaynak göstermiyor"
 }

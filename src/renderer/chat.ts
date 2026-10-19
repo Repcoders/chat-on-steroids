@@ -2,6 +2,7 @@ import { hasProviderDirective, resolvedCapture, withoutProviderDirectives } from
 import { completedDilText } from '../shared/dil-tables.js';
 import { initChatSearch, type ChatSearch } from './chat-search.js';
 import { initChatFind } from './chat-find.js';
+import { initChatSources } from './chat-sources.js';
 import { createWorkspaceTerminal } from './workspace-terminal.js';
 import { createWorkspaceDocks } from './workspace-docks.js';
 import { currentLanguage, ui, t, tn } from './i18n.js';
@@ -101,6 +102,7 @@ import { initSshProjectDialog } from './ssh-project-dialog.js';
 const api = window.api;
 let chatSearch: ChatSearch | null = null;
 let chatFind: ReturnType<typeof initChatFind> | null = null;
+let chatSources: ReturnType<typeof initChatSources> | null = null;
 
 
 /**
@@ -4546,12 +4548,22 @@ function eventBody(event: SessionEvent, context?: { id: string; current: () => b
   }
 }
 
+/** The answers that cite a source the page recorded: by turn, or by message outside any turn. */
+function citingAnswers(history: readonly SessionEvent[]): Set<string> {
+  const citing = new Set<string>();
+  for (const event of history) {
+    if (event.kind !== 'assistant_message' || !event.references?.length) continue;
+    if (event.turnId) citing.add(`turn:${event.turnId}`); else if (event.messageId) citing.add(`message:${event.messageId}`);
+  }
+  return citing;
+}
+
 /**
  * Copy and Markdown export under the answer of a turn the page reported as completed. Main
  * builds the text from the log, reading back answers that were cut there, so a long answer
  * copies and exports whole; the timeline only decides where the actions appear.
  */
-function answerActions(turnId: string | null, messageId?: string): HTMLElement {
+function answerActions(turnId: string | null, messageId?: string, cites = false): HTMLElement {
   const bar = el('div', 'answer-actions');
   const sessionId = selectedId;
   // A turn's answer is named by its turn; one recorded outside any turn by its message.
@@ -4597,6 +4609,15 @@ function answerActions(turnId: string | null, messageId?: string): HTMLElement {
   });
   menu.addEventListener('keydown', event => { if (event.key === 'Escape') { menu.open = false; trigger.focus(); } });
   bar.append(copy, menu);
+  if (cites) {
+    // Sources: every page this chat's answers cite, not only this answer's.
+    const sources = el('button', 'answer-action answer-sources') as HTMLButtonElement;
+    sources.type = 'button';
+    sources.append(icon('i-globe'));
+    ui(sources, 'title', () => t('Sources')); ui(sources, 'aria-label', () => t('Sources'));
+    sources.addEventListener('click', () => { if (sessionId && selectedId === sessionId) chatSources?.open(sessionId); });
+    bar.append(sources);
+  }
   const branch = branchPoint(messageId);
   if (branch) {
     // Branch in new chat (#482): ChatGPT's own branch at this reply, made with the first message.
@@ -5568,6 +5589,7 @@ function paintDetail(followBottom = historyBefore === null): void {
   // Completed turns and the answer message that carries their copy/export actions.
   const anchors = answerAnchors(events);
   const looseAnchors = messageAnswerAnchors(events);
+  const citing = citingAnswers(events);
   const workedSeconds = exchangeDurations(events);
   const workers = sessions.filter(entry => entry.origin?.kind === 'worker' && entry.origin.fromSessionId === selectedId && selectedId !== null);
   const items = timelineItems(shown);
@@ -5587,6 +5609,7 @@ function paintDetail(followBottom = historyBefore === null): void {
     // A final answer recorded outside any turn (copied branch history, an adopted chat) has the same actions.
     const looseAnswer = !answerTurn && item.kind === 'event' && item.event.kind === 'assistant_message' && !item.event.turnId &&
       !!item.event.messageId && looseAnchors.get(item.event.messageId) === item.event.seq;
+    const cites = answerTurn ? citing.has(`turn:${answerTurn}`) : looseAnswer && item.kind === 'event' && item.event.kind === 'assistant_message' && citing.has(`message:${item.event.messageId}`);
     const held = item.kind === 'event' && item.event.kind === 'assistant_message' && writing && item.event.seq === writing.seq
       ? { ...item.event, message: { ...item.event.message, text: writing.shown, chars: writing.shown.length } } : null;
     // A held message is drawn again only when a block finishes or its sources change: each chunk
@@ -5595,7 +5618,7 @@ function paintDetail(followBottom = historyBefore === null): void {
     // Its final text is not held. The shown text itself is compared: a revision can rewrite it to the same length.
     const sig = (held ? `${itemSignature({ kind: 'event', event: { ...held, seq: 0, time: 0, renderedHtml: undefined } })}\u0000held${JSON.stringify(held.references ?? [])}\u0000${held.message.text}`
       : itemSignature(item)) + (item.kind === 'event' && item.event.kind === 'chat_error'
-      ? JSON.stringify(chatErrorPresentation(item.event, events)) : '') + (answerTurn || looseAnswer ? '\u0000answer' : '') +
+      ? JSON.stringify(chatErrorPresentation(item.event, events)) : '') + (answerTurn || looseAnswer ? `\u0000answer${cites ? ':sources' : ''}` : '') +
       (item.kind === 'event' && stoppedTurnEnd(item.event, events) ? '\u0000stopped' : '') +
       (item.kind === 'compaction' && item !== latestCompaction ? '\u0000superseded' : '') +
       (item.kind === 'event' && editableQuestion(item.event, events) ? `\u0000edit:${laterMessages.get(item.event.seq) ?? 0}` : '');
@@ -5616,7 +5639,7 @@ function paintDetail(followBottom = historyBefore === null): void {
     const built = item.kind === 'compaction' ? compactionRow(item.block, cached?.row, item === latestCompaction)
       : item.kind === 'earlier' ? earlierVersionsRow(item.fold, key) : eventRow(held ?? item.event);
     if (answerTurn || looseAnswer) built.querySelector('.said')?.append(answerActions(answerTurn,
-      item.kind === 'event' && item.event.kind === 'assistant_message' ? item.event.messageId : undefined));
+      item.kind === 'event' && item.event.kind === 'assistant_message' ? item.event.messageId : undefined, cites));
     if (item.kind === 'event' && editableQuestion(item.event, events)) {
       built.querySelector('.ev-body')?.append(questionActions(item.event, laterMessages.get(item.event.seq) ?? 0));
       built.dataset.questionId = item.event.messageId;
@@ -8419,6 +8442,12 @@ export function initChat(next: Deps): void {
     find: async (id, query) => (await run(api.findInChat(id, query))) ?? null,
     reveal: revealChatLocation,
     row: rowForLocation
+  });
+  chatSources = initChatSources({
+    sources: async id => (await run(api.chatSources(id))) ?? null,
+    openLink: url => void run(api.openLink(url)),
+    reveal: (id, location) => void revealChatLocation(id, location),
+    copy: async text => Boolean(await run(api.writeClipboard(text)))
   });
   chatSearch = initChatSearch({
     select: (id, match) => {

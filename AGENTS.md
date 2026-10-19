@@ -4328,6 +4328,14 @@ publication dates and snippets only, bounded per reference and by one budget per
 The renderer draws the pill and its source card from them by index. A reply recorded without
 them takes the pill from the captured rendering only when the prose before it matches; an
 unproven directive is dropped, never shown raw and never given a guessed destination.
+Sources (`renderer/chat-sources.ts`, the globe under an answer whose turn recorded `references`)
+asks `sessions:sources { id }` → `SessionSource[]` (`sourcesInSession`: the whole recording's final
+answers in spoken order, each page once, keyed by its URL without the fragment and `utm_*`
+parameters, at most 500; first title kept, missing source/date/snippet filled by later citations;
+`citedBy` holds each citing answer's `SessionSearchLocation` and the question before it, at most
+120 characters). Only recorded references count; a pill taken from the captured rendering does not.
+A page opens through `link:open`, an answer through `revealChatLocation`, and Copy as Markdown
+writes the listed pages as `- [title](url)` through `clipboard:write`.
 Tool result rendering preserves structured text/image/resource distinctions within bounds.
 App-owned external/local links cross their validated main-process route.
 

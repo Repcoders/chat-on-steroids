@@ -5327,6 +5327,59 @@ it('offers copy and Markdown export under the answer of a completed turn only', 
   expect(api.exportMarkdown).toHaveBeenCalledWith({ id: summary([]).id, scope: 'session', turnId: undefined, target: 'file' });
 });
 
+it('opens the chat Sources from the globe under an answer that cites any, and copies them as Markdown', async () => {
+  const ask: SessionEvent = { kind: 'user_message', seq: 1, origin: 1, time: T0, source: 'extension', turnId: 'web-turn', messageId: 'ask', message: text('Compare the two releases') };
+  const reply: SessionEvent = { kind: 'assistant_message', seq: 2, time: T0 + 1_000, source: 'extension', turnId: 'web-turn', messageId: 'reply',
+    message: text('Release B is faster.'), final: true, state: 'final', references: [{ index: 0, sources: [{ title: 'Release B', url: 'https://example.com/b' }] }] };
+  const plain: SessionEvent[] = [
+    { kind: 'user_message', seq: 4, origin: 4, time: T0 + 3_000, source: 'extension', turnId: 'plain-turn', messageId: 'ask-2', message: text('Thanks') },
+    { kind: 'assistant_message', seq: 5, time: T0 + 4_000, source: 'extension', turnId: 'plain-turn', messageId: 'reply-2', message: text('Glad to help.'), final: true, state: 'final' },
+    { seq: 6, time: T0 + 5_000, source: 'extension', kind: 'turn_end', turnId: 'plain-turn', outcome: 'completed' }
+  ];
+  const { w } = await boot([ask, reply, { seq: 3, time: T0 + 2_000, source: 'extension', kind: 'turn_end', turnId: 'web-turn', outcome: 'completed' }, ...plain]);
+  const api = (w as any).api;
+  const listed = [
+    { url: 'https://example.com/b', title: 'Release [B] notes', source: 'Example', snippet: 'B ships Friday.',
+      citedBy: [{ question: 'Compare the two releases', location: { seq: 2, kind: 'assistant_message', messageId: 'reply', position: 2 } }] },
+    { url: 'https://docs.example.org/a_(old)', title: 'Release A',
+      citedBy: [{ question: '', location: { seq: 2, kind: 'assistant_message', messageId: 'reply', position: 2 } }] }
+  ];
+  api.chatSources = vi.fn(async () => ({ ok: true, data: listed }));
+  api.openLink = vi.fn(async () => ({ ok: true, data: true }));
+  api.writeClipboard = vi.fn(async () => ({ ok: true, data: true }));
+  const bars = [...w.document.querySelectorAll('.answer-actions')];
+  expect(bars).toHaveLength(2);
+  // Only the answer that cites something offers it.
+  expect(bars.map(bar => !!bar.querySelector('.answer-sources'))).toEqual([true, false]);
+  const dialog = w.document.getElementById('sourcesDialog') as HTMLDialogElement;
+  expect(dialog.open).toBe(false);
+  bars[0]!.querySelector<HTMLButtonElement>('.answer-sources')!.click(); await settle();
+  expect(dialog.open).toBe(true);
+  expect(api.chatSources).toHaveBeenCalledWith(summary([]).id);
+  const titles = () => [...dialog.querySelectorAll('.source-title')].map(node => node.textContent);
+  expect(titles()).toEqual(['Release [B] notes', 'Release A']);
+  expect([...dialog.querySelectorAll('.source-meta')].map(node => node.textContent)).toEqual(['Example', 'docs.example.org']);
+  // An answer is named by the question it answered, or by its number without one.
+  expect([...dialog.querySelectorAll('.source-answer')].map(node => node.textContent)).toEqual(['Compare the two releases', 'Answer 1']);
+  dialog.querySelector<HTMLButtonElement>('.source-title')!.click();
+  expect(api.openLink).toHaveBeenCalledWith('https://example.com/b');
+  w.document.getElementById('sourcesCopy')!.click(); await settle();
+  expect(api.writeClipboard).toHaveBeenCalledWith('- [Release \\[B\\] notes](https://example.com/b)\n- [Release A](https://docs.example.org/a_%28old%29)');
+  // A search narrows the list, and Copy takes what it leaves.
+  const field = w.document.getElementById('sourcesFilter') as HTMLInputElement;
+  field.value = 'friday';
+  field.dispatchEvent(new w.Event('input', { bubbles: true }));
+  expect(titles()).toEqual(['Release [B] notes']);
+  field.value = 'nothing like it';
+  field.dispatchEvent(new w.Event('input', { bubbles: true }));
+  expect(dialog.querySelector('.search-status')!.textContent).toBe('No sources match');
+  expect((w.document.getElementById('sourcesCopy') as HTMLButtonElement).disabled).toBe(true);
+  field.value = '';
+  field.dispatchEvent(new w.Event('input', { bubbles: true }));
+  dialog.querySelector<HTMLButtonElement>('.source-answer')!.click();
+  expect(dialog.open).toBe(false);
+});
+
 it('does not offer copy or export after an interrupted turn', async () => {
   const reply: SessionEvent = { kind: 'assistant_message', seq: 1, time: T0, source: 'extension', turnId: 'cut-turn', messageId: 'cut', message: text('Half an answer'), final: true, state: 'final' };
   const { w } = await boot([reply, { seq: 2, time: T0 + 1_000, source: 'extension', kind: 'turn_end', turnId: 'cut-turn', outcome: 'interrupted' }]);

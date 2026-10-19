@@ -1531,6 +1531,16 @@
       <div class="search-dialog-results" id="searchResults" aria-live="polite"></div>
     </dialog>
 
+    <!-- Sources: every page the open chat's answers cite (renderer/chat-sources.ts). -->
+    <dialog class="search-dialog sources-dialog" id="sourcesDialog" aria-label="Sources">
+      <div class="search-dialog-field">
+        <i class="ico ph ph-magnifying-glass" aria-hidden="true"></i>
+        <input id="sourcesFilter" type="search" placeholder="Search sources" aria-label="Search sources" aria-controls="sourcesList" autocomplete="off" spellcheck="false" />
+        <button class="btn sources-copy" id="sourcesCopy" type="button" disabled>Copy as Markdown</button>
+      </div>
+      <div class="search-dialog-results" id="sourcesList"></div>
+    </dialog>
+
     <dialog class="whats-new-dialog" id="whatsNewDialog" aria-labelledby="whatsNewTitle" aria-describedby="whatsNewLead">
       <header class="whats-new-head">
         <!-- The app's own tile, sealed with a sparkle: the same language as the browser sign-in card. -->

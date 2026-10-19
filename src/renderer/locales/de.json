@@ -2822,5 +2822,12 @@
   "Switch at any time. Your chats stay as they are.": "Du kannst jederzeit wechseln. Deine Chats bleiben, wie sie sind.",
   "Chats sit under their project folders.": "Chats stehen unter ihren Projektordnern.",
   "All chats in one list, active ones on top.": "Alle Chats in einer Liste, aktive oben.",
-  "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Wie viele Unteragenten-Chats ein Chat höchstens gleichzeitig ausführen darf. Benötigt die verbundene Browser-Erweiterung."
+  "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Wie viele Unteragenten-Chats ein Chat höchstens gleichzeitig ausführen darf. Benötigt die verbundene Browser-Erweiterung.",
+  "Sources": "Quellen",
+  "Search sources": "Quellen durchsuchen",
+  "Copy as Markdown": "Als Markdown kopieren",
+  "Cited in": "Zitiert in",
+  "Answer {0}": "Antwort {0}",
+  "No sources match": "Keine passenden Quellen",
+  "No sources in this chat": "Dieser Chat zitiert keine Quellen"
 }

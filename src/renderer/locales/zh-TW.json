@@ -2777,5 +2777,12 @@
   "Switch at any time. Your chats stay as they are.": "可隨時切換，聊天內容保持不變。",
   "Chats sit under their project folders.": "聊天顯示在各自的專案資料夾下。",
   "All chats in one list, active ones on top.": "所有聊天在同一清單中，進行中的排在最前。",
-  "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "一個聊天可同時執行的子代理聊天上限。需要已連線的瀏覽器擴充功能。"
+  "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "一個聊天可同時執行的子代理聊天上限。需要已連線的瀏覽器擴充功能。",
+  "Sources": "來源",
+  "Search sources": "搜尋來源",
+  "Copy as Markdown": "複製為 Markdown",
+  "Cited in": "引用於",
+  "Answer {0}": "回答 {0}",
+  "No sources match": "沒有相符的來源",
+  "No sources in this chat": "此聊天未引用任何來源"
 }

@@ -10,7 +10,7 @@
  */
 import { promises as fs } from 'node:fs';
 import { setImmediate as yieldToEvents } from 'node:timers/promises';
-import type { SessionSearchLocation, SessionSearchReply, SessionSearchResult, SessionSummary } from '../../shared/session.js';
+import type { SessionSearchLocation, SessionSearchReply, SessionSearchResult, SessionSource, SessionSummary } from '../../shared/session.js';
 import { positionOf } from '../../shared/chronology.js';
 import { transcriptEntries } from '../../shared/markdown-export.js';
 import { indexedSessions, readEvents, readOverflowText, sessionSearchIndexPath } from './store.js';
@@ -243,6 +243,62 @@ export async function findInSession(id: string, query: string): Promise<SessionS
     if (found.length >= MAX_FIND_RESULTS) break;
   }
   return found;
+}
+
+/** Most pages one chat's Sources list holds; each answer adds at most 32 × 8. */
+const MAX_CHAT_SOURCES = 500;
+const QUESTION_CHARS = 120;
+
+/** The same page however it was linked: tracking parameters and the fragment do not count. */
+function sourceKey(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.hash = '';
+    for (const name of [...parsed.searchParams.keys()]) if (/^utm_/i.test(name)) parsed.searchParams.delete(name);
+    return parsed.href;
+  } catch { return url; }
+}
+
+/**
+ * Sources: every page the chat's answers cite, from the references recorded on each answer,
+ * once per page in the order first cited, with each answer that cites it and the question it
+ * answered. Read from the whole recording, so an answer far above the loaded page counts too.
+ */
+export async function sourcesInSession(id: string): Promise<SessionSource[]> {
+  const events = await readEvents(id, { kinds: ['user_message', 'assistant_message'] });
+  const sources = new Map<string, SessionSource>();
+  let question = '';
+  for (const entry of transcriptEntries(events)) {
+    if (entry.role === 'user') {
+      question = entry.stored.text.replace(/\s+/g, ' ').trim().slice(0, QUESTION_CHARS);
+      continue;
+    }
+    const event = events.find(candidate => candidate.seq === entry.seq);
+    if (event?.kind !== 'assistant_message' || !event.references?.length) continue;
+    const messageId = event.messageId ?? null;
+    const position = Math.min(...events
+      .filter(other => other === event || (messageId !== null && other.kind === event.kind && other.messageId === messageId))
+      .map(other => positionOf(other)));
+    const location: SessionSearchLocation = { seq: event.seq, kind: 'assistant_message', messageId, position };
+    for (const reference of [...event.references].sort((a, b) => a.index - b.index)) {
+      for (const { url, title, source, date, snippet } of reference.sources) {
+        const key = sourceKey(url);
+        let known = sources.get(key);
+        if (!known) {
+          if (sources.size >= MAX_CHAT_SOURCES) continue;
+          known = { url, title, citedBy: [] };
+          sources.set(key, known);
+        }
+        // A later citation fills in what the first one did not carry.
+        if (source && !known.source) known.source = source;
+        if (date && !known.date) known.date = date;
+        if (snippet && !known.snippet) known.snippet = snippet;
+        if (known.title === known.url && title !== url) known.title = title;
+        if (known.citedBy.at(-1)?.location.seq !== event.seq) known.citedBy.push({ question, location });
+      }
+    }
+  }
+  return [...sources.values()];
 }
 
 /**
