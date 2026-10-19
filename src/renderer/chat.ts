@@ -8171,6 +8171,11 @@ export function initChat(next: Deps): void {
     const owner = composerDraftOwner();
     appendImages(owner, await run(api.chooseFiles()));
   });
+  $('captureScreen').addEventListener('click', async () => {
+    const owner = composerDraftOwner();
+    const shot = await run(api.captureScreen());
+    if (shot && appendImages(owner, [shot])) $<HTMLTextAreaElement>('chatInput').focus();
+  });
   skillPicker = initSkills({ input: $<HTMLTextAreaElement>('chatInput'), host: $('skillPicker'),
     openButton: $('composerSkills'), addButton: $('composerAddSkill'),
     selectedHost: $('composerSelectedSkills'), owner: () => `${draftKey()}:${composerDraftGeneration}`,

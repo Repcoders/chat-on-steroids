@@ -48,6 +48,8 @@ export const MAIN_TEXTS = [
   'Select the tunnel executable',
   'Programs',
   'Attach files',
+  // The screen region capture overlay.
+  'Drag over the part of the screen to add. Esc cancels.',
   'Import MCP bundle',
   'MCP bundles',
   'Remove worker Git checkout?',

@@ -3,6 +3,7 @@ import { forgetSurfaceTokens } from './mcp/persistent-paths.js';
 import { firefoxAddonUrl } from '../shared/firefox-addon.js';
 import { approvalCardView, requestApprovalAnswer } from './approval-wait.js';
 import { registerDictationIpc } from './dictation.js';
+import { captureScreenRegion } from './screen-capture.js';
 import { CONNECTOR_SUFFIX_MAX, CONNECTOR_SUFFIX_PATTERN } from '../shared/connector-names.js';
 import { setStopNoticeTranslations } from './stuck-notice.js';
 import { dialogLabel, mainText, setMainTextTranslations } from './main-texts.js';
@@ -1426,6 +1427,11 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
       z.object({ name: z.string().min(1).max(255), bytes: z.instanceof(Uint8Array).refine(bytes => bytes.byteLength > 0 && bytes.byteLength <= 12 * 1024 * 1024) }).strict()
     ])).min(1).max(20) }).strict().parse(payload);
     return stageFiles(files);
+  });
+  // The crop is staged like a pasted image; the draft owner check stays in the renderer.
+  handle('sessions:captureScreen', async () => {
+    const shot = await captureScreenRegion(getWindow());
+    return shot ? (await stageFiles([shot]))[0]! : null;
   });
   handle('sessions:attachText', async payload => {
     const { text } = z.object({ text: z.string().min(1).max(4 * 1024 * 1024) }).parse(payload);

@@ -1,0 +1,14 @@
+/* The "Capture part of the screen" overlay (src/main/screen-capture.ts): a still copy of the display, dimmed outside the selection. */
+* { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #000; cursor: crosshair; user-select: none; }
+#shot { position: fixed; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
+#dim { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); pointer-events: none; }
+body.selecting #dim { display: none; }
+/* The shadow dims everything outside the selection; inside, the picture shows as it is. */
+#selection { position: fixed; border: 1px solid #fff; outline: 1px solid rgba(0, 0, 0, .55); box-shadow: 0 0 0 100000px rgba(0, 0, 0, .45); pointer-events: none; }
+#hint {
+  position: fixed; top: 24px; left: 50%; transform: translateX(-50%); margin: 0; padding: 8px 14px; border-radius: 8px;
+  background: rgba(12, 12, 14, .82); color: #eceeeb; font: 500 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  pointer-events: none; white-space: nowrap;
+}
+body.selecting #hint { display: none; }
