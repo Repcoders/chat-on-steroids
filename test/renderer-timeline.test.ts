@@ -1321,6 +1321,24 @@ it.each(['image', 'txt', 'mixed', 'new-chat', 'after-turn'])('routes the compose
   expect(app.live.sent[0]!.attachmentDelivery).toBe(kind === 'image' ? 'tool' : undefined);
 });
 
+it('attaches a file from Recent files again and sends it with the next message', async () => {
+  const app = await boot([]);
+  const report = { id: '33333333-2222-4333-8444-555555555555', name: 'report.pdf', mimeType: 'application/pdf', size: 4096 };
+  const reattach = vi.fn(async (ids: string[]) => ({ ok: true, data: ids.map(() => report) }));
+  Object.assign((app.w as any).api, { recentAttachments: async () => ({ ok: true, data: [report] }), reattachFiles: reattach });
+  app.w.document.getElementById('attachRecent')!.click(); await settle();
+  app.w.document.querySelector<HTMLButtonElement>(`#attachmentLibrary [data-attachment-id="${report.id}"]`)!.click(); await settle();
+  expect(reattach).toHaveBeenCalledWith([report.id]);
+  expect(app.w.document.querySelector('[aria-label="Remove report.pdf"]')).not.toBeNull();
+  // Already in this draft: the list does not offer it twice.
+  app.w.document.getElementById('attachRecent')!.click(); await settle();
+  expect(app.w.document.getElementById('attachmentLibrary')!.textContent).toBe('No files attached in the last 24 hours');
+  app.w.document.getElementById('composer')!.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true }));
+  await settle();
+  expect(app.live.sent).toHaveLength(1);
+  expect(app.live.sent[0]).toMatchObject({ attachments: [report] });
+});
+
 it('restores the image draft after rejected injection and removes native-only delivery when the document is removed', async () => {
   const app = await boot([]);
   const image = { id: '11111111-2222-4333-8444-555555555555', name: 'image.png', mimeType: 'image/png', size: 42 };

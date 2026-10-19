@@ -34,6 +34,7 @@ import { structureTimeline, type RoundPart } from './timeline-rounds.js';
 import type { TurnTrace } from '../shared/turn-trace.js';
 import { initContextMeter, paintContextMeter } from './context-meter.js';
 import { installComposerDockMotion, installComposerHeightMotion } from './composer-motion.js';
+import { initAttachmentLibrary } from './attachment-library.js';
 import { sanitizeHtmlTree } from './sanitize-html.js';
 import { drawMath, mathExtensions, separateDisplayMath, type MathSlots } from './math.js';
 import { DEFAULT_HELPER_CHAT_MODEL, isAstraModel } from '../shared/chat-models.js';
@@ -8171,6 +8172,13 @@ export function initChat(next: Deps): void {
     const owner = composerDraftOwner();
     appendImages(owner, await run(api.chooseFiles()));
   });
+  initAttachmentLibrary({ menu: $<HTMLDetailsElement>('attachmentMenu'), toggle: $<HTMLButtonElement>('attachRecent'), host: $('attachmentLibrary'),
+    list: () => api.recentAttachments(),
+    attached: () => new Set((imageDrafts.get(draftKey()) ?? []).flatMap(file => 'id' in file ? [file.id] : [])),
+    choose: async file => {
+      const owner = composerDraftOwner();
+      appendImages(owner, await run(api.reattachFiles([file.id])));
+    } });
   skillPicker = initSkills({ input: $<HTMLTextAreaElement>('chatInput'), host: $('skillPicker'),
     openButton: $('composerSkills'), addButton: $('composerAddSkill'),
     selectedHost: $('composerSelectedSkills'), owner: () => `${draftKey()}:${composerDraftGeneration}`,

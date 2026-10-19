@@ -1,10 +1,11 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import sharp from 'sharp';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { makeTempDir, removeTempDir } from './helpers.js';
 import { initSessionStore } from '../src/main/session/store.js';
-import { stageInputAttachment, stageInputAttachments, validateInputAttachments, readInputAttachmentChunk, ATTACHMENT_CHUNK_BYTES, MAX_ATTACHMENT_BYTES } from '../src/main/session/input-attachments.js';
+import { stageInputAttachment, stageInputAttachments, validateInputAttachments, readInputAttachmentChunk, listRecentAttachments, reuseInputAttachments, ATTACHMENT_CHUNK_BYTES, MAX_ATTACHMENT_BYTES } from '../src/main/session/input-attachments.js';
 let directory: string;
 beforeEach(async () => { directory = await makeTempDir('cos-attachments-'); initSessionStore(directory); });
 afterEach(async () => { await removeTempDir(directory); });
@@ -74,4 +75,27 @@ it('releases thumbnail source files so expired image originals can be pruned imm
   await stageInputAttachment({ text: 'next draft' }, new Set());
   await expect(fs.stat(original)).rejects.toMatchObject({ code: 'ENOENT' });
   await expect(fs.stat(original + '.json')).rejects.toMatchObject({ code: 'ENOENT' });
+});
+it('lists staged files most recently used first and reattaches one by id with a renewed age', async () => {
+  expect(await listRecentAttachments(new Set())).toEqual([]);
+  const report = await stageInputAttachment({ name: 'report.pdf', bytes: new Uint8Array([37, 80, 68, 70]) }, new Set());
+  const notes = await stageInputAttachment({ text: 'notes' }, new Set());
+  const expired = await stageInputAttachment({ text: 'old draft' }, new Set());
+  const held = await stageInputAttachment({ text: 'queued message' }, new Set());
+  const staged = (id: string) => path.join(directory, 'input-attachments', id);
+  const at = (hours: number) => new Date(Date.now() - hours * 3600000);
+  await fs.utimes(staged(report.id), at(3), at(3)); await fs.utimes(staged(notes.id), at(1), at(1));
+  await fs.utimes(staged(expired.id), at(30), at(30)); await fs.utimes(staged(held.id), at(40), at(40));
+  await fs.writeFile(staged(randomUUID()), 'no sidecar');
+  const listed = await listRecentAttachments(new Set([held.id]));
+  expect(listed).toEqual([notes, report, held]);
+  expect(JSON.stringify(listed)).not.toContain(directory);
+  // A pick renews the original's age under the prune lock, so the next staging keeps it.
+  await fs.utimes(staged(report.id), at(23.9), at(23.9));
+  expect(await reuseInputAttachments([report.id])).toEqual([report]);
+  await fs.utimes(staged(notes.id), at(25), at(25));
+  await stageInputAttachment({ text: 'next draft' }, new Set());
+  await validateInputAttachments([report]);
+  await expect(reuseInputAttachments([notes.id])).rejects.toThrow('attach it again');
+  await expect(reuseInputAttachments(['../config'])).rejects.toThrow();
 });

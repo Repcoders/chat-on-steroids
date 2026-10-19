@@ -63,7 +63,7 @@ function samePreview(a: ProjectFilePreview | null, b: ProjectFilePreview | null)
   return keys.length === Object.keys(b).length && keys.every(key => a[key] === b[key]);
 }
 
-function humanBytes(bytes: number): string {
+export function humanBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes < 10 * 1024 ? 1 : 0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`;

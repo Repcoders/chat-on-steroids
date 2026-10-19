@@ -31,6 +31,45 @@ export function stageInputAttachments(sources: AttachmentSource[], retained: Set
   staging = next.catch(() => undefined);
   return next;
 }
+const STAGING_TTL_MS = 24 * 60 * 60 * 1000;
+export const MAX_RECENT_ATTACHMENTS = 24;
+/** Staged originals the next prune would keep, most recently used first: metadata, never paths. */
+export function listRecentAttachments(retained: Set<string>): Promise<InputAttachment[]> {
+  const next = staging.then(async () => {
+    const dir = directory(), found: Array<{ attachment: InputAttachment; usedAt: number }> = [];
+    for (const name of await fs.readdir(dir).catch(() => [] as string[])) {
+      if (!/^[a-f0-9-]{36}$/.test(name)) continue;
+      try {
+        const file = fileFor(name), stat = await fs.stat(file);
+        if (!retained.has(name) && Date.now() - stat.mtimeMs > STAGING_TTL_MS) continue;
+        const attachment = attachmentSchema.parse(JSON.parse(await fs.readFile(file + '.json', 'utf8')));
+        if (attachment.id === name && attachment.size === stat.size) found.push({ attachment, usedAt: stat.mtimeMs });
+      } catch { /* A half-written or foreign entry is not offered; staging still owns its cleanup. */ }
+    }
+    return found.sort((a, b) => b.usedAt - a.usedAt).slice(0, MAX_RECENT_ATTACHMENTS).map(entry => entry.attachment);
+  });
+  staging = next.catch(() => undefined);
+  return next;
+}
+/** Hand already staged originals to a new draft by id, renewing their age under the prune lock. */
+export function reuseInputAttachments(ids: string[]): Promise<InputAttachment[]> {
+  const next = staging.then(async () => {
+    const attachments: InputAttachment[] = [];
+    for (const id of ids) {
+      const file = fileFor(id);
+      try {
+        const attachment = attachmentSchema.parse(JSON.parse(await fs.readFile(file + '.json', 'utf8')));
+        if (attachment.id !== id || (await fs.stat(file)).size !== attachment.size) throw new Error('changed');
+        attachments.push(attachment);
+      } catch { throw new Error('Attachment is missing or changed; attach it again'); }
+    }
+    const now = new Date();
+    for (const attachment of attachments) await fs.utimes(fileFor(attachment.id), now, now);
+    return attachments;
+  });
+  staging = next.catch(() => undefined);
+  return next;
+}
 async function stageBatch(sources: AttachmentSource[], retained: Set<string>): Promise<InputAttachment[]> {
   const dir = directory();
   await fs.mkdir(dir, { recursive: true });
@@ -38,7 +77,7 @@ async function stageBatch(sources: AttachmentSource[], retained: Set<string>): P
   for (const name of await fs.readdir(dir)) {
     if (!/^[a-f0-9-]{36}$/.test(name)) continue;
     const file = fileFor(name), stat = await fs.stat(file);
-    if (!retained.has(name) && Date.now() - stat.mtimeMs > 24 * 60 * 60 * 1000) {
+    if (!retained.has(name) && Date.now() - stat.mtimeMs > STAGING_TTL_MS) {
       await fs.unlink(file); await fs.unlink(file + '.json').catch(() => undefined);
     } else used += stat.size;
   }

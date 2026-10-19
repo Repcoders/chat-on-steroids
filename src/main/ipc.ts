@@ -28,7 +28,7 @@ import { getChatModels, startChatModelDiscovery, configureChatModelDiscovery } f
 import { releaseSessionFinish, requestSessionFinishGoal } from './session/finish.js';
 import { GOAL_MARKER_INSTRUCTION } from '../shared/goal-templates.js';
 import { validateInputImages } from './session/input-images.js';
-import { stageInputAttachment, stageInputAttachments, type AttachmentSource } from './session/input-attachments.js';
+import { listRecentAttachments, reuseInputAttachments, stageInputAttachment, stageInputAttachments, type AttachmentSource } from './session/input-attachments.js';
 import { recordDeliveredInput, recordedInputImage } from './session/input-history.js';
 import { UI_BASE_ZOOM, titleBarOverlayForTheme, windowBackgroundForTheme } from './window-layout.js';
 import { usageOverview } from './session/usage.js';
@@ -1430,6 +1430,14 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
   handle('sessions:attachText', async payload => {
     const { text } = z.object({ text: z.string().min(1).max(4 * 1024 * 1024) }).parse(payload);
     return (await stageFiles([{ text }]))[0]!;
+  });
+  handle('sessions:recentAttachments', async () => {
+    const retained = new Set((await listInputs()).filter(row => !['sent', 'failed', 'cancelled'].includes(row.state)).flatMap(row => row.attachments?.map(file => file.id) ?? []));
+    return listRecentAttachments(retained);
+  });
+  handle('sessions:reattach', async payload => {
+    const { ids } = z.object({ ids: z.array(z.string().uuid()).min(1).max(20) }).strict().parse(payload);
+    return reuseInputAttachments(ids);
   });
   handle('sessions:stopTurn', async payload => {
     const { id, expectedTurnId } = sessionIdArg.extend({ expectedTurnId: z.string().min(1).max(256) }).parse(payload);

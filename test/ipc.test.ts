@@ -336,6 +336,16 @@ it('validates dropped file count and stages arbitrary native file types', async 
   expect(await drop({ files: [path.join(process.cwd(), 'package.json')] })).toMatchObject({ ok: true, data: [expect.objectContaining({ name: 'package.json', mimeType: 'application/json' })] });
 });
 
+it('lists staged files as recent attachments and reattaches only by staged id', async () => {
+  const call = (channel: string, payload?: unknown) => handlers.get(channel)!(null, payload) as Promise<any>;
+  const staged = (await call('sessions:attachText', { text: 'recent attachment' })).data;
+  expect((await call('sessions:recentAttachments')).data).toContainEqual(staged);
+  expect(await call('sessions:reattach', { ids: [staged.id] })).toEqual({ ok: true, data: [staged] });
+  expect(await call('sessions:reattach', { ids: [] })).toMatchObject({ ok: false });
+  expect(await call('sessions:reattach', { ids: [path.join(process.cwd(), 'package.json')] })).toMatchObject({ ok: false });
+  expect(await call('sessions:reattach', { ids: ['0f3c9a7e-5b21-4d8a-9c6e-000000000000'] })).toMatchObject({ ok: false, error: 'Attachment is missing or changed; attach it again' });
+});
+
 it('publishes Goal draft progress through the session refresh channel without a new transcript event', async () => {
   const { startGoalDraft, resetGoalStateForTests } = await import('../src/main/goal.js');
   const session = await createSession({ title: 'Goal progress', conversationId: 'ipc-goal-progress' });
