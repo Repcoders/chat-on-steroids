@@ -2329,6 +2329,15 @@ describe('Send at… (a message scheduled for later)', () => {
     expect((await pendingBrowserInputs()).map(row => row.id)).toEqual([next.id]);
     expect(later.state).toBe('queued');
   });
+  it('leaves queued Goal work in place when a message is scheduled for later', async () => {
+    binding.goalEnabled = true;
+    binding.activeTurnId = 'turn-one'; binding.impulseMinutes = 3;
+    const generated = await enqueueInput(input({ text: 'Generated instruction' }), { turnId: 'turn-one', periodic: false, mode: 'goal' });
+    const later = await enqueueInput(input({ dueAt: now + 3_600_000, text: 'At ten' }));
+    const rows = await listInputs();
+    expect(rows.find(row => row.id === generated.id)?.state).toBe('queued');
+    expect(rows.find(row => row.id === later.id)?.state).toBe('queued');
+  });
   it('keeps a scheduled message waiting past its time for a browser, instead of failing it a minute later', async () => {
     // The computer can sleep through the chosen time: the message then goes once a browser takes it.
     binding.finishEnabled = false;

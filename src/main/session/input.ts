@@ -986,7 +986,8 @@ export function enqueueInput(raw: InputArgs, finishOwner?: InputEntry['finishOwn
     }
     // User input supersedes only automatic work that has never been handed out.
     // Offered tool receipts retain their identity until a later request proves receipt.
-    const prioritized = !finishOwner ? current.map(row => row.sessionId === entry.sessionId &&
+    // A message scheduled for later replaces nothing: the turn keeps its own work until then.
+    const prioritized = !finishOwner && !scheduled ? current.map(row => row.sessionId === entry.sessionId &&
       ((row.finishOwner && row.state === 'queued') || (row.recovery && !terminal(row) && row.sendAuthorizedAt === undefined) ||
         (row.purpose === 'rotation' && !terminal(row) && row.sendAuthorizedAt === undefined))
       ? { ...row, state: 'cancelled' as const, error: 'Replaced by your new instruction before delivery.' } : row) : current;
