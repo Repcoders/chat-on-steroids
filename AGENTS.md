@@ -1114,6 +1114,17 @@ turn (copied branch history, an adopted chat's history, replies to messages type
 the same actions as a turn's answer (`messageAnswerAnchors`); `sessions:exportMarkdown` names them
 by `messageId` instead of `turnId`, and refuses a turn's own answer named that way.
 
+Earlier chats and branches (#45): the chat header's tree button (`#chatLineage`, shown when the
+session has more than one `chatIds` entry or a branch) lists the session's ChatGPT chats oldest
+first, the current one checked and each left one with its `retiredChatAt` time, and under each chat
+the sessions whose `origin.branchOf.conversationId` is that chat and whose `origin.fromSessionId` is
+this session. A branch opens its session. A chat goes through
+`sessions:locate-chat-start { id, conversationId }` → the `SessionSearchLocation` of the first
+message that first appeared at or after the previous chat's `retiredChatAt` (the first chat starts
+at the beginning), or of the RESUME bootstrap right before it, which can be recorded a moment
+before the move commits; null when that time was never recorded. The timeline then scrolls there;
+a row drawn inside a Compact & Resume card scrolls to the card.
+
 Edit & resubmit (#365): ChatGPT keeps an edited question as a new version beside the old one, under
 the same parent, and continues from the new one. The page reports each question's place in that tree
 (`user_message.parentId`: the legacy `metadata.parent_id`, or on the shell the previous turn's last

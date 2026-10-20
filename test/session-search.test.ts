@@ -3,9 +3,9 @@ import { promises as fs } from 'node:fs';
 import { initConfigPath, defaultConfig, saveConfig } from '../src/main/config.js';
 import { initDurableStore, flushDurable, resetDurableForTests } from '../src/main/durable.js';
 import {
-  createSession, deleteSession, flushSessions, initSessionStore, readEvents, renameSession, resetSessionStoreForTests, sessionSearchIndexPath, upsertMessageEvent
+  createSession, deleteSession, flushSessions, initSessionStore, readEvents, rebindSession, renameSession, resetSessionStoreForTests, sessionSearchIndexPath, upsertMessageEvent
 } from '../src/main/session/store.js';
-import { findInSession, foldCase, locateMessage, locateSearchMatch, queryTerms, resetSessionSearchForTests, searchIndexingSettled, searchSessions, snippetFor } from '../src/main/session/search.js';
+import { findInSession, foldCase, locateChatStart, locateMessage, locateSearchMatch, queryTerms, resetSessionSearchForTests, searchIndexingSettled, searchSessions, snippetFor } from '../src/main/session/search.js';
 import { positionOf } from '../src/shared/chronology.js';
 import { makeTempDir, removeTempDir } from './helpers.js';
 
@@ -225,4 +225,37 @@ it('locates a reply by its native message id, where it first appeared (#482)', a
   const first = replies[0]!;
   expect(await locateMessage(id, first.messageId)).toEqual({ seq: first.seq, kind: 'assistant_message', messageId: first.messageId, position: positionOf(first) });
   expect(await locateMessage(id, 'not-in-this-chat')).toBeNull();
+});
+
+it('locates where each ChatGPT chat of a session begins, by where its messages first appeared (#45)', async () => {
+  const session = await createSession({ conversationId: 'lineage-chat-a', title: 'Lineage' });
+  const say = (kind: 'user_message' | 'assistant_message', messageId: string, text: string, time: number) =>
+    upsertMessageEvent(session.id, { kind, source: 'extension', time, messageId, message: { text, chars: text.length, truncated: false },
+      ...(kind === 'assistant_message' ? { state: 'final' as const, final: true } : {}) } as never);
+  const base = Date.now();
+  const moveAt = async (time: number, from: string, to: string) => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(time);
+    try { expect(await rebindSession(session.id, from, to)).toBe(true); } finally { clock.mockRestore(); }
+  };
+  await say('user_message', 'q-a', 'First question', base + 1_000);
+  await say('assistant_message', 'r-a', 'First answer', base + 2_000);
+  await moveAt(base + 10_000, 'lineage-chat-a', 'lineage-chat-b');
+  // Chat A's answer revised after the move keeps where it first appeared.
+  await say('assistant_message', 'r-a', 'First answer, revised', base + 12_000);
+  await say('user_message', 'q-b', 'Continue from this brief', base + 11_000);
+  await say('assistant_message', 'r-b', 'Continuing', base + 12_000);
+  // The next bootstrap is recorded a moment before its move commits; it still opens chat C.
+  await say('user_message', 'q-c', `[[CLF-RESUME:tok_0123456789abcdef]] Continue from this brief`, base + 19_000);
+  await moveAt(base + 20_000, 'lineage-chat-b', 'lineage-chat-c');
+  await say('assistant_message', 'r-c', 'Continuing again', base + 21_000);
+  await flushSessions();
+  const said = await readEvents(session.id, { kinds: ['user_message'] });
+  const at = (messageId: string) => {
+    const event = said.find(candidate => candidate.kind === 'user_message' && candidate.messageId === messageId)!;
+    return { seq: event.seq, kind: 'user_message', messageId, position: positionOf(event) };
+  };
+  expect(await locateChatStart(session.id, 'lineage-chat-a')).toEqual(at('q-a'));
+  expect(await locateChatStart(session.id, 'lineage-chat-b')).toEqual(at('q-b'));
+  expect(await locateChatStart(session.id, 'lineage-chat-c')).toEqual(at('q-c'));
+  expect(await locateChatStart(session.id, 'not-this-session')).toBeNull();
 });

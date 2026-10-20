@@ -2488,6 +2488,17 @@ input[readonly] {
 .chat-branch-origin:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
 .chat-branch-origin:disabled { cursor: default; }
 .chat-branch-origin:focus-visible { outline: 1px solid var(--accent-edge); outline-offset: -1px; }
+/* Earlier chats and branches (#45): the button is its icon; the list draws the chats on one rail
+   through their icons, and each branch on an elbow off the chat it was made from. */
+.chat-lineage { flex: none; padding: 4px 6px; }
+.chat-lineage[aria-expanded='true'] { background: var(--hover); color: var(--ink); }
+.row-menu-item[data-lineage] { position: relative; }
+.row-menu-item[data-lineage]::before, .row-menu-item[data-lineage]::after { position: absolute; inset-inline-start: 17px; border-inline-start: 1px solid var(--line); pointer-events: none; }
+.row-menu-item[data-lineage-rail='above']::before, .row-menu-item[data-lineage-rail='both']::before { content: ''; top: 0; height: 7px; }
+.row-menu-item[data-lineage-rail='below']::after, .row-menu-item[data-lineage-rail='both']::after { content: ''; top: 25px; bottom: 0; }
+.row-menu-item[data-lineage='branch'] { padding-inline-start: 32px; }
+.row-menu-item[data-lineage='branch']::before { content: ''; top: 0; height: 50%; width: 8px; border-bottom: 1px solid var(--line); border-end-start-radius: 5px; }
+.row-menu-item[data-lineage-rail='through']::after { content: ''; top: 0; bottom: 0; }
 /* The new chat being written starts from a reply: one row of the composer dock, drawn like its
    neighbours (the dock draws the frame, the row adds none of its own). */
 .branch-draft[hidden], .edit-draft[hidden] { display: none; }

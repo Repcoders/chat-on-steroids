@@ -7058,3 +7058,55 @@ describe('prompt recall in the composer', () => {
     expect(composer(w).value).toBe('Second question');
   });
 });
+
+describe('earlier chats and branches (#45)', () => {
+  const chatA = '6ad30000-0000-83ed-a21f-000000000001', chatB = '6ad30000-0000-83ed-a21f-000000000002', chatC = '6ad30000-0000-83ed-a21f-000000000003';
+  const lineageMenu = (w: Window) => [...w.document.querySelectorAll<HTMLButtonElement>('.row-menu [data-lineage]')];
+
+  it('lists the session\'s chats in order with each branch under the chat it came from, and opens a branch', async () => {
+    const source: SessionSummary = { ...summary([]), id: '2026-10-19-source01', title: 'Release plan', conversationId: chatC, chatIds: [chatA, chatB, chatC],
+      retiredChatAt: { [chatA]: T0 + 10_000, [chatB]: T0 + 20_000 } };
+    const branch: SessionSummary = { ...summary([]), id: '2026-10-19-branch01', title: 'Other approach', conversationId: '6ad30000-0000-83ed-a21f-0000000000b1',
+      chatIds: ['6ad30000-0000-83ed-a21f-0000000000b1'], startedAt: T0 + 15_000,
+      origin: { kind: 'desktop', fromSessionId: source.id, agentId: null, task: '', branchOf: { conversationId: chatB, messageId: '6ad30000-0000-83ed-a21f-0000000000f1' } } };
+    const { w } = await boot([], false, [], [], { sessions: [branch, source] });
+    (w.document.querySelector(`#sessionList [data-id="${source.id}"]`) as HTMLElement).click(); await settle();
+    const button = w.document.getElementById('chatLineage') as HTMLButtonElement;
+    expect(button.hidden).toBe(false);
+    button.click(); await settle();
+    const items = lineageMenu(w as unknown as Window);
+    expect(items.map(item => [item.dataset.lineage, item.querySelector('.row-menu-label')!.textContent])).toEqual([
+      ['chat', 'Chat 1'], ['chat', 'Chat 2'], ['branch', 'Other approach'], ['chat', 'Chat 3']
+    ]);
+    expect(items.map(item => item.getAttribute('aria-checked'))).toEqual(['false', 'false', null, 'true']);
+    expect(items[3]!.querySelector('.row-menu-hint')!.textContent).toBe('Current');
+    items[2]!.click(); await settle();
+    expect(w.document.querySelector(`.sess.is-sel[data-id="${branch.id}"]`)).not.toBeNull();
+    // The branch is one chat with no branches of its own: nothing to list.
+    expect(button.hidden).toBe(true);
+    expect(lineageMenu(w as unknown as Window)).toEqual([]);
+  });
+
+  it('scrolls to the Compact & Resume card where a later chat begins', async () => {
+    const { w } = await boot(compaction(1), true, [], [], { summary: { retiredChatAt: { 'chat-a': T0 + 5_500 } } });
+    const api = (w as any).api;
+    api.locateChatStart = vi.fn(async () => ({ ok: true, data: { seq: 6, kind: 'user_message', messageId: 'm-bootstrap', position: 6 } }));
+    (w.document.getElementById('chatLineage') as HTMLButtonElement).click(); await settle();
+    const second = lineageMenu(w as unknown as Window).find(item => item.textContent!.includes('Chat 2'))!;
+    second.click(); await settle();
+    expect(api.locateChatStart).toHaveBeenCalledWith(summary([]).id, 'chat-b');
+    expect(w.document.querySelector('#timeline > .ev-compaction')!.classList.contains('is-search-hit')).toBe(true);
+  });
+
+  it('says so when the start of a chat was never recorded', async () => {
+    const { w } = await boot(compaction(1), true);
+    const api = (w as any).api;
+    api.locateChatStart = vi.fn(async () => ({ ok: true, data: null }));
+    (w.document.getElementById('chatLineage') as HTMLButtonElement).click(); await settle();
+    // Left before departure times were kept: no time beside it.
+    const first = lineageMenu(w as unknown as Window)[0]!;
+    expect(first.querySelector('.row-menu-hint')).toBeNull();
+    first.click(); await settle();
+    expect(w.document.querySelector('.toast')?.textContent).toBe('The start of this chat is not in the recording');
+  });
+});

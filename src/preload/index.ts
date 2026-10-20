@@ -380,6 +380,8 @@ const api = {
   searchSessions: (query: string) => call<SessionSearchReply>('sessions:search', { query }),
   locateSearchMatch: (id: string, query: string) => call<SessionSearchLocation | null>('sessions:locate-match', { id, query }),
   locateMessage: (id: string, messageId: string) => call<SessionSearchLocation | null>('sessions:locate-message', { id, messageId }),
+  /** Where one ChatGPT chat of the session begins: its first recorded message (#45). */
+  locateChatStart: (id: string, conversationId: string) => call<SessionSearchLocation | null>('sessions:locate-chat-start', { id, conversationId }),
   findInChat: (id: string, query: string) => call<SessionSearchLocation[]>('sessions:find', { id, query }),
   /** The chat's own name in the app; null clears it and ChatGPT's title shows again. */
   renameSession: (id: string, title: string | null) => call<boolean>('sessions:rename', { id, title }),

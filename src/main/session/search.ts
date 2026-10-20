@@ -10,10 +10,11 @@
  */
 import { promises as fs } from 'node:fs';
 import { setImmediate as yieldToEvents } from 'node:timers/promises';
-import type { SessionSearchLocation, SessionSearchReply, SessionSearchResult, SessionSummary } from '../../shared/session.js';
+import type { SessionEvent, SessionSearchLocation, SessionSearchReply, SessionSearchResult, SessionSummary } from '../../shared/session.js';
+import { continuationMarkerOf } from '../../shared/session.js';
 import { positionOf } from '../../shared/chronology.js';
 import { transcriptEntries } from '../../shared/markdown-export.js';
-import { indexedSessions, readEvents, readOverflowText, sessionSearchIndexPath } from './store.js';
+import { getSession, indexedSessions, readEvents, readOverflowText, sessionSearchIndexPath } from './store.js';
 import { providerEntitiesAsMarkdown } from '../../shared/content-reference.js';
 import { markdownVisibleText } from '../../shared/markdown-text.js';
 import { foldCase } from '../../shared/fold-case.js';
@@ -257,6 +258,38 @@ export async function locateMessage(id: string, messageId: string): Promise<Sess
   if (!latest || latest.kind !== 'assistant_message') return null;
   // A revised message keeps the place where it first appeared.
   return { seq: latest.seq, kind: 'assistant_message', messageId, position: Math.min(...revisions.map(event => positionOf(event))) };
+}
+
+/**
+ * Where one ChatGPT chat of a session begins: its first message recorded after the session left
+ * the chat before it, or the Compact & Resume bootstrap just before that message (#45, earlier
+ * chats and branches). The same `retiredChatAt` boundary decides which chat a message belongs to
+ * elsewhere; a chat left before those times were kept has none.
+ */
+export async function locateChatStart(id: string, conversationId: string): Promise<SessionSearchLocation | null> {
+  const summary = await getSession(id);
+  const index = summary?.chatIds.indexOf(conversationId) ?? -1;
+  if (!summary || index < 0) return null;
+  const since = index === 0 ? 0 : summary.retiredChatAt?.[summary.chatIds[index - 1]!];
+  if (since === undefined) return null;
+  const events = await readEvents(id, { kinds: ['user_message', 'assistant_message'] });
+  // A message belongs where it first appeared: a later revision of an older one is not this chat's.
+  const firsts = new Map<string, { event: Extract<SessionEvent, { kind: 'user_message' | 'assistant_message' }>; time: number; position: number }>();
+  for (const event of events) {
+    if (event.kind !== 'user_message' && event.kind !== 'assistant_message') continue;
+    const key = event.messageId ? `${event.kind}\u0000${event.messageId}` : `seq\u0000${event.seq}`;
+    const known = firsts.get(key);
+    firsts.set(key, { event, time: Math.min(known?.time ?? Infinity, event.time), position: Math.min(known?.position ?? Infinity, positionOf(event)) });
+  }
+  const ordered = [...firsts.values()].sort((a, b) => a.position - b.position);
+  let at = ordered.findIndex(entry => entry.time >= since);
+  if (at < 0) at = ordered.length;
+  // The bootstrap Compact & Resume typed into this chat opens it, even when recorded just before the move.
+  const before = ordered[at - 1]?.event;
+  if (index > 0 && before?.kind === 'user_message' && continuationMarkerOf(before.message.text)?.kind === 'RESUME') at--;
+  const first = ordered[at];
+  if (!first) return null;
+  return { seq: first.event.seq, kind: first.event.kind, messageId: first.event.messageId ?? null, position: first.position };
 }
 
 export async function locateSearchMatch(id: string, query: string): Promise<SessionSearchLocation | null> {
