@@ -826,8 +826,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     return buildState();
   });
 
-  /** Approves one folder by path. The picker dialog and the drop zone both end here. */
-  const approveRoot = async (folderPath: string): Promise<AppState> => {
+  /** Approves one folder by path and gives back its root's name, as saved. */
+  const addApprovedRoot = async (folderPath: string): Promise<string> => {
     let addedName = '';
     await updateConfig(async (config) => {
       const real = await validateNewRoot(folderPath, config.roots);
@@ -836,6 +836,11 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
       return { ...config, roots: [...config.roots, { name, path: real }] };
     });
     logInfo(`approved folder /${addedName}`);
+    return addedName;
+  };
+  /** Approves one folder by path. The picker dialog and the drop zone both end here. */
+  const approveRoot = async (folderPath: string): Promise<AppState> => {
+    await addApprovedRoot(folderPath);
     return buildState();
   };
 
@@ -877,10 +882,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
       // A folder already inside a shared one (a whole home folder) needs no second approval.
       let shared = await resolvePath(getConfig().roots, demo.folder).catch(error => { if (error instanceof SandboxError) return null; throw error; });
       if (!shared) {
-        const before = new Set(getConfig().roots.map(root => root.name));
-        const state = await approveRoot(demo.folder);
-        added = state.config.roots.find(root => !before.has(root.name))?.name ?? null;
-        push('state:changed', state);
+        added = await addApprovedRoot(demo.folder);
+        push('state:changed', await buildState());
         shared = await resolvePath(getConfig().roots, demo.folder);
       }
       return { folder: shared.virtual, run: demo.run };

@@ -4072,7 +4072,7 @@ Ready's Try a demo (shown only when all is set and access is not limited) calls 
 temp folder each time, with `demo.txt` and a check (`check.cmd` on Windows, `check.sh` elsewhere)
 that passes only when a whole `DEMO_AFTER` line has replaced the `DEMO_BEFORE` line
 (`src/shared/demo-folder.ts`). It then asks in a main-process dialog, Cancel by default; declining
-removes the folder and returns null. Accepting shares it through the same `approveRoot` as the
+removes the folder and returns null. Accepting shares it through the same root approval as the
 picker (unless an approved root already contains it) and returns its virtual folder and the
 command that runs the check (`sh ./check.sh`, since a temp folder may be mounted noexec). A
 failure after approving removes that root again with the folder.

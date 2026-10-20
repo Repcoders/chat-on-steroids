@@ -1266,6 +1266,29 @@ describe('root namespace invariants', () => {
     expect((await demoFolders()).filter(name => !before.has(name))).toEqual([]);
   });
 
+  it('takes back only its own root when one of two demos shared at once fails', async () => {
+    await saveConfig({ ...defaultConfig(), roots: [] });
+    let pushes = 0;
+    currentWindow = {
+      setBackgroundColor: vi.fn(), setTitleBarOverlay: vi.fn(), isDestroyed: () => false,
+      webContents: { send: vi.fn((channel: string) => { if (channel === 'state:changed' && ++pushes === 2) throw new Error('window went away'); }) }
+    };
+    vi.mocked(dialog.showMessageBox).mockResolvedValue({ response: 1 } as never);
+    const demo = (): Promise<any> => handlers.get('roots:demo')!(null, undefined) as Promise<any>;
+
+    const replies = await Promise.all([demo(), demo()]);
+    const shared = replies.filter(reply => reply.ok);
+    expect(shared).toHaveLength(1);
+    // The demo that succeeded keeps its root and folder; the failed one left nothing behind.
+    const roots = getConfig().roots;
+    try {
+      expect(roots.map(root => `/${root.name}`)).toEqual([shared[0].data.folder]);
+      expect((await fs.stat(roots[0]!.path)).isDirectory()).toBe(true);
+    } finally {
+      for (const root of roots) await fs.rm(path.dirname(root.path), { recursive: true, force: true });
+    }
+  });
+
   it('refuses a live rename into the reserved /skills namespace', async () => {
     const base = defaultConfig();
     await saveConfig({
