@@ -11,6 +11,10 @@ export interface ModelUsage {
   windowSeconds: number | null;
   observedAt: number;
 }
+/** One reading of a limit in that row's own measure: a count when one is reported, otherwise a percent. */
+export interface UsageLimitReading { at: number; value: number }
+/** A reported limit on the Usage page, with its readings since it last went up. */
+export interface UsageLimit extends ModelUsage { readings?: UsageLimitReading[] }
 export interface UsageModelTokens {
   model: string;
   reasoningEffort: string | null;
@@ -23,7 +27,7 @@ export interface UsageOverview {
   contextTokenCap: number;
   /** Verified native sends, independently of token estimates or provider quotas. */
   messages: { through: number; days: UsageMessageDay[] };
-  limits: ModelUsage[];
+  limits: UsageLimit[];
   days: Array<{ date: string; tokens: number; models: UsageModelTokens[] }>;
   models: UsageModelTokens[];
   tokens: number;
@@ -44,6 +48,34 @@ export function usageMessageFamily(model: string | undefined): UsageMessageFamil
   if (/^(?:gpt-?)?5[.-]6(?:-(?:instant|thinking|pro|sol|terra|luna))?$/.test(id) || id === 'sol') return 'gpt-5.6';
   if (/^(?:gpt-?)?6(?:\.0)?(?:-(?:instant|thinking|pro|astra))?$/.test(id) || id === 'astra') return 'gpt-6';
   return null;
+}
+
+/** One limit's history, kept apart per measure: a count and a percent never share a trend. */
+export function usageLimitKey(row: Pick<ModelUsage, 'scope' | 'model' | 'windowSeconds' | 'remaining'>): string {
+  return JSON.stringify([row.scope, row.model, row.windowSeconds, row.remaining !== null ? 'count' : 'percent']);
+}
+/** The readings since the limit last went up (a reset or a refill), oldest first. */
+export function usageLimitSegment(readings: readonly UsageLimitReading[]): UsageLimitReading[] {
+  let start = readings.length - 1;
+  while (start > 0 && readings[start - 1]!.value >= readings[start]!.value) start--;
+  return readings.slice(Math.max(0, start)).map(reading => ({ ...reading }));
+}
+const PACE_MS = 60 * 60000;
+const PACE_MIN_MS = 10 * 60000;
+/**
+ * A planning estimate: when this limit runs out if it keeps falling at its pace over about the last
+ * hour of the current window. Null while there is too little history or nothing is being used.
+ */
+export function usageLimitForecast(readings: readonly UsageLimitReading[], resetAt: number | null): { runsOutAt: number; beforeReset: boolean } | null {
+  const segment = usageLimitSegment(readings);
+  const last = segment.at(-1);
+  if (!last || last.value <= 0) return null;
+  // Measure from the newest reading at least an hour old, or from the window's start when it is younger.
+  const first = segment.findLast(reading => reading.at <= last.at - PACE_MS) ?? segment[0]!;
+  const span = last.at - first.at, used = first.value - last.value;
+  if (span < PACE_MIN_MS || used <= 0) return null;
+  const runsOutAt = last.at + last.value / (used / span);
+  return { runsOutAt, beforeReset: resetAt === null || runsOutAt < resetAt };
 }
 
 export function usageDateKey(date: Date): string {

@@ -188,6 +188,29 @@ describe('passive usage limits and canonical token totals', () => {
     now += 60001;
     expect((await usage.usageOverview()).limits).toEqual([]);
   });
+  it('keeps a local history of each limit across a restart and shows the readings since it last went up', async () => {
+    const model = (remaining: number) => limit({ model: 'gpt-example', scope: 'model', remaining, remainingPercent: null });
+    const start = now;
+    usage.observeUsage([model(50), limit()]);
+    now += 60000;
+    usage.observeUsage([model(50), limit()]); // Unchanged within five minutes: no new reading.
+    now += 20 * 60000;
+    usage.observeUsage([model(40), limit({ remainingPercent: 30 })]);
+    const result = await usage.usageOverview();
+    expect(result.limits.find(row => row.scope === 'model')?.readings).toEqual([{ at: start, value: 50 }, { at: now, value: 40 }]);
+    expect(result.limits.find(row => row.scope === 'codex')?.readings).toEqual([{ at: start, value: 40 }, { at: now, value: 30 }]);
+    expect(usage.reportedUsageLimits()[0]).not.toHaveProperty('readings');
+    const saved = structuredClone(durable.writeDurableSoon.mock.calls.findLast(([name]) => name === 'usage-history')![1]);
+    vi.resetModules();
+    durable.readDurable.mockImplementation(async (name: string) => name === 'usage-history' ? saved : null);
+    usage = await import('../src/main/session/usage.js');
+    now += 10 * 60000;
+    usage.observeUsage([model(35)]);
+    expect((await usage.usageOverview()).limits[0]?.readings?.map(reading => reading.value)).toEqual([50, 40, 35]);
+    now += 60000;
+    usage.observeUsage([model(60)]); // A refill starts the trend again.
+    expect((await usage.usageOverview()).limits[0]?.readings).toEqual([{ at: now, value: 60 }]);
+  });
   it('removes exhausted pre-reset observations without inventing a replenished balance', async () => {
     usage.observeUsage([limit({ model: 'gpt-example', scope: 'model', remaining: 0, remainingPercent: null, resetAt: now + 1000 })]);
     now += 1001;

@@ -2867,5 +2867,9 @@
   "Chats sit under their project folders.": "Os chats ficam sob as pastas dos projetos.",
   "All chats in one list, active ones on top.": "Todos os chats numa só lista, os ativos no topo.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "O máximo de chats de subagentes que um chat pode ter ao mesmo tempo. Requer a extensão do navegador ligada.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Um trabalho longo continua num novo turno com um Continuar automático, logo após um resultado de ferramenta. Turnos mais curtos falham menos. Também em chats com Goal e Loop; não com modelos Pro nem nos chats dos subagentes."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Um trabalho longo continua num novo turno com um Continuar automático, logo após um resultado de ferramenta. Turnos mais curtos falham menos. Também em chats com Goal e Loop; não com modelos Pro nem nos chats dos subagentes.",
+  "At this pace, runs out {0} (estimate)": "A este ritmo, esgota-se {0} (estimativa)",
+  "At this pace, lasts until the reset (estimate)": "A este ritmo, dura até à reposição (estimativa)",
+  "From this limit's readings over about the last hour. A planning estimate; ChatGPT decides the limit.": "Com base nas leituras deste limite em cerca da última hora. Uma estimativa para planear; o ChatGPT decide o limite.",
+  "{0}: remaining over time": "{0}: restante ao longo do tempo"
 }

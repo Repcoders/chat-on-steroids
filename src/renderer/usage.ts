@@ -1,6 +1,6 @@
 import { currentLanguage, ui, t, tn } from './i18n.js';
-import { $, el, run } from './dom.js';
-import { DEFAULT_USAGE_FORMULA, usageDateKey as dateKey, usageEstimate, usageMessageTotals, usageModelGroups, usageRate, usageWeekStart, type UsageFormula, type UsageOverview } from '../shared/usage.js';
+import { $, el, run, trendLine } from './dom.js';
+import { DEFAULT_USAGE_FORMULA, usageDateKey as dateKey, usageEstimate, usageLimitForecast, usageMessageTotals, usageModelGroups, usageRate, usageWeekStart, type UsageFormula, type UsageLimit, type UsageOverview } from '../shared/usage.js';
 import type { ProviderUsage } from '../shared/provider-usage.js';
 let snapshot: UsageOverview | null = null;
 let otherAppsGeneration = 0;
@@ -91,6 +91,7 @@ export async function refreshUsage(fresh = false): Promise<void> {
       const window = () => entry.scope === 'codex' ? '' : entry.windowSeconds === 604800 ? t("Weekly · ") : entry.windowSeconds ? t("{0}h window · ", [Math.round(entry.windowSeconds / 3600)]) : '';
       detail.append(el('small', 'muted', () => window() + (entry.resetAt ? t("Resets {0}", [new Date(entry.resetAt).toLocaleString(currentLanguage())]) : t("Reset not reported"))));
       if (entry.remainingPercent !== null && !stale) { const progress = document.createElement('progress'); progress.max = 100; progress.value = entry.remainingPercent; ui(progress, 'aria-label', () => t("{0}: {1}% remaining", [displayName(), entry.remainingPercent])); detail.append(progress); }
+      if (!stale) paintPace(detail, entry, displayName);
       row.append(name, detail); limits.append(row);
     }
     const totalCost = el('div'); totalCost.append(el('strong', '', '—'), el('span', '', () => t("Estimated equivalent · USD"))); totalCost.id = 'usageTotalCost'; usageHint(totalCost, ''); summary.prepend(totalCost);
@@ -100,6 +101,30 @@ export async function refreshUsage(fresh = false): Promise<void> {
   } catch {
     if (generation === loadGeneration) ui(status, 'textContent', () => t("Usage could not be loaded. Try Refresh."));
   } finally { if (generation === loadGeneration) $('refreshUsage').removeAttribute('disabled'); }
+}
+/** "in 45 minutes", "in 3 hours": the app's language words the unit. */
+function fromNow(time: number): string {
+  const minutes = Math.max(1, Math.round((time - Date.now()) / 60000));
+  const format = new Intl.RelativeTimeFormat(currentLanguage(), { numeric: 'always' });
+  return minutes < 90 ? format.format(minutes, 'minute') : minutes < 2880 ? format.format(Math.round(minutes / 60), 'hour') : format.format(Math.round(minutes / 1440), 'day');
+}
+/** A limit's recent readings as a small trend line, and when it runs out at that pace, labeled an estimate. */
+function paintPace(detail: HTMLElement, entry: UsageLimit, name: () => string): void {
+  const readings = entry.readings ?? [];
+  if (readings.length >= 2) {
+    const first = readings[0]!, last = readings.at(-1)!;
+    // Drawn down to zero, where the limit runs out: percent rows on 0–100, a count from where this window started.
+    const top = entry.remaining === null ? 100 : Math.max(1, first.value);
+    const span = Math.max(1, last.at - first.at);
+    const svg = trendLine('usage-trend', readings.map(reading => [(reading.at - first.at) / span * 100, 30 - Math.min(1, reading.value / top) * 28] as const));
+    ui(svg, 'aria-label', () => t("{0}: remaining over time", [name()]));
+    detail.append(svg);
+  }
+  const forecast = usageLimitForecast(readings, entry.resetAt);
+  if (!forecast) return;
+  const pace = el('small', 'muted usage-pace', () => forecast.beforeReset ? t("At this pace, runs out {0} (estimate)", [fromNow(forecast.runsOutAt)]) : t("At this pace, lasts until the reset (estimate)"));
+  usageHint(pace, () => t("From this limit's readings over about the last hour. A planning estimate; ChatGPT decides the limit."));
+  detail.append(pace);
 }
 function paintRates(): void {
   if (!snapshot) return;
