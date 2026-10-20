@@ -1240,7 +1240,8 @@ const pickedLabel = (): string => tn('{0} chat selected', '{0} chats selected', 
  * Shift+Space) the run up to it. Says whether it picked, so the click does not also open the chat.
  */
 function pickSession(event: MouseEvent | KeyboardEvent, id: string): boolean {
-  const gesture = pickGesture(event, event instanceof KeyboardEvent);
+  const keyboard = 'key' in event;
+  const gesture = pickGesture(event, keyboard);
   const entry = sessions.find(row => row.id === id);
   if (!gesture || !entry || !pinnable(entry)) return false;
   const order = shownPickable();
@@ -1248,7 +1249,7 @@ function pickSession(event: MouseEvent | KeyboardEvent, id: string): boolean {
   else sidebarSelection.toggle(id, selectedId, order);
   paintSessions();
   // The rows were rebuilt: the keyboard stays on the same chat.
-  if (event instanceof KeyboardEvent) $('sessionList').querySelector<HTMLElement>(`.sess[data-id="${CSS.escape(id)}"] .sess-top`)?.focus({ preventScroll: true });
+  if (keyboard) $('sessionList').querySelector<HTMLElement>(`.sess[data-id="${CSS.escape(id)}"] .sess-top`)?.focus({ preventScroll: true });
   return true;
 }
 

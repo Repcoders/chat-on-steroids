@@ -50,9 +50,13 @@ app.whenReady().then(async () => {
   const picked=()=>js(`[...document.querySelectorAll('#sessionList .sess.is-picked')].map(r=>r.dataset.id)`);
   const order=()=>js(`[...document.querySelectorAll('#sessionList .sess[data-id]')].map(r=>r.dataset.id)`);
   const bar=()=>js(`document.querySelector('#sidebarSelection .sidebar-selection-count')?.textContent ?? null`);
-  // A real click on the row's title, with the platform's modifier held.
+  // A real click on the row's title, with the platform's modifier held. The row is scrolled into view
+  // first, as a person would: on the macOS runner the fifth row's click reached no row at all.
   const click=async (id,modifiers=[])=>{
-    const at=await js(`(()=>{const r=${row(id)}.querySelector('.sess-top b').getBoundingClientRect();return {x:Math.round(r.left+20),y:Math.round(r.top+r.height/2)}})()`);
+    const at=await js(`(()=>{const b=${row(id)}.querySelector('.sess-top b');b.scrollIntoView({block:'nearest'});const r=b.getBoundingClientRect(),x=Math.round(r.left+20),y=Math.round(r.top+r.height/2),hit=document.elementFromPoint(x,y);
+      return {x,y,hit:hit?.closest('[data-id]')?.dataset.id??(hit?hit.tagName+'.'+hit.className:null)}})()`);
+    assert.equal(at.hit,id,`The click on ${id} reaches its row`);
+    delete at.hit;
     for (const type of ['mouseDown','mouseUp']) win.webContents.sendInputEvent({type,...at,button:'left',clickCount:1,modifiers});
     await settle();
   };
@@ -70,7 +74,7 @@ app.whenReady().then(async () => {
   // With one chat open, Cmd/Ctrl-click picks four more (the open one comes along) without opening them.
   await click('chat-1');
   await until(`${row('chat-1')}.classList.contains('is-sel')`);
-  // Each click as the page saw it, so a platform that loses the modifier says so in the failure.
+  // Each click as the page saw it, so a failure says which row it reached and with which keys.
   await js(`window.clicks=[];document.addEventListener('click',e=>window.clicks.push({id:e.target.closest('[data-id]')?.dataset.id,meta:e.metaKey,ctrl:e.ctrlKey}),true)`);
   for (const id of ['chat-2','chat-3','chat-4','chat-5']) await click(id,ctrl);
   assert.deepEqual(await picked(),['chat-1','chat-2','chat-3','chat-4','chat-5'],
