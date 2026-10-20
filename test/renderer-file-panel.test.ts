@@ -623,6 +623,20 @@ it('opens a terminal file link in Files at its line, and only for the project Fi
   expect(codeMount.jumps).toEqual([['main.ts', 42, 7], ['main.ts', 3, 1]]);
 });
 
+it('leaves the Changes view for Files when a terminal file link opens a file', async () => {
+  vi.mocked(window.api.previewProjectFile).mockImplementation((_projectId: string, path: string) =>
+    ok({ ...preview, path, name: path.split('/').at(-1)!, text: 'one\ntwo\n' }));
+  const panel = createFilePanel({ host, toggle });
+  panel.update(projectA); toggle.click(); await tick();
+  host.querySelector<HTMLButtonElement>('.file-panel-changes-toggle')!.click(); await tick(); await tick();
+  expect(host.querySelector<HTMLElement>('.file-changes-view')!.hidden).toBe(false);
+
+  await expect(panel.openFileAt(projectA.id, 'src/main.ts', 2, 1)).resolves.toBe(true);
+  await tick();
+  expect(host.querySelector<HTMLElement>('.file-changes-view')!.hidden).toBe(true);
+  expect(codeMount.jumps).toEqual([['main.ts', 2, 1]]);
+});
+
 it('uses the file name as the title and its relative path as metadata in file and diff previews', async () => {
   const nestedPreview = { ...preview, path: 'src/main.ts', name: 'main.ts', text: 'export {}' };
   (window.api.previewProjectFile as any).mockImplementation(() => ok(nestedPreview));

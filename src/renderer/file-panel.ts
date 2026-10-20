@@ -970,7 +970,9 @@ export function createFilePanel(options: FilePanelOptions) {
 
   /** Opens a project file in Files with one line in view, as a terminal file link asks. */
   async function openFileAt(projectId: string, relative: string, line: number, column: number): Promise<boolean> {
-    if (options.reviewOnly || mode !== 'files' || project?.id !== projectId) return false;
+    if (options.reviewOnly || project?.id !== projectId) return false;
+    if (mode === 'review') leaveReview();
+    showFiles();
     if (pane.hidden) await show(false);
     if (project?.id !== projectId || mode !== 'files') return false;
     await selectFile({ name: baseName(relative), path: relative, kind: 'file', bytes: null }, { line, column });
