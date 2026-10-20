@@ -2551,6 +2551,9 @@ input[readonly] {
 .sess:has(.sess-rename) .sess-actions { display: none; }
 /* Pinned chats (#1133): a quiet mark that stays visible; it hides with the status while actions show. */
 .sess-pin-mark { flex: none; margin-left: 4px; font-size: 12px; color: var(--faint); }
+/* Date labels in the Chats list: plain text above a run of chats, never a folder or a drop target. */
+.sess-date { padding: 14px 10px 4px; color: var(--faint); font-size: calc(11px * var(--text-scale, 1)); font-weight: 600; line-height: 16px; cursor: default; user-select: none; }
+.sess-date:first-child { padding-top: 4px; }
 .session-diagnostics { margin-top: 20px; color: var(--faint); }
 .session-diagnostics > summary { padding: 8px 10px; cursor: pointer; font-size: calc(12px * var(--text-scale, 1)); }
 .session-diagnostics .sess-top b { font-size: calc(13px * var(--text-scale, 1)); }

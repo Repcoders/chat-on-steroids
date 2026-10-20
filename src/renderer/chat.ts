@@ -25,6 +25,7 @@ import { preserveTimelineViewport, ROUNDING_PX } from './timeline-scroll.js';
 import { createSidebarOrder, SIDEBAR_PROJECT_SCOPE } from './sidebar-order.js';
 import { createSidebarPins, pinnedSortScope } from './sidebar-pins.js';
 import { createSidebarCompletionState } from './sidebar-completion.js';
+import { dateGroupLabel, dateLabels, nextDayStart } from './sidebar-dates.js';
 import { toolResultText } from './tool-result.js';
 import { renderEditCards } from './tool-artifacts.js';
 import { chatErrorPresentation, duplicateChatErrors } from './chat-error.js';
@@ -1394,6 +1395,8 @@ function sidebarLayout(): 'projects' | 'inbox' {
 }
 /** The layout the sidebar was last drawn in; the page's own markup is the project tree's. */
 let paintedLayout: 'projects' | 'inbox' = 'projects';
+/** Repaints the Chats list's date labels at local midnight, when Today becomes Yesterday. */
+let dateLabelTimer: number | undefined;
 
 type AgeUnit = 'minute' | 'hour' | 'day' | 'week';
 const ageFormats = new Map<string, Intl.NumberFormat>();
@@ -1911,6 +1914,7 @@ function paintSessions(): void {
   if (renaming && (document.activeElement as HTMLElement | null)?.classList.contains('sess-rename')) return;
   const layout = sidebarLayout();
   paintedLayout = layout;
+  window.clearTimeout(dateLabelTimer);
   $('sessionList').classList.toggle('is-inbox', layout === 'inbox');
   if (layout !== 'inbox') inboxPicker.close();
   if (layout === 'inbox') {
@@ -1954,9 +1958,15 @@ function paintSessions(): void {
     };
     return [...ordered(true), ...ordered(false)];
   });
+  const listed = (entry: SessionSummary): boolean => entry.origin?.kind !== 'worker' && (!!entry.conversationId || entry.origin?.kind === 'desktop');
+  // Today, Yesterday, Previous 7 days, then months: labels above the unpinned chats of this list, never folders.
+  const paintedAt = Date.now();
+  const dates = dateLabels(orderedSessions.filter(entry => listed(entry) && !groupOf(entry.projectId) && !pinnedChat(entry)), paintedAt);
+  // An idle window gets no activity push at midnight: repaint then, so no label outlives its day.
+  dateLabelTimer = window.setTimeout(paintSessions, nextDayStart(paintedAt) - paintedAt + 1000);
   for (const entry of orderedSessions) {
     if (entry.origin?.kind === 'worker') continue;
-    if (!entry.conversationId && entry.origin?.kind !== 'desktop') { diagnostics.push(entry); continue; }
+    if (!listed(entry)) { diagnostics.push(entry); continue; }
     const projectId = groupOf(entry.projectId);
     const workers = children.get(entry.id);
     if (projectId) {
@@ -1964,6 +1974,8 @@ function paintSessions(): void {
       tasks.push({ entry, workers, selected: entry.id === selectedId || workers?.some(worker => worker.id === selectedId) === true });
       projectRows.set(projectId, tasks);
     } else {
+      const group = dates.get(entry.id);
+      if (group) rows.push(el('div', 'sess-date', () => dateGroupLabel(group, paintedAt)));
       const row = sessionRow(entry); rows.push(row);
       row.dataset.sortScope = pinnedSortScope('', pinnedChat(entry));
       if (workers) workerGroup(entry.id, workers, row, rows);
