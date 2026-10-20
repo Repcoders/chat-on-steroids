@@ -4108,6 +4108,53 @@ it.each(['redact', 'send anyway', 'edit'] as const)('holds a send whose draft lo
   expect(doc.activeElement).toBe(field);
 });
 
+it.each([['menu', 'redact'], ['menu', 'send anyway'], ['typed /plan', 'redact'], ['menu', 'plan off']] as const)('holds a Plan request that looks like it has a token before it reaches the planner (%s, %s)', async (arm, choice) => {
+  const ok = (data: any) => ({ ok: true, data });
+  const sendInput = vi.fn(async (request: any) => ok({ ...request, state: 'queued', owner: null, createdAt: Date.now(), conversationId: null }));
+  const draftTaskPlan = vi.fn(async () => ok(['Push the branch', 'Check the push']));
+  const mounted = await mountChat({}, [], { sendInput, draftTaskPlan, onTaskProgress: () => () => {},
+    skillLibrary: async () => ok({ skills: [], roots: [], errors: [], includeInstructions: true }),
+    listInputs: async () => ok([]), runningTools: async () => ok([]), turnTraces: async () => ok({}), listPausedHelpers: async () => ok([])
+  });
+  const w = mounted.window, doc = w.document, field = doc.getElementById('chatInput') as HTMLTextAreaElement;
+  const notice = doc.getElementById('secretDraft')!, token = `ghp_${'aB3'.repeat(12)}`;
+  (doc.getElementById('newChat') as HTMLButtonElement).click(); await settle();
+  field.value = `${arm === 'typed /plan' ? '/plan ' : ''}Push with ${token} please`;
+  field.dispatchEvent(new w.Event('input', { bubbles: true }));
+  if (arm === 'menu') (doc.getElementById('createPlan') as HTMLButtonElement).click();
+  doc.getElementById('composer')!.dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+  await settle();
+  // The planner is ChatGPT too: the request waits in the composer like any other send.
+  expect(draftTaskPlan).not.toHaveBeenCalled();
+  expect(notice.hidden).toBe(false);
+  expect(notice.textContent).toContain('Possible secret in this message: ghp_…');
+  expect(field.value).toBe(`Push with ${token} please`);
+  const [redact, anyway] = [...notice.querySelectorAll<HTMLButtonElement>('.secret-draft-action')];
+  if (choice === 'plan off') {
+    // The hold belongs to the Plan route; turning Plan off drops it and the message send checks again.
+    (doc.getElementById('createPlan') as HTMLButtonElement).click();
+    expect(notice.hidden).toBe(true);
+    doc.getElementById('composer')!.dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+    expect(notice.hidden).toBe(false);
+    notice.querySelectorAll<HTMLButtonElement>('.secret-draft-action')[1]!.click();
+    await vi.waitFor(() => expect(sendInput).toHaveBeenCalledWith(expect.objectContaining({ text: `Push with ${token} please` })));
+    expect(draftTaskPlan).not.toHaveBeenCalled();
+    return;
+  }
+  (choice === 'redact' ? redact : anyway)!.click();
+  const request = choice === 'redact' ? 'Push with [redacted] please' : `Push with ${token} please`;
+  await vi.waitFor(() => expect(draftTaskPlan).toHaveBeenCalledTimes(1));
+  expect(draftTaskPlan).toHaveBeenCalledWith(request, 'chatgpt', expect.any(String));
+  expect(notice.hidden).toBe(true);
+  // Starting the plan sends what the planner was given, without asking twice.
+  await vi.waitFor(() => expect(doc.querySelectorAll('#taskPlanPreview .plan-stage')).toHaveLength(2));
+  doc.getElementById('composer')!.dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+  await vi.waitFor(() => expect(sendInput).toHaveBeenCalledTimes(1));
+  expect(sendInput).toHaveBeenCalledWith(expect.objectContaining({ text: 'Push the branch', stages: ['Check the push'], objective: request }));
+  expect(notice.hidden).toBe(true);
+});
+
 it('does not steal a newer New Chat draft when an older admission response arrives', async () => {
   let release!: (value: any) => void;
   const rows: any[] = [], summaries: any[] = [];

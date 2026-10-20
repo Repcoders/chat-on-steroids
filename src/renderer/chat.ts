@@ -2157,14 +2157,25 @@ function paintEditNotice(): void {
 
 /**
  * A send held because the draft holds what looks like a credential (`shared/secret-shapes.ts`).
- * It belongs to that exact draft: any edit, or another chat, drops it, and the next send checks again.
+ * It belongs to that exact draft and route: any edit, another chat, or turning Plan on or off drops it,
+ * and the next send checks again.
  */
-type SecretHold = { key: string; text: string; found: string[]; delivery?: 'finish' | 'auto' | 'after-turn' };
+type SecretHold = { key: string; text: string; found: string[]; plan: boolean; send: () => void };
 let secretHold: SecretHold | null = null;
 let paintedSecretHold: SecretHold | null = null;
+/**
+ * Checks the draft before `send` takes it to ChatGPT, as a message or as a Plan request. A match
+ * holds it and is the answer; the hold's buttons run `send` again with the check already made.
+ */
+function secretsHeld(key: string, checked: boolean, send: () => void): boolean {
+  const found = checked ? [] : findSecretShapes(authoredComposerText());
+  secretHold = found.length ? { key, text: authoredComposerText(), found, plan: taskPlans.has(key), send } : null;
+  paintSecretNotice();
+  return !!secretHold;
+}
 function paintSecretNotice(): void {
   const notice = $('secretDraft');
-  if (secretHold && (secretHold.key !== draftKey() || secretHold.text !== authoredComposerText())) secretHold = null;
+  if (secretHold && (secretHold.key !== draftKey() || secretHold.text !== authoredComposerText() || secretHold.plan !== taskPlans.has(secretHold.key))) secretHold = null;
   const hold = secretHold;
   // The same hold keeps its buttons, so a repaint never takes the focus from one of them.
   if (hold && hold === paintedSecretHold) return;
@@ -2188,11 +2199,11 @@ function paintSecretNotice(): void {
       const input = $<HTMLTextAreaElement>('chatInput');
       input.value = redactSecretShapes(input.value);
       input.dispatchEvent(new Event('input', { bubbles: true }));
-      void sendComposer(hold.delivery, undefined, undefined, false, true);
+      hold.send();
     }),
     action(() => t('Send anyway'), () => {
       if (secretHold !== hold) return;
-      void sendComposer(hold.delivery, undefined, undefined, false, true);
+      hold.send();
     }));
 }
 
@@ -2687,11 +2698,13 @@ function paintTaskPlan(): void {
     preview.append(el('span', 'muted', label));
     if (progress?.text || progress?.error) preview.append(el('pre', 'task-progress-text', progress.error ? () => localizedGoalError(progress.error!) : progress.text));
   }
-  paintTaskActions(); paintDeliveryControls();
+  paintTaskActions(); paintDeliveryControls(); paintSecretNotice();
 }
-async function createTaskPlan(backend: 'api' | 'chatgpt'): Promise<void> {
+async function createTaskPlan(backend: 'api' | 'chatgpt', secretsChecked = false): Promise<void> {
   const input = $<HTMLTextAreaElement>('chatInput'), text = authoredComposerText().trim();
   const key = draftKey();
+  // The planner is ChatGPT or OpenRouter, so the request is checked before it leaves, as a send is.
+  if (secretsHeld(key, secretsChecked, () => void createTaskPlan(backend, true))) return;
   cancelTaskPlan(key);
   const sessionId = selectedId, projectId = selectedId ? sessions.find(row => row.id === selectedId)?.projectId ?? null : selectedProjectId;
   const requestId = text ? crypto.randomUUID() : null;
@@ -7762,11 +7775,8 @@ async function sendComposer(delivery?: 'finish' | 'auto' | 'after-turn', plan?: 
     }
     return;
   }
-  // Only what the person typed is checked; a plan's stages were written from a request already sent.
-  const secrets = plan || secretsChecked ? [] : findSecretShapes(authoredComposerText());
-  secretHold = secrets.length ? { key, text: authoredComposerText(), found: secrets, delivery } : null;
-  paintSecretNotice();
-  if (secretHold) return false;
+  // Only what the person typed is checked; a plan's request was checked before it went to the planner.
+  if (secretsHeld(key, !!plan || secretsChecked, () => void sendComposer(delivery, undefined, undefined, false, true))) return false;
   const discoveryGeneration = ++composerDiscoveryGeneration;
   const discoverySelection = selectionGeneration, discoverySession = selectedId, discoveryDraft = authoredComposerText();
   const modelSettings = composerSendModel() ?? await ensureComposerModel();

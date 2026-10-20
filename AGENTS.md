@@ -1363,13 +1363,15 @@ a worker's or helper's, whose tasks come from the app. Messages without text, st
 queued inputs are not recalled either. The list is read at the first press, so a message recorded
 while paging doesn't shift it. Each recalled message is announced through the sr-only polite region
 `#recallAnnounce`. Recall only fills the composer; nothing is stored and nothing is sent.
-Secret guard (`paintSecretNotice` in `chat.ts`): before a composer send, `findSecretShapes`
-(`src/shared/secret-shapes.ts`) reads the authored text for the credential shapes the control API
-masks (`redactSecretText` uses the same list). On a match nothing is sent: the `#secretDraft` dock row
-names each match by its harmless start (`ghp_…`, never the secret) with Redact and send, which
-replaces the matches in the composer with `[redacted]` and sends, and Send anyway, which sends the
-draft as typed. The hold belongs to that exact draft and chat; an edit or another chat drops it, and
-the next send checks again. A prepared plan's stages and attached files are not read. Like the mask,
+Secret guard (`paintSecretNotice` in `chat.ts`): before a composer send or a Plan request goes to the
+planner, `findSecretShapes` (`src/shared/secret-shapes.ts`) reads the authored text for the
+credential shapes the control API masks (`redactSecretText` uses the same list). On a match nothing
+is sent: the `#secretDraft` dock row names each match by its harmless start (`ghp_…`, never the
+secret) with Redact and send, which replaces the matches in the composer with `[redacted]` and sends,
+and Send anyway, which sends the draft as typed. A Plan hold's buttons send the request to the
+planner instead. The hold belongs to that exact draft, chat and route; an edit, another chat, or
+turning Plan on or off drops it, and the next send checks again. A prepared plan's stages were
+written from the checked request and are not read again; attached files are not read. Like the mask,
 it is a list of shapes, not a promise: a password in prose passes.
 
 `session/start-input.ts` returns durable local admission before waiting for connector readiness
