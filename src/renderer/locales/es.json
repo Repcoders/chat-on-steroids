@@ -2877,5 +2877,6 @@
   "Answer {0}": "Respuesta {0}",
   "Show in chat": "Mostrar en el chat",
   "Showing the first {0}": "Se muestran los primeros {0}",
-  "No code, tables or formulas in this chat": "No hay código, tablas ni fórmulas en este chat"
+  "No code, tables or formulas in this chat": "No hay código, tablas ni fórmulas en este chat",
+  "Could not read this chat's artifacts.": "No se pudieron leer los artefactos de este chat."
 }

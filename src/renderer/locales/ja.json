@@ -2787,5 +2787,6 @@
   "Answer {0}": "回答 {0}",
   "Show in chat": "チャットで表示",
   "Showing the first {0}": "最初の {0} 件を表示しています",
-  "No code, tables or formulas in this chat": "このチャットにはコード、表、数式がありません"
+  "No code, tables or formulas in this chat": "このチャットにはコード、表、数式がありません",
+  "Could not read this chat's artifacts.": "このチャットのアーティファクトを読み込めませんでした。"
 }

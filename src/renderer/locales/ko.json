@@ -2787,5 +2787,6 @@
   "Answer {0}": "답변 {0}",
   "Show in chat": "채팅에서 보기",
   "Showing the first {0}": "처음 {0}개를 표시합니다",
-  "No code, tables or formulas in this chat": "이 채팅에는 코드, 표, 수식이 없습니다"
+  "No code, tables or formulas in this chat": "이 채팅에는 코드, 표, 수식이 없습니다",
+  "Could not read this chat's artifacts.": "이 채팅의 아티팩트를 읽을 수 없습니다."
 }

@@ -35,16 +35,18 @@ export interface SessionArtifactsReply {
 
 /** A display formula opens a line, after any quote or list marker, as ChatGPT writes it (math.ts). */
 const DISPLAY_OPEN = /(^|\n)[ \t>]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?(\\\[|\$\$)/g;
+/** A code fence, after the same quote or list marker a formula may follow. */
+const FENCE = /^[ \t>]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?(`{3,}|~{3,})(.*)$/;
 
 /** The text with code fences and code spans blanked, offsets kept: a formula in code is code. */
 function withoutCode(text: string): string {
-  // The open fence: closed by a run of the same character at least as long.
+  // The open fence: closed by a run of the same character at least as long, with nothing after it.
   let fence: string | null = null;
   const kept = text.split('\n').map(line => {
-    const marker = /^\s*(`{3,}|~{3,})/.exec(line)?.[1];
+    const [, marker, rest] = FENCE.exec(line) ?? [];
     if (fence === null && !marker) return line;
     if (fence === null) fence = marker!;
-    else if (marker && marker[0] === fence[0] && marker.length >= fence.length) fence = null;
+    else if (marker && marker[0] === fence[0] && marker.length >= fence.length && !rest!.trim()) fence = null;
     return ' '.repeat(line.length);
   });
   return kept.join('\n').replace(/(`+)(?:[^`\n]|[^`\n][^\n]*?[^`\n])\1(?!`)/g, span => ' '.repeat(span.length));
@@ -73,7 +75,6 @@ export function answerArtifacts(markdown: string): AnswerArtifact[] {
   let tokens: Token[];
   try { tokens = new Lexer({ gfm: true }).lex(text); } catch { return []; }
   const found: Array<{ at: number; artifact: AnswerArtifact }> = [];
-  // A block inside a list or a quote sorts where its outermost block starts.
   const visit = (token: Token, at: number): void => {
     if (token.type === 'code') {
       const code = token as Tokens.Code;
@@ -82,10 +83,18 @@ export function answerArtifacts(markdown: string): AnswerArtifact[] {
       found.push({ at, artifact: { kind: 'code', text: code.text, ...(language ? { language } : {}) } });
     } else if (token.type === 'table') {
       found.push({ at, artifact: { kind: 'table', text: token.raw.trim() } });
-    } else if (token.type === 'list') {
-      for (const item of (token as Tokens.List).items) for (const child of item.tokens) visit(child, at);
-    } else if (token.type === 'blockquote') {
-      for (const child of (token as Tokens.Blockquote).tokens) visit(child, at);
+    }
+    const children = token.type === 'list' ? (token as Tokens.List).items.flatMap(item => item.tokens)
+      : token.type === 'blockquote' ? (token as Tokens.Blockquote).tokens : [];
+    // A block in a list or a quote is written without its marker and indent, so it is placed by
+    // its first line, searched from where the block before it was: formulas sort on the same scale.
+    let from = at;
+    for (const child of children) {
+      const first = child.raw.split('\n').map(line => line.trim()).find(Boolean);
+      const place = first ? text.indexOf(first, from) : -1;
+      if (place >= 0) from = place;
+      visit(child, from);
+      if (first && place >= 0) from += first.length;
     }
   };
   let offset = 0;

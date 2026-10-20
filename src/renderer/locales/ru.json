@@ -2922,5 +2922,6 @@
   "Answer {0}": "Ответ {0}",
   "Show in chat": "Показать в чате",
   "Showing the first {0}": "Показаны первые {0}",
-  "No code, tables or formulas in this chat": "В этом чате нет кода, таблиц и формул"
+  "No code, tables or formulas in this chat": "В этом чате нет кода, таблиц и формул",
+  "Could not read this chat's artifacts.": "Не удалось прочитать артефакты этого чата."
 }

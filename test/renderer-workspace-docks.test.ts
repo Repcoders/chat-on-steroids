@@ -201,6 +201,24 @@ it('opens Artifacts from its own entry and Ctrl+Shift+5, and says why it is off 
   expect(document.querySelector('#workDockRight [role=tab]')?.textContent).toBe('Artifacts');
 });
 
+it('makes room for the chat an Artifacts link opens: restores an expanded panel, closes one that covers the chat', () => {
+  const { host, docks } = setup();
+  const chat = host.querySelector<HTMLElement>('.is-session')!;
+  let chatShown = true;
+  chat.getClientRects = () => (chatShown ? [{}] : []) as unknown as DOMRectList;
+  docks.register('artifacts', 'Artifacts', 'i-code-block', vi.fn(), vi.fn(), () => true);
+  docks.activate('artifacts');
+  document.getElementById('rightDockExpand')!.click();
+  expect(host.classList.contains('is-work-dock-expanded')).toBe(true);
+  docks.showChat();
+  expect(host.classList.contains('is-work-dock-expanded')).toBe(false);
+  expect(document.getElementById('workDockRight')!.hidden).toBe(false);
+  // A narrow window has no room for both, so the panel closes.
+  chatShown = false;
+  docks.showChat();
+  expect(document.getElementById('workDockRight')!.hidden).toBe(true);
+});
+
 it('resizes the bottom dock from its top edge with drag feedback', () => {
   setup();
   const app = document.querySelector<HTMLElement>('.app')!, bottom = document.getElementById('workDockBottom')!;

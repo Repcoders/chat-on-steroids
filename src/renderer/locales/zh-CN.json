@@ -2787,5 +2787,6 @@
   "Answer {0}": "回答 {0}",
   "Show in chat": "在聊天中显示",
   "Showing the first {0}": "仅显示前 {0} 项",
-  "No code, tables or formulas in this chat": "此聊天中没有代码、表格或公式"
+  "No code, tables or formulas in this chat": "此聊天中没有代码、表格或公式",
+  "Could not read this chat's artifacts.": "无法读取此聊天的产物。"
 }

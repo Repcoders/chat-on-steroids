@@ -54,3 +54,56 @@ it('leaves out formulas inside code, inline brackets and empty blocks', () => {
     { kind: 'code', language: 'md', text: '\\[ not a formula \\]\n```\n$$ still code $$' }
   ]);
 });
+
+it('keeps a fence open past a line that names a language, as marked does', () => {
+  const answer = [
+    '```',
+    '```bash',
+    '$$ inside $$',
+    '```',
+    '',
+    '$$ outside $$'
+  ].join('\n');
+  expect(answerArtifacts(answer)).toEqual([
+    { kind: 'code', text: '```bash\n$$ inside $$' },
+    { kind: 'formula', text: 'outside' }
+  ]);
+});
+
+it('keeps written order inside lists, where a formula can come before a code block', () => {
+  const answer = [
+    '1. First:',
+    '   \\[',
+    '   x = 1',
+    '   \\]',
+    '2. Then:',
+    '   ```ts',
+    '   run();',
+    '   ```',
+    '',
+    '> | a |',
+    '> | --- |',
+    '> | 1 |'
+  ].join('\n');
+  expect(answerArtifacts(answer)).toEqual([
+    { kind: 'formula', text: 'x = 1' },
+    { kind: 'code', language: 'ts', text: 'run();' },
+    { kind: 'table', text: '| a |\n| --- |\n| 1 |' }
+  ]);
+});
+
+it('leaves out formulas inside code fenced in a quote or a list item', () => {
+  const answer = [
+    '> ```tex',
+    '> $$ quoted code $$',
+    '> ```',
+    '',
+    '- ```tex',
+    '  \\[ listed code \\]',
+    '  ```'
+  ].join('\n');
+  expect(answerArtifacts(answer)).toEqual([
+    { kind: 'code', language: 'tex', text: '$$ quoted code $$' },
+    { kind: 'code', language: 'tex', text: '\\[ listed code \\]' }
+  ]);
+});

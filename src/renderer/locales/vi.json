@@ -2787,5 +2787,6 @@
   "Answer {0}": "Câu trả lời {0}",
   "Show in chat": "Hiện trong cuộc trò chuyện",
   "Showing the first {0}": "Đang hiện {0} mục đầu tiên",
-  "No code, tables or formulas in this chat": "Cuộc trò chuyện này không có mã, bảng hay công thức"
+  "No code, tables or formulas in this chat": "Cuộc trò chuyện này không có mã, bảng hay công thức",
+  "Could not read this chat's artifacts.": "Không đọc được các tạo phẩm của cuộc trò chuyện này."
 }

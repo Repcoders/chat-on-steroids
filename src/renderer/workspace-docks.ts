@@ -321,7 +321,16 @@ export function createWorkspaceDocks(host: HTMLElement) {
     if (!event.shiftKey || !digit) return;
     event.preventDefault(); activate(DOCK_ORDER[Number(digit) - 1]!);
   });
+  /**
+   * Makes the chat visible for a tool that points into it: an expanded panel is restored, and one
+   * that still covers the chat (a narrow window) closes.
+   */
+  const showChat = (): void => {
+    if (expanded) { layout(() => { expanded = false; host.classList.remove('is-work-dock-expanded'); }); paint(); }
+    const chat = host.querySelector<HTMLElement>(':scope > .is-session');
+    if (rightOpen && chat && !chat.getClientRects().length) setRightOpen(false);
+  };
   paint();
   return { body, bottomBody, rightToggle, bottomToggle, register, registerTerminal, activate, adopt,
-    setOpen: setRightOpen, setBottomOpen, toggleBottomTerminal: () => setBottomOpen(!bottomOpen), sync: paint };
+    setOpen: setRightOpen, setBottomOpen, toggleBottomTerminal: () => setBottomOpen(!bottomOpen), sync: paint, showChat };
 }

@@ -20,8 +20,9 @@ export interface ArtifactsDrawerDeps {
   onEscape?(): void;
 }
 
-/** Lines a list entry shows before it is cut; the copy is always whole. */
+/** Lines, and characters, a list entry shows before it is cut; the copy is always whole. */
 const PREVIEW_LINES = 8;
+const PREVIEW_CHARS = 2000;
 
 const FILTERS: Array<[ArtifactFilter, () => string]> = [
   ['all', () => t('All')], ['code', () => t('Code')], ['table', () => t('Tables')], ['formula', () => t('Formulas')]
@@ -36,7 +37,7 @@ export function createArtifactsDrawer(deps: ArtifactsDrawerDeps) {
   const status = el('p', 'artifacts-status');
   pane.append(filters, list, status);
   let filter: ArtifactFilter = 'all', sessionId: string | null = null, wanted = '', loaded: string | null = null;
-  let artifacts: SessionArtifact[] = [], limited = false, loading = false, generation = 0, painted = '';
+  let artifacts: SessionArtifact[] = [], limited = false, loading = false, failed = false, generation = 0, painted = '';
   const choices = new Map<ArtifactFilter, { button: HTMLButtonElement; count: HTMLElement }>();
   for (const [key, label] of FILTERS) {
     const button = el('button', 'artifacts-filter') as HTMLButtonElement;
@@ -67,8 +68,9 @@ export function createArtifactsDrawer(deps: ArtifactsDrawerDeps) {
       copied = window.setTimeout(() => { setIcon(glyph, 'i-copy'); ui(copy, 'title', () => t('Copy')); }, 1500);
     });
     head.append(copy);
-    const preview = el('pre', 'artifact-preview', lines.slice(0, PREVIEW_LINES).join('\n'));
-    preview.classList.toggle('is-cut', lines.length > PREVIEW_LINES);
+    const shown = lines.slice(0, PREVIEW_LINES).join('\n');
+    const preview = el('pre', 'artifact-preview', shown.slice(0, PREVIEW_CHARS));
+    preview.classList.toggle('is-cut', lines.length > PREVIEW_LINES || shown.length > PREVIEW_CHARS);
     if (artifact.kind !== 'formula') preview.dir = 'ltr';
     const source = el('button', 'artifact-source') as HTMLButtonElement;
     source.type = 'button';
@@ -100,7 +102,8 @@ export function createArtifactsDrawer(deps: ArtifactsDrawerDeps) {
     if (next !== painted) { painted = next; list.replaceChildren(...shown.map(item)); }
     status.hidden = shown.length > 0 && !limited;
     ui(status, 'textContent', () => loading && !shown.length ? t('Loading…')
-      : !shown.length ? t('No code, tables or formulas in this chat') : t('Showing the first {0}', [artifacts.length]));
+      : failed && !shown.length ? t("Could not read this chat's artifacts.")
+        : !shown.length ? t('No code, tables or formulas in this chat') : t('Showing the first {0}', [artifacts.length]));
   }
 
   function load(): void {
@@ -113,8 +116,10 @@ export function createArtifactsDrawer(deps: ArtifactsDrawerDeps) {
     void deps.load(id).then(reply => {
       if (mine !== generation) return;
       loading = false;
-      // A failed read has already said so; keep what was listed instead of claiming the chat has none.
-      if (reply) { artifacts = reply.artifacts; limited = Boolean(reply.limited); } else loaded = null;
+      // A failed read keeps what was listed, or says it failed, instead of claiming the chat has none.
+      // It is tried again when the panel next opens or the answers change, not on every repaint.
+      failed = !reply;
+      if (reply) { artifacts = reply.artifacts; limited = Boolean(reply.limited); }
       paint();
     });
   }
@@ -127,7 +132,9 @@ export function createArtifactsDrawer(deps: ArtifactsDrawerDeps) {
     element: pane,
     show(mount: HTMLElement): void {
       if (pane.parentElement !== mount) mount.append(pane);
-      pane.hidden = false; paint(); load();
+      pane.hidden = false;
+      if (failed) { failed = false; loaded = null; }
+      paint(); load();
     },
     hide(): void { pane.hidden = true; },
     /**
@@ -136,7 +143,7 @@ export function createArtifactsDrawer(deps: ArtifactsDrawerDeps) {
      */
     update(id: string | null, version: string): void {
       if (id !== sessionId) {
-        sessionId = id; artifacts = []; limited = false; loaded = null; generation++; loading = false;
+        sessionId = id; artifacts = []; limited = false; loaded = null; generation++; loading = false; failed = false;
         if (!pane.hidden) paint();
       }
       wanted = version;

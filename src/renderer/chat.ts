@@ -8163,7 +8163,7 @@ export function initChat(next: Deps): void {
   artifactsPanel = createArtifactsDrawer({
     load: async id => (await run(api.chatArtifacts(id))) ?? null,
     copy: async text => Boolean(await run(api.writeClipboard(text))),
-    reveal: (id, location) => void revealChatLocation(id, location),
+    reveal: (id, location) => { docks.showChat(); void revealChatLocation(id, location); },
     onEscape: () => { docks.setOpen(false); docks.rightToggle.focus(); }
   });
   docks.register('artifacts', 'Artifacts', 'i-code-block', mount => artifactsPanel?.show(mount), () => artifactsPanel?.hide(), () => selectedId !== null);

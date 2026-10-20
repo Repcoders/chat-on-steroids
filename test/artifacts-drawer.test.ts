@@ -92,3 +92,41 @@ it('says when a chat has none, and when the list holds only part of them', async
   expect(status.hidden).toBe(false);
   expect(status.textContent).toBe('Showing the first 4');
 });
+
+it('tries a failed read again when the panel reopens, not on every repaint', async () => {
+  const { drawer, deps, mount } = await setup();
+  deps.load.mockResolvedValueOnce(null as never);
+  drawer.update('chat-1', '1'); drawer.show(mount);
+  await flush();
+  // The timeline repaints while text streams in: each repaint hands the panel the same chat.
+  for (let n = 0; n < 5; n++) drawer.update('chat-1', '1');
+  await flush();
+  expect(deps.load).toHaveBeenCalledTimes(1);
+  drawer.hide(); drawer.show(mount);
+  await flush();
+  expect(deps.load).toHaveBeenCalledTimes(2);
+  expect(items()).toHaveLength(4);
+});
+
+it('says a read failed instead of calling the chat empty', async () => {
+  const { drawer, deps, mount } = await setup();
+  deps.load.mockResolvedValueOnce(null as never);
+  drawer.update('chat-1', '1'); drawer.show(mount);
+  await flush();
+  expect(items()).toHaveLength(0);
+  expect(document.querySelector<HTMLElement>('.artifacts-status')!.textContent).toBe("Could not read this chat's artifacts.");
+});
+
+it('cuts a long line in the preview and still copies all of it', async () => {
+  const { drawer, deps, mount } = await setup();
+  const line = 'x'.repeat(50_000);
+  deps.load.mockResolvedValueOnce({ artifacts: [{ ...artifacts[0]!, text: line }] });
+  drawer.update('chat-1', '1'); drawer.show(mount);
+  await flush();
+  const preview = document.querySelector<HTMLElement>('.artifact-preview')!;
+  expect(preview.textContent!.length).toBeLessThanOrEqual(2000);
+  expect(preview.classList.contains('is-cut')).toBe(true);
+  document.querySelector<HTMLButtonElement>('.artifact-copy')!.click();
+  await flush();
+  expect(deps.copy).toHaveBeenCalledWith(line);
+});
