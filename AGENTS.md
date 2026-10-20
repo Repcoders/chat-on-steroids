@@ -925,9 +925,10 @@ submenus beside their item, and is keyboard-driven (arrows, Right/Left for subme
 focus back to the button). A project's menu: New chat in this project (`data-new-project`, which
 also shows the chat screen), Color (a submenu: None and the palette as radio items, each calling
 the same `projects:color` owner; choices wait while a save is pending), Block all chats and, while one of
-its chats is blocked, Release all chats (`setProjectChatsBlocked`: the project's whole history is read, then
-each chat's own `sessions:block` is pressed and the toast counts them; no project policy is stored, so a
-chat started in the project later is not blocked, as the item and the toast say) and Remove. A chat's
+its chats is blocked (or a block's chat sits on a page of its history not read yet), Release all chats
+(`setProjectChatsBlocked`: the project's whole history is read, then each chat's own `sessions:block` is
+pressed, by Block also for a chat that only inherits a block, and the toast counts them; no project policy
+is stored, so a chat started in the project later is not blocked, as the item and the toast say) and Remove. A chat's
 menu: Rename and Open in browser, Block/Release and, in strict mode, Trust/Untrust, then Remove;
 the Unattributed row offers only its app-wide Block/Allow (never in strict mode) and Remove.
 Choosing an item gives focus back to the row's button before the action runs, so a color save's

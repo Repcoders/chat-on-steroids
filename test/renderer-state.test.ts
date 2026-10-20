@@ -625,6 +625,62 @@ it('blocks every chat of a project from its menu, older pages included, and rele
   expect(rowMenuItem(heading(), 'release-project')).toBeNull();
 });
 
+it('offers Release all chats for a blocked chat on a project page the sidebar has not read', async () => {
+  const { project, session } = projectSidebarFixture();
+  const chat = (id: string, extra: Record<string, unknown> = {}) =>
+    ({ ...session, id, title: id, conversationId: `c-${id}`, chatIds: [`c-${id}`], ...extra });
+  const recent = chat('p1', { updatedAt: 30 });
+  const older = chat('p3', { updatedAt: 10 });
+  const blocked = new Set<string>([older.conversationId]);
+  const page = (sessions: unknown[], nextCursor: unknown = null) =>
+    ({ ok: true, data: { sessions, activeId: null, pressure: [], blocked: [...blocked], trusted: [], nextCursor } });
+  // The blocked chat is only on the project's second page; the sidebar's own page lacks it.
+  const listSessions = vi.fn(async (options?: { projectId?: string; cursor?: unknown }) => options?.projectId !== project.id
+    ? page([recent])
+    : options.cursor ? page([older]) : page([recent], { updatedAt: 30, id: 'p1' }));
+  const setSessionBlocked = vi.fn(async (id: string, block: boolean) => {
+    const owner = id === older.id ? older.conversationId : recent.conversationId;
+    if (block) blocked.add(owner); else blocked.delete(owner);
+    return { ok: true, data: [...blocked] };
+  });
+  const mounted = await mountChat({}, [], { listProjects: async () => ({ ok: true, data: [project] }), listSessions, setSessionBlocked });
+  const doc = mounted.window.document;
+  const heading = () => doc.querySelector<HTMLElement>(`[data-project-id="${project.id}"] .project-heading`)!;
+  await vi.waitFor(() => expect(doc.querySelector(`[data-project-id="${project.id}"]`)).not.toBeNull());
+  rowMenuItem(heading(), 'release-project')!.click();
+  await vi.waitFor(() => expect(doc.querySelector('.toast')?.textContent).toBe('Released 1 chat.'));
+  expect(setSessionBlocked.mock.calls.map(([id, value]) => [id, value])).toEqual([['p3', false]]);
+  // The whole history is read now and nothing in it is blocked, so the item goes away.
+  expect(rowMenuItem(heading(), 'release-project')).toBeNull();
+});
+
+it('gives a chat that only inherits a block its own block when its project is blocked', async () => {
+  const { project, session } = projectSidebarFixture();
+  const plain = { ...session, id: 'p1', title: 'p1', conversationId: 'c-p1', chatIds: ['c-p1'], updatedAt: 20 };
+  // Resumed from an earlier blocked chat: in strict mode it shows Blocked without a block of its own.
+  const resumed = {
+    ...session, id: 'p2', title: 'p2', conversationId: 'c-p2', chatIds: ['c-src', 'c-p2'], updatedAt: 30,
+    lastHandoffId: 'handoff-resume-0002', lastHandoffAt: 1, lastCommittedResumeHandoffId: 'handoff-resume-0002'
+  };
+  const blocked = new Set<string>(['c-src']);
+  const page = () => ({ ok: true, data: { sessions: [resumed, plain], activeId: null, pressure: [], blocked: [...blocked], trusted: [], nextCursor: null } });
+  const setSessionBlocked = vi.fn(async (id: string, block: boolean) => {
+    const owner = id === resumed.id ? resumed.conversationId : plain.conversationId;
+    if (block) blocked.add(owner); else blocked.delete(owner);
+    return { ok: true, data: [...blocked] };
+  });
+  const mounted = await mountChat({}, [], { listProjects: async () => ({ ok: true, data: [project] }), listSessions: async () => page(), setSessionBlocked });
+  const doc = mounted.window.document;
+  mounted.state.config.multiAgent.strictChatAllowlist = true;
+  mounted.push(structuredClone(mounted.state));
+  const heading = () => doc.querySelector<HTMLElement>(`[data-project-id="${project.id}"] .project-heading`)!;
+  await vi.waitFor(() => expect(doc.querySelector(`[data-project-id="${project.id}"]`)).not.toBeNull());
+  rowMenuItem(heading(), 'block-project')!.click();
+  await vi.waitFor(() => expect(doc.querySelector('.toast')?.textContent).toBe('Blocked 2 chats. Chats started later are not blocked.'));
+  expect(setSessionBlocked.mock.calls.map(([id, value]) => [id, value])).toEqual([['p2', true], ['p1', true]]);
+  expect(blocked.has('c-p2')).toBe(true);
+});
+
 it('draws the sidebar layout saved in Appearance, Projects by default, and repaints when it changes', async () => {
   const { project, session } = projectSidebarFixture();
   const mounted = await mountChat({}, [], {

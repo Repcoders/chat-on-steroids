@@ -208,7 +208,7 @@ function projectMenuItems(id: string): RowMenuItem[] {
       title: () => t('Block every chat in this project: their tool calls are refused. Chats started later are not blocked.'),
       run: () => void setProjectChatsBlocked(id, true)
     },
-    ...(sessions.some(entry => entry.projectId === id && chatToolPolicy(entry) === 'blocked') ? [{
+    ...(projectMayHoldBlockedChat(id) ? [{
       action: 'release-project', icon: 'i-play', disabled: blockingProject.has(id),
       label: () => t('Release all chats'), title: () => t("Release this project's blocked chats: their tool calls run again"),
       run: () => void setProjectChatsBlocked(id, false)
@@ -222,11 +222,25 @@ function projectMenuItems(id: string): RowMenuItem[] {
 }
 
 /**
+ * Whether Release all chats has something to release: a held row of the project is blocked, or,
+ * while part of its history is unread, a block belongs to a conversation no held row carries.
+ */
+function projectMayHoldBlockedChat(id: string): boolean {
+  if (sessions.some(entry => entry.projectId === id && chatToolPolicy(entry) === 'blocked')) return true;
+  const history = projectHistory.get(id);
+  if (history?.asked && !history.cursor) return false;
+  const held = new Set(sessions.flatMap(entry => entry.chatIds));
+  return [...blockedChats].some(conversationId => !held.has(conversationId));
+}
+
+const blockingProject = new Set<string>();
+/**
  * Blocks every chat of the project, or releases its blocked ones, through each chat's own
  * `sessions:block`: no project-wide policy is stored. The project's whole history is read first,
  * so a chat on an older page is included, and its rows join the sidebar as expanding it does.
+ * Block gives each chat its own block, also one that only inherits a block from an earlier chat,
+ * so releasing that earlier chat later does not release it.
  */
-const blockingProject = new Set<string>();
 async function setProjectChatsBlocked(id: string, blocked: boolean): Promise<void> {
   if (blockingProject.has(id)) return;
   blockingProject.add(id);
@@ -243,7 +257,13 @@ async function setProjectChatsBlocked(id: string, blocked: boolean): Promise<voi
     } while (read.cursor);
     mergeSessionRows(chats);
     loadedOlderSessions = true;
-    const targets = chats.filter(entry => !!entry.conversationId && (chatToolPolicy(entry) === 'blocked') !== blocked);
+    const history = projectHistory.get(id) ?? { cursor: null, asked: false, loading: false };
+    history.asked = true;
+    history.cursor = null;
+    history.failed = false;
+    projectHistory.set(id, history);
+    const targets = chats.filter(entry => !!entry.conversationId &&
+      (blocked ? !blockedChats.has(entry.conversationId) : chatToolPolicy(entry) === 'blocked'));
     let changed = 0;
     for (const entry of targets) {
       const reply = await api.setSessionBlocked(entry.id, blocked);
