@@ -1,5 +1,5 @@
 // Production renderer and real Chromium input; synthetic conversations only.
-// Bulk select: Ctrl/Cmd-click and Shift-click pick several sidebar chats, a bar counts them, and its menu
+// Bulk select: Cmd-click (Ctrl-click off macOS) and Shift-click pick several sidebar chats, a bar counts them, and its menu
 // (or a picked row's) pins, marks read, blocks and removes all of them; Remove asks with the count first.
 const { app, BrowserWindow } = require('electron');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
@@ -67,11 +67,14 @@ app.whenReady().then(async () => {
   assert.equal(await bar(),null,'No bar before anything is picked');
   await capture('1-before.png');
 
-  // With one chat open, Ctrl/Cmd-click picks four more (the open one comes along) without opening them.
+  // With one chat open, Cmd/Ctrl-click picks four more (the open one comes along) without opening them.
   await click('chat-1');
   await until(`${row('chat-1')}.classList.contains('is-sel')`);
+  // Each click as the page saw it, so a platform that loses the modifier says so in the failure.
+  await js(`window.clicks=[];document.addEventListener('click',e=>window.clicks.push({id:e.target.closest('[data-id]')?.dataset.id,meta:e.metaKey,ctrl:e.ctrlKey}),true)`);
   for (const id of ['chat-2','chat-3','chat-4','chat-5']) await click(id,ctrl);
-  assert.deepEqual(await picked(),['chat-1','chat-2','chat-3','chat-4','chat-5']);
+  assert.deepEqual(await picked(),['chat-1','chat-2','chat-3','chat-4','chat-5'],
+    `${mac?'Cmd':'Ctrl'}-click picks four more: ${JSON.stringify({picked:await picked(),clicks:await js('window.clicks')})}`);
   assert.equal(await bar(),'5 chats selected');
   assert.equal(await js(`document.querySelector('#sessionList .sess.is-sel')?.dataset.id ?? null`),'chat-1','Picking opens no chat');
   // A screen reader hears which rows are picked, not only how many.
@@ -148,4 +151,4 @@ app.whenReady().then(async () => {
   assert.deepEqual(errors,[]);
   console.log('PASS: Ctrl/Shift-click picks several chats, the bar counts them, and Pin, Mark as read, Block and Remove reach all of them');
   win.destroy();await server.close();app.exit(0);
-}).catch(async error=>{fs.mkdirSync(output,{recursive:true});if(win&&!win.isDestroyed())fs.writeFileSync(path.join(output,'failure.png'),(await win.webContents.capturePage()).toPNG());console.error(error);await server?.close();app.exit(1);});
+}).catch(async error=>{fs.mkdirSync(output,{recursive:true});if(win&&!win.isDestroyed())fs.writeFileSync(path.join(output,'failure.png'),(await win.webContents.capturePage()).toPNG());console.error(error);if(error?.code==='ERR_ASSERTION')console.error('AssertionError values: '+JSON.stringify({actual:error.actual,expected:error.expected}));await server?.close();app.exit(1);});

@@ -4110,7 +4110,8 @@ workers or unattributed activity. Pinned rows carry a quiet pin mark at rest (it
 row's "⋯" on hover, focus or while its menu is open), and Pin chat/Unpin chat is the first item of
 the chat's row menu, keeping keyboard focus on the rebuilt row's menu button.
 `renderer/sidebar-selection.ts` holds the chats picked for one action on several; it is never saved.
-Ctrl/Cmd-click or Ctrl+Space toggles a pinnable chat, Shift-click or Shift+Space adds the run from the
+Cmd-click on macOS (Ctrl-click elsewhere; a Mac's Ctrl-click is a right click and opens the menu) or
+Ctrl/Cmd+Space toggles a pinnable chat (`pickGesture`), Shift-click or Shift+Space adds the run from the
 last pick in sidebar order, and the first pick also takes the open chat. Picking opens nothing; a plain
 click or Escape lets the picks go, and rows hidden in a collapsed group drop out on the next paint. A bar
 above the list counts them, and its "⋯" and a picked row's menu offer Pin all/Unpin all, Mark all as read

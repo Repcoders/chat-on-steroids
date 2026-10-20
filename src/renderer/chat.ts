@@ -24,7 +24,7 @@ import { shownSessionTitle } from './session-title.js';
 import { preserveTimelineViewport, ROUNDING_PX } from './timeline-scroll.js';
 import { createSidebarOrder, SIDEBAR_PROJECT_SCOPE } from './sidebar-order.js';
 import { createSidebarPins, pinnedSortScope } from './sidebar-pins.js';
-import { createSidebarSelection } from './sidebar-selection.js';
+import { createSidebarSelection, pickGesture } from './sidebar-selection.js';
 import { createSidebarCompletionState } from './sidebar-completion.js';
 import { toolResultText } from './tool-result.js';
 import { renderEditCards } from './tool-artifacts.js';
@@ -1236,15 +1236,15 @@ function pickedChats(): SessionSummary[] {
 const pickedLabel = (): string => tn('{0} chat selected', '{0} chats selected', sidebarSelection.size);
 
 /**
- * Ctrl/Cmd-click (or Ctrl+Space) picks one chat more, Shift-click (or Shift+Space) the run up to it.
- * Says whether it picked, so the click does not also open the chat.
+ * Cmd-click on macOS, Ctrl-click elsewhere (or Ctrl+Space) picks one chat more, Shift-click (or
+ * Shift+Space) the run up to it. Says whether it picked, so the click does not also open the chat.
  */
 function pickSession(event: MouseEvent | KeyboardEvent, id: string): boolean {
-  const extend = event.shiftKey, toggle = event.ctrlKey || event.metaKey;
+  const gesture = pickGesture(event, event instanceof KeyboardEvent);
   const entry = sessions.find(row => row.id === id);
-  if ((!extend && !toggle) || event.altKey || !entry || !pinnable(entry)) return false;
+  if (!gesture || !entry || !pinnable(entry)) return false;
   const order = shownPickable();
-  if (extend) sidebarSelection.extend(id, selectedId, order);
+  if (gesture === 'extend') sidebarSelection.extend(id, selectedId, order);
   else sidebarSelection.toggle(id, selectedId, order);
   paintSessions();
   // The rows were rebuilt: the keyboard stays on the same chat.

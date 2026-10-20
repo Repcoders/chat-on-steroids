@@ -1,5 +1,7 @@
-import { expect, it } from 'vitest';
-import { createSidebarSelection } from '../src/renderer/sidebar-selection.js';
+import { afterEach, expect, it, vi } from 'vitest';
+import { createSidebarSelection, pickGesture } from '../src/renderer/sidebar-selection.js';
+
+afterEach(() => { vi.unstubAllGlobals(); });
 
 const order = ['a', 'b', 'c', 'd', 'e', 'f'];
 
@@ -48,4 +50,31 @@ it('lets go of chats the sidebar no longer shows', () => {
   expect(picked.clear()).toBe(true);
   expect(picked.clear()).toBe(false);
   expect(picked.size).toBe(0);
+});
+
+const keys = (held: Partial<Record<'shiftKey' | 'ctrlKey' | 'metaKey' | 'altKey', boolean>> = {}) =>
+  ({ shiftKey: false, ctrlKey: false, metaKey: false, altKey: false, ...held });
+
+it('picks with Cmd-click on macOS, where Ctrl-click is a right click, and with Ctrl-click elsewhere', () => {
+  vi.stubGlobal('navigator', { platform: 'MacIntel' });
+  expect(pickGesture(keys({ metaKey: true }))).toBe('toggle');
+  expect(pickGesture(keys({ ctrlKey: true }))).toBeNull();
+  expect(pickGesture(keys({ ctrlKey: true, shiftKey: true }))).toBeNull();
+  expect(pickGesture(keys({ shiftKey: true }))).toBe('extend');
+  expect(pickGesture(keys({ metaKey: true, altKey: true }))).toBeNull();
+  expect(pickGesture(keys())).toBeNull();
+  vi.stubGlobal('navigator', { platform: 'Win32' });
+  expect(pickGesture(keys({ ctrlKey: true }))).toBe('toggle');
+  expect(pickGesture(keys({ metaKey: true }))).toBeNull();
+  expect(pickGesture(keys({ shiftKey: true }))).toBe('extend');
+});
+
+it('Space picks with either modifier: the keyboard has no right click, and Cmd+Space is Spotlight', () => {
+  for (const platform of ['MacIntel', 'Linux x86_64']) {
+    vi.stubGlobal('navigator', { platform });
+    expect(pickGesture(keys({ ctrlKey: true }), true)).toBe('toggle');
+    expect(pickGesture(keys({ metaKey: true }), true)).toBe('toggle');
+    expect(pickGesture(keys({ shiftKey: true }), true)).toBe('extend');
+    expect(pickGesture(keys(), true)).toBeNull();
+  }
 });

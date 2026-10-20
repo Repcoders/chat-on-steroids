@@ -1,5 +1,23 @@
+import { isMac } from './shortcuts.js';
+
+type PickKeys = Pick<MouseEvent, 'shiftKey' | 'ctrlKey' | 'metaKey' | 'altKey'>;
+
 /**
- * Chats picked in the sidebar for one action on all of them: Ctrl/Cmd-click toggles a chat,
+ * What a click (or, with `keyboard`, Space) on a chat does to the picks. A click toggles with the
+ * platform's own modifier: Cmd on macOS, where Ctrl-click is a right click that opens the chat's
+ * menu, and Ctrl elsewhere. Space takes either, since the keyboard has no such clash and Cmd+Space
+ * is usually Spotlight. Shift adds the run; Alt, and the other platform's modifier, pick nothing.
+ */
+export function pickGesture(event: PickKeys, keyboard = false): 'toggle' | 'extend' | null {
+  const mac = isMac();
+  const primary = keyboard ? event.ctrlKey || event.metaKey : mac ? event.metaKey : event.ctrlKey;
+  const foreign = !keyboard && (mac ? event.ctrlKey : event.metaKey);
+  if (event.altKey || foreign) return null;
+  return event.shiftKey ? 'extend' : primary ? 'toggle' : null;
+}
+
+/**
+ * Chats picked in the sidebar for one action on all of them: Cmd-click (Ctrl-click off macOS) toggles a chat,
  * Shift-click adds the run from the last picked chat. Presentation only and never saved: the
  * open chat is not changed by picking, and each action goes through the same owner as its
  * row-menu item.
