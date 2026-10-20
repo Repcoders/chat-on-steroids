@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync, spawn } from 'node:child_process';
 import { statSync, watch as watchFs, type FSWatcher } from 'node:fs';
 import type { Stats } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import type { ProjectGitChange, ProjectGitChanged, ProjectGitCommit, ProjectGitDiff, ProjectGitSnapshot, ProjectGitStatus } from '../shared/project-git.js';
 import { getConfig } from './config.js';
@@ -16,8 +17,6 @@ const MAX_BRANCHES = 1_000;
 const MAX_DIFF_SIDE_BYTES = 512 * 1024;
 const UNTRACKED_STAT_BATCH = 16;
 const GIT_TIMEOUT_MS = 15_000;
-// A commit runs the repository's own hooks, which may lint or test before they let it through.
-const GIT_COMMIT_TIMEOUT_MS = 120_000;
 const CHANGE_DEBOUNCE_MS = 180;
 
 interface GitResult { code: number; stdout: Buffer; stderr: string; }
@@ -123,7 +122,7 @@ export function gitExecutable(
   throw new Error('Git was not found on PATH');
 }
 
-async function runGit(cwd: string, args: string[], maxBytes = MAX_GIT_OUTPUT_BYTES, timeoutMs = GIT_TIMEOUT_MS): Promise<GitResult> {
+async function runGit(cwd: string, args: string[], maxBytes = MAX_GIT_OUTPUT_BYTES): Promise<GitResult> {
   const executable = gitExecutable();
   return new Promise((resolve, reject) => {
     const child = spawn(executable, ['--no-optional-locks', ...args], {
@@ -141,7 +140,7 @@ async function runGit(cwd: string, args: string[], maxBytes = MAX_GIT_OUTPUT_BYT
     const timer = setTimeout(() => {
       child.kill();
       finish(new Error('Git took too long to respond'));
-    }, timeoutMs);
+    }, GIT_TIMEOUT_MS);
     child.once('error', error => finish(error));
     child.stdout.on('data', (chunk: Buffer) => {
       stdoutBytes += chunk.length;
@@ -481,9 +480,12 @@ async function writableContext(projectId: string): Promise<RepositoryContext> {
   return context;
 }
 
-async function gitWrite(context: RepositoryContext, args: string[], timeoutMs?: number): Promise<void> {
+async function gitWrite(context: RepositoryContext, args: string[]): Promise<void> {
+  // Hooks and the signing program are files in the repository an agent can write, so a click in
+  // Review runs neither: hooks resolve under the null device, where none can exist.
   // Literal pathspecs: a file named `*.ts` stages that file, not every TypeScript file.
-  const result = await runGit(context.projectReal, ['--literal-pathspecs', ...args], 64 * 1024, timeoutMs);
+  const result = await runGit(context.projectReal, ['-c', `core.hooksPath=${os.devNull}`, '-c', 'commit.gpgSign=false',
+    '--literal-pathspecs', ...args], 64 * 1024);
   if (result.code !== 0) throw new Error(result.stderr || 'Git could not complete this change');
 }
 
@@ -526,7 +528,7 @@ export async function commitProjectGit(projectId: string, message: string, expec
   if (expected.size !== staged.size || [...staged].some(entry => !expected.has(entry))) {
     throw new Error('The staged files changed. Check them again before committing.');
   }
-  await gitWrite(context, ['commit', '--quiet', '-m', message], GIT_COMMIT_TIMEOUT_MS);
+  await gitWrite(context, ['commit', '--quiet', '-m', message]);
   const head = await runGit(context.projectReal, ['rev-parse', '--verify', '--quiet', 'HEAD'], 128);
   const oid = head.code === 0 ? decode(head.stdout).trim() : '';
   if (!/^[0-9a-f]{40,64}$/.test(oid)) throw new Error('Git returned an invalid HEAD');

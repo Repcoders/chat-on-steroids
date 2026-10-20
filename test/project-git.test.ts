@@ -419,3 +419,23 @@ it('unstages before the first commit and never commits a file staged outside the
   await commitProjectGit(id, 'First', ['inside.txt']);
   expect(await headFiles(root)).toEqual(['First', '', 'app/inside.txt']);
 });
+
+it('commits from Review without running repository hooks or a configured signing program', async () => {
+  const { root, id } = await committedProject();
+  // Hooks and Git config are plain files an agent with file access can write; a Commit click must not run them.
+  const marker = path.join(directory, 'ran.txt');
+  const script = `#!/bin/sh\necho "$0" >> '${marker.replaceAll(path.sep, '/')}'\n`;
+  for (const hook of ['pre-commit', 'prepare-commit-msg', 'commit-msg', 'post-commit', 'post-index-change']) {
+    await fs.writeFile(path.join(root, '.git', 'hooks', hook), script, { mode: 0o755 });
+  }
+  const signer = path.join(directory, 'signer.sh');
+  await fs.writeFile(signer, script, { mode: 0o755 });
+  await git(root, 'config', 'commit.gpgSign', 'true');
+  await git(root, 'config', 'gpg.program', signer.replaceAll(path.sep, '/'));
+  await fs.writeFile(path.join(root, 'added.ts'), 'export const added = true;\n');
+
+  await setProjectGitStaged(id, 'added.ts', true);
+  await commitProjectGit(id, 'Add file', ['added.ts']);
+  expect(await headFiles(root)).toEqual(['Add file', '', 'added.ts']);
+  await expect(fs.readFile(marker, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+});

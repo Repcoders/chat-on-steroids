@@ -4551,8 +4551,9 @@ re-resolves the approved project/root and Git metadata before reading status or 
 inspection strips inherited Git repository/index redirects and uses optional-lock-free bounded
 subprocesses. In the Working tree view each change except a conflict has a stage checkbox
 (`projectGit:stage`, `git add --all` or `git reset`/`git rm --cached` before the first commit, with
-literal pathspecs), and a commit box commits the index (`projectGit:commit`, plain `git commit -m`,
-so the repository's own hooks run). Main rereads Git before each write: a file must still be a
+literal pathspecs), and a commit box commits the index (`projectGit:commit`, `git commit -m`).
+Both writes pin `core.hooksPath` to the null device and turn commit signing off: hooks and
+`gpg.program` are repository files an agent can write, so a click never runs them. Main rereads Git before each write: a file must still be a
 current change, and a commit is refused unless the index holds exactly the paths the renderer showed
 as staged, nothing outside the Local Project and no conflict. `ProjectGitChange.staged` (`all` or
 `partial`, from the index column of `git status`) is the checkbox state; `ProjectGitSnapshot.readOnly`
