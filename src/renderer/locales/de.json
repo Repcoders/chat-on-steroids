@@ -2822,5 +2822,15 @@
   "Chats sit under their project folders.": "Chats stehen unter ihren Projektordnern.",
   "All chats in one list, active ones on top.": "Alle Chats in einer Liste, aktive oben.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Wie viele Unteragenten-Chats ein Chat höchstens gleichzeitig ausführen darf. Benötigt die verbundene Browser-Erweiterung.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Lange Arbeit läuft direkt nach einem Tool-Ergebnis in einem neuen Durchlauf mit automatischem Weiter weiter. Kürzere Durchläufe brechen seltener ab. Auch in Goal- und Loop-Chats; nicht bei Pro-Modellen und nicht in den Chats von Unteragenten."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Lange Arbeit läuft direkt nach einem Tool-Ergebnis in einem neuen Durchlauf mit automatischem Weiter weiter. Kürzere Durchläufe brechen seltener ab. Auch in Goal- und Loop-Chats; nicht bei Pro-Modellen und nicht in den Chats von Unteragenten.",
+  "Artifacts": "Artefakte",
+  "Open a chat to see its artifacts": "Öffne einen Chat, um seine Artefakte zu sehen",
+  "Artifacts filter": "Artefakte filtern",
+  "Tables": "Tabellen",
+  "Formulas": "Formeln",
+  "Formula": "Formel",
+  "Answer {0}": "Antwort {0}",
+  "Show in chat": "Im Chat zeigen",
+  "Showing the first {0}": "Die ersten {0} werden gezeigt",
+  "No code, tables or formulas in this chat": "Kein Code, keine Tabellen und keine Formeln in diesem Chat"
 }

@@ -4477,7 +4477,7 @@ The Files panel projects the current session's LocalProject through fixed IPC us
 UUID and relative paths. It does not change the main composer or grant additional filesystem
 access. Main re-resolves current approved roots and rejects traversal, symbolic links/junctions
 and project-root mutation. The renderer's `workspace-docks.ts` owns the right tool dock and
-bottom terminal dock; Files, Review, Sub-agents and each Terminal view retain their own content
+bottom terminal dock; Files, Review, Sub-agents, Artifacts and each Terminal view retain their own content
 and async lifetimes. Closing the right dock hides its active tool but retains its tab selection.
 Every dock track change (right column, bottom row) goes through `moveWorkDock`, which animates
 resolved pixel tracks (CSS keeps the resting layout). Open/close slide the content whole at its
@@ -4488,7 +4488,16 @@ and bottom-terminal tabs share one pill layout with a truncating `.tab-label`, a
 pointer drag or Ctrl+Shift+Left/Right; the owner's order stays authoritative. Selecting a tab
 updates the existing pills; only tab, order or title changes rebuild them.
 The right dock has launcher shortcuts, tool tabs and a `+` tool menu. Its Files, Review,
-Sub-agents and Terminal actions open right tabs; repeated Terminal `+` actions add a shell there.
+Sub-agents, Artifacts and Terminal actions open right tabs (Ctrl+Shift+1-5 in the launcher's
+order); repeated Terminal `+` actions add a shell there. Artifacts (`renderer/artifacts-drawer.ts`)
+asks `sessions:artifacts { id }` → `SessionArtifactsReply { artifacts, limited? }`
+(`artifactsInSession` in `session/markdown-export.ts`: the code blocks, tables and display formulas
+of the whole recording's final answers, parsed from the full Markdown by `shared/answer-artifacts.ts`,
+in spoken order, at most 500 and 2,000,000 characters, `limited` beyond; each with its answer's
+number, the question before it, at most 120 characters, and its `SessionSearchLocation`). It
+filters by kind, copies an artifact as written through `clipboard:write` and opens its answer
+through `revealChatLocation`. It reads again when the chat's `lastAssistantFinalAt` or
+`lastTurnEndAt` moves, not when history pages load.
 With no tabs, the right dock shows only launcher shortcuts; its tab bar and `+` stay hidden.
 The `+` popover must receive real pointer input above any active tool header.
 The bottom dock has no generic shortcut screen or second tool tab strip; Terminal owns its own

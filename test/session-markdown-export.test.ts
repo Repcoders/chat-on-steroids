@@ -12,7 +12,7 @@ vi.mock('electron', () => electron);
 vi.mock('../src/main/session/store.js', () => store);
 vi.mock('node:fs', () => ({ promises: files }));
 
-const { exportSessionMarkdown } = await import('../src/main/session/markdown-export.js');
+const { artifactsInSession, exportSessionMarkdown } = await import('../src/main/session/markdown-export.js');
 
 const events: SessionEvent[] = [
   { seq: 1, time: 1, source: 'extension', kind: 'user_message', turnId: 't1', messageId: 'u1', message: { text: 'Explain it', truncated: false, chars: 10 } },
@@ -89,3 +89,39 @@ it('copies an answer recorded without a turn by its message id, and only such an
   await expect(exportSessionMarkdown({ id: 'session-1', scope: 'answer', messageId: 'a1', target: 'clipboard' }, null)).rejects.toThrow('no answer to export');
   await expect(exportSessionMarkdown({ id: 'session-1', scope: 'answer', target: 'clipboard' }, null)).rejects.toThrow('has not completed');
 });
+
+// Artifacts: the whole recording's answers, with the part the log cut, each tied to its answer.
+it('lists the code, tables and formulas of every answer with its question and place', async () => {
+  const fence = '```';
+  store.readEvents.mockResolvedValue([
+    events[0]!,
+    { ...events[1]!, origin: 2, seq: 6 },
+    events[2]!,
+    { seq: 4, time: 4, source: 'extension', kind: 'user_message', turnId: 't2', messageId: 'u2', message: { text: 'And   the  table?', truncated: false, chars: 17 } },
+    { seq: 5, time: 5, source: 'extension', kind: 'assistant_message', turnId: 't2', messageId: 'a2', final: true, state: 'final',
+      message: { text: '| A | B |\n|---|---|\n| 1 | 2 |', truncated: false, chars: 29 } },
+    { seq: 7, time: 7, source: 'extension', kind: 'assistant_message', turnId: 't2', messageId: 'p2', final: false, state: 'streaming',
+      message: { text: `${fence}js\nnot final\n${fence}`, truncated: false, chars: 20 } }
+  ] as SessionEvent[]);
+  store.readOverflowText.mockResolvedValue(`The first part.\n\n${fence}python\nprint(1)\n${fence}\n\n\\[\nx^2\n\\]`);
+  const first = { seq: 6, kind: 'assistant_message', messageId: 'a1', position: 2 };
+  await expect(artifactsInSession('session-1')).resolves.toEqual({ artifacts: [
+    { kind: 'code', language: 'python', text: 'print(1)', answer: 1, question: 'Explain it', location: first },
+    { kind: 'formula', text: 'x^2', answer: 1, question: 'Explain it', location: first },
+    { kind: 'table', text: '| A | B |\n|---|---|\n| 1 | 2 |', answer: 2, question: 'And the table?',
+      location: { seq: 5, kind: 'assistant_message', messageId: 'a2', position: 5 } }
+  ] });
+  expect(store.readOverflowText).toHaveBeenCalledWith('session-1', 'abcdef12.txt');
+});
+
+it('bounds a chat\'s artifacts and says when it lists only part of them', async () => {
+  const block = (n: number) => `\`\`\`\nline ${n}\n\`\`\``;
+  store.readEvents.mockResolvedValue(Array.from({ length: 30 }, (_, at) => (
+    { seq: at + 1, time: at + 1, source: 'extension', kind: 'assistant_message', messageId: `m${at}`, final: true, state: 'final',
+      message: { text: Array.from({ length: 20 }, (_, n) => block(at * 20 + n)).join('\n\n'), truncated: false, chars: 1 } })) as SessionEvent[]);
+  const reply = await artifactsInSession('session-1');
+  expect(reply.limited).toBe(true);
+  expect(reply.artifacts).toHaveLength(500);
+  expect(reply.artifacts.at(-1)).toMatchObject({ text: 'line 499', answer: 25 });
+});
+

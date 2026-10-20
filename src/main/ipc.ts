@@ -136,7 +136,7 @@ import {
 import { forgetSession, notifyChanged, onSessionChange } from './session/recorder.js';
 import { findInSession, locateMessage, locateSearchMatch, searchSessions } from './session/search.js';
 import { readSessionEvents, readSessionList, sessionListCursorSchema } from './session/read-model.js';
-import { exportSessionMarkdown } from './session/markdown-export.js';
+import { artifactsInSession, exportSessionMarkdown } from './session/markdown-export.js';
 import { blockedChatIds, setChatsBlocked } from './session/blocked-chats.js';
 import { setChatsTrusted, trustedChatIds } from './session/trusted-chats.js';
 import {
@@ -1285,6 +1285,11 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
       target: z.enum(['clipboard', 'file'])
     }).parse(payload);
     return exportSessionMarkdown(request, getWindow());
+  });
+  // The code blocks, tables and formulas of a chat's answers, for its Artifacts panel.
+  handle('sessions:artifacts', async (payload) => {
+    const { id } = sessionIdArg.strict().parse(payload);
+    return artifactsInSession(id);
   });
 
   // The Install button. The renderer decides nothing about what is installed - it cannot

@@ -28,6 +28,7 @@ const ICONS: Readonly<Record<string, string>> = {
   'i-check': 'check',
   'i-check-circle': 'check-circle',
   'i-clock': 'clock',
+  'i-code-block': 'code-block',
   'i-copy': 'copy',
   'i-dock-expand': 'corners-out',
   'i-dock-restore': 'corners-in',

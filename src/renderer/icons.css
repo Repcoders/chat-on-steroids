@@ -56,6 +56,7 @@
 .ph.ph-check-circle::before { content: '\e184'; }
 .ph.ph-stop-circle::before { content: '\e46e'; }
 .ph.ph-clock::before { content: '\e19a'; }
+.ph.ph-code-block::before { content: '\eafe'; }
 .ph.ph-copy::before { content: '\e1ca'; }
 .ph.ph-corners-in::before { content: '\e1ce'; }
 .ph.ph-corners-out::before { content: '\e1d0'; }

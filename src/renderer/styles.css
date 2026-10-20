@@ -4673,7 +4673,34 @@ select option::checkmark { order: 1; margin-inline-start: auto; color: var(--ink
 .work-dock-menu-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; text-align: left; font-size: calc(12px * var(--text-scale, 1)); }
 .work-dock-menu-item:hover, .work-dock-menu-item:focus-visible { background: var(--hover); }
 .work-dock-body { position: relative; display: flex; flex: 1; min-width: 0; min-height: 0; }
-.work-dock-body > :is(.file-panel, .agent-panel) { width: 100%; flex: 1; border-left: 0; }
+.work-dock-body > :is(.file-panel, .agent-panel, .artifacts) { width: 100%; flex: 1; border-left: 0; }
+/* Artifacts (artifacts-drawer.ts): the chat's code, tables and formulas, filtered by kind. */
+.artifacts { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--page); }
+.artifacts-filters { display: flex; flex-wrap: wrap; gap: 4px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.artifacts-filter { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--soft);
+  font: inherit; font-size: calc(12px * var(--text-scale, 1)); font-weight: 500; cursor: pointer; transition: background-color 120ms ease, color 120ms ease; }
+.artifacts-filter:hover:not(:disabled), .artifacts-filter.is-selected { background: var(--hover); color: var(--ink); }
+.artifacts-filter:disabled { color: var(--faint); cursor: default; }
+.artifacts-filter:focus-visible { outline: 1px solid var(--accent-edge); outline-offset: -1px; }
+.artifacts-count { color: var(--faint); font-variant-numeric: tabular-nums; }
+.artifacts-list { flex: 1; min-height: 0; margin: 0; padding: 8px 12px 24px; overflow-y: auto; list-style: none; }
+.artifact { padding: 10px 0 12px; border-bottom: 1px solid var(--line); }
+.artifact:last-child { border-bottom: 0; }
+.artifact-head { display: flex; align-items: center; gap: 8px; min-height: 26px; }
+.artifact-kind { min-width: 0; overflow: hidden; color: var(--ink); font-size: calc(12px * var(--text-scale, 1)); font-weight: 550; white-space: nowrap; text-overflow: ellipsis; }
+.artifact-lines { flex: none; color: var(--faint); font-size: calc(11px * var(--text-scale, 1)); font-variant-numeric: tabular-nums; }
+.artifact-copy { flex: none; margin-inline-start: auto; width: 26px; height: 26px; padding: 0; }
+.artifact-preview { position: relative; margin: 6px 0 0; padding: 8px 10px; max-height: calc(8 * 1.45em + 16px); overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--wash); color: var(--ink); font: calc(12px * var(--text-scale, 1))/1.45 var(--mono); white-space: pre; }
+.artifact-preview.is-cut { -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent); mask-image: linear-gradient(to bottom, #000 70%, transparent); }
+.artifact.is-formula .artifact-preview { white-space: pre-wrap; overflow-wrap: anywhere; }
+.artifact-source { display: flex; align-items: baseline; gap: 6px; width: 100%; min-width: 0; margin-top: 6px; padding: 3px 6px; border: 0; border-radius: 6px; background: transparent;
+  color: var(--soft); font: inherit; font-size: calc(12px * var(--text-scale, 1)); text-align: start; cursor: pointer; }
+.artifact-source:hover { background: var(--hover); color: var(--ink); }
+.artifact-source:focus-visible { outline: 1px solid var(--accent-edge); outline-offset: -1px; }
+.artifact-answer { flex: none; color: var(--faint); font-variant-numeric: tabular-nums; }
+.artifact-question { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.artifacts-status { margin: 16px 20px; color: var(--faint); font-size: calc(13px * var(--text-scale, 1)); }
 .work-dock-empty { width: 100%; display: grid; place-items: center; padding: 24px; }
 .work-dock-launch { display: grid; gap: 5px; width: min(360px, 100%); }
 .work-dock-quick { display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 12px; text-align: left; color: var(--soft); }
