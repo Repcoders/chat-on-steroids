@@ -1289,6 +1289,26 @@ describe('root namespace invariants', () => {
     }
   });
 
+  it('leaves the window on the newest folders when two demos are shared at once', async () => {
+    await saveConfig({ ...defaultConfig(), roots: [] });
+    const send = vi.fn();
+    currentWindow = { setBackgroundColor: vi.fn(), setTitleBarOverlay: vi.fn(), isDestroyed: () => false, webContents: { send } };
+    vi.mocked(dialog.showMessageBox).mockResolvedValue({ response: 1 } as never);
+    // The first state build is slow, so it finishes after the second demo's.
+    vi.mocked(safeStorage.isAsyncEncryptionAvailable).mockImplementationOnce(() => new Promise(resolve => setTimeout(() => resolve(true), 50)));
+    const demo = (): Promise<any> => handlers.get('roots:demo')!(null, undefined) as Promise<any>;
+    const replies = await Promise.all([demo(), demo()]);
+    const roots = getConfig().roots;
+    try {
+      expect(replies.map(reply => reply.ok)).toEqual([true, true]);
+      // An older state built before the second approval must not be the last one the window gets.
+      const states = send.mock.calls.filter(([channel]) => channel === 'state:changed').map(([, state]) => state);
+      expect(states.at(-1)?.config.roots.map((root: { name: string }) => root.name).sort()).toEqual(['demo', 'demo-2']);
+    } finally {
+      for (const root of roots) await fs.rm(path.dirname(root.path), { recursive: true, force: true });
+    }
+  });
+
   it('refuses a live rename into the reserved /skills namespace', async () => {
     const base = defaultConfig();
     await saveConfig({

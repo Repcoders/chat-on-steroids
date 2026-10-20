@@ -883,7 +883,10 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
       let shared = await resolvePath(getConfig().roots, demo.folder).catch(error => { if (error instanceof SandboxError) return null; throw error; });
       if (!shared) {
         added = await addApprovedRoot(demo.folder);
-        push('state:changed', await buildState());
+        // Newest wins, as in pushState: an older state finishing late must not hide this root.
+        const generation = ++statePushGeneration;
+        const state = await buildState();
+        if (generation === statePushGeneration) push('state:changed', state);
         shared = await resolvePath(getConfig().roots, demo.folder);
       }
       return { folder: shared.virtual, run: demo.run };
