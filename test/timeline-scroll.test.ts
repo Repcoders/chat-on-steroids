@@ -149,3 +149,34 @@ it('keeps a followed view exactly still when the content only changes by layout 
     expect(pane.scrollTop).toBe(height());
   } finally { dom.window.close(); }
 });
+
+it('anchors a work log by its lines, and by itself when none of them shows', () => {
+  const dom = new JSDOM('<div id="pane"><div id="timeline"><div class="work-log" data-timeline-key="log"><div data-timeline-key="step"></div></div></div></div>');
+  try {
+    const pane = dom.window.document.getElementById('pane')!;
+    const timeline = dom.window.document.getElementById('timeline')!;
+    const log = timeline.firstElementChild as HTMLElement, step = log.firstElementChild as HTMLElement;
+    Object.defineProperties(pane, { clientHeight: { value: 200 }, scrollHeight: { value: 1500 } });
+    pane.getBoundingClientRect = () => ({ top: 20 } as DOMRect);
+    let stepTop = 450;
+    log.getBoundingClientRect = () => ({ top: 20 + 400 - pane.scrollTop, bottom: 620 - pane.scrollTop, height: 200 } as DOMRect);
+    step.getBoundingClientRect = () => ({ top: 20 + stepTop - pane.scrollTop, bottom: 60 + stepTop - pane.scrollTop, height: 40 } as DOMRect);
+    step.getClientRects = () => [step.getBoundingClientRect()] as unknown as DOMRectList;
+    // Paging extended the log at its start: the line being read moved down, the log's top did not.
+    pane.scrollTop = 400;
+    let restore = preserveTimelineViewport(pane, timeline);
+    stepTop += 180;
+    restore();
+    expect(pane.scrollTop).toBe(580);
+    // Its lines folded out of sight (a closed routine fold): the log holds the reader's place.
+    step.getClientRects = () => [] as unknown as DOMRectList;
+    step.getBoundingClientRect = () => ({ top: 0, bottom: 0, height: 0 } as DOMRect);
+    let logTop = 400;
+    log.getBoundingClientRect = () => ({ top: 20 + logTop - pane.scrollTop, bottom: 220 + logTop - pane.scrollTop, height: 200 } as DOMRect);
+    pane.scrollTop = 400;
+    restore = preserveTimelineViewport(pane, timeline);
+    logTop += 90;
+    restore();
+    expect(pane.scrollTop).toBe(490);
+  } finally { dom.window.close(); }
+});

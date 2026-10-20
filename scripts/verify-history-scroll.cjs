@@ -86,12 +86,15 @@ app.whenReady().then(async () => {
     chat.initChat({state:()=>null,save:async()=>{}});chat.chatVisible(true);await frame();
     document.querySelector('#sessionList [data-id="history-fixture"]').click();
     for(let i=0;i<120&&!geometry().readerPresent;i++) await frame();
-    await waitFor(()=>geometry().readerPresent);
+    // The opening fills the pane plus the buffer requestHistory keeps above it (half a pane, 160-480px).
+    await waitFor(()=>{const g=geometry();return g.readerPresent&&g.height>=g.viewport+Math.min(480,Math.max(160,g.viewport/2));});
     await frame();
   })()`);
   win.webContents.debugger.attach('1.3');
   const initial = await win.webContents.executeJavaScript('geometry()');
-  assert.ok(initial.viewport > 0 && initial.height > initial.viewport, 'Opening fills the visible history without wheel input: '+JSON.stringify(initial));
+  assert.ok(initial.viewport > 0 && initial.height >= initial.viewport + Math.min(480, Math.max(160, initial.viewport / 2)),
+    'Opening fills the visible history and its buffer without wheel input: '+JSON.stringify(initial));
+  assert.ok(initial.records < 200, 'Opening reads only the newest stages, not the whole fixture: '+JSON.stringify(initial));
   let older = initial;
   const stages = [];
   // Each step is one wheel detent; a step at the top edge loads the next 30 rows above the reader.

@@ -4151,10 +4151,11 @@ edit's review button appears only on hover or keyboard focus. The live row after
 only line that shimmers. Once a turn has ended, its "Worked for" line folds the turn's work (its
 sentences, logs and lone steps; never the answer, errors or notes) and opens it by click, Enter or
 Space (`role="button"`, `aria-expanded`); the choice holds per turn until the chat is left. A turn
-that just ended folds; work already on screen when its line first appears (history paging in a long
-turn's question) stays open, hung from a hairline once opened. Find in chat skips folded work, and
-opening a search result inside it unfolds that turn. The rounds come
-from the turn's outline when one was recorded (`shared/turn-trace.ts`): its sentences, recaps and
+that just ended folds, in developer mode too, and a line drawn while its turn runs folds nothing;
+work already on screen when its line appears (history paging in a long turn's question, or a folded
+turn's question paging back in after it paged out) stays open, hung from a hairline once opened.
+Find in chat skips folded work, and opening a search result inside it unfolds that turn. The rounds
+come from the turn's outline when one was recorded (`shared/turn-trace.ts`): its sentences, recaps and
 answer id in ChatGPT's order. Recorded calls are aligned with the outline's calls as the longest
 order-preserving match on tool name, preferring calls that started within 90 s of when the page
 first showed them; ChatGPT can show calls that never reached this app (a 22-minute turn on

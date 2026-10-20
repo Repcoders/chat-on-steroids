@@ -3376,6 +3376,15 @@ describe('the work log', () => {
     expect([...log.querySelectorAll('.tool > summary b code')].map(code => code.textContent)).toEqual(['npm test', 'npm run typecheck']);
   });
 
+  it('sets only the command in the code face, in a batch and in a finished background command', async () => {
+    const { w } = await boot([toolCall(1, 'read'),
+      step(2, 'batch', { tool: 'exec_command', summary: { kind: 'run', tone: 'good', title: 'Ran 2 commands: npm test; npm run lint', metric: '✓ 3.1s' } }),
+      step(3, 'server', { tool: 'exec_command', summary: { kind: 'run', tone: 'good', title: 'Completed npm run dev', metric: '✓ 41s' } })]);
+    const titles = [...w.document.querySelectorAll<HTMLElement>('#timeline .work-log .tool > summary b')].slice(1);
+    expect(titles.map(title => [title.textContent, title.querySelector('code')?.textContent]))
+      .toEqual([['Ran 2 commands: npm test; npm run lint', 'npm test; npm run lint'], ['Completed npm run dev', 'npm run dev']]);
+  });
+
   it("puts a step's detail in the right-hand column, and on the tooltip when its outcome is shown there", async () => {
     const { w } = await boot([
       step(1, 'range', { summary: { kind: 'read', tone: 'neutral', title: 'Read src/x.ts', detail: 'lines 1–140', metric: '140 lines' } }),
@@ -3476,6 +3485,65 @@ describe('the work log', () => {
     const line = w.document.querySelector<HTMLElement>('#timeline .turn-worked.is-foldable')!;
     expect(line.getAttribute('aria-expanded')).toBe('false');
     expect(log.classList.contains('is-folded')).toBe(true);
+  });
+
+  it.each([false, true])('folds the work of a turn that just ended in developer mode, which draws no live line (answer before the end: %s)', async answerFirst => {
+    const at = Date.now() - 60_000;
+    const answer: SessionEvent = { kind: 'assistant_message', seq: 6, time: at + 50_000, source: 'extension', turnId: 'held-turn', messageId: 'answer', message: text('Done.'), final: true, state: 'final' };
+    const { w, append } = await boot([
+      { seq: 1, time: at, source: 'extension', kind: 'turn_start', turnId: 'held-turn' },
+      { kind: 'user_message', seq: 2, origin: 2, time: at + 100, source: 'extension', turnId: 'held-turn', messageId: 'q', message: text('Add cursor pagination') },
+      { kind: 'assistant_message', seq: 3, time: at + 2_000, source: 'extension', turnId: 'held-turn', messageId: 'say', message: text('I will start with the route.'), final: false },
+      { ...toolCall(4, 'read-route'), time: at + 3_000, turnId: 'held-turn' } as SessionEvent,
+      { ...toolCall(5, 'read-query'), time: at + 4_000, turnId: 'held-turn' } as SessionEvent
+    ], true, [], [], { developerMode: true });
+    const log = w.document.querySelector<HTMLElement>('#timeline .work-log')!;
+    expect(w.document.querySelector('#timeline .turn-status')).toBeNull();
+    // The answer can arrive before the turn ends: its line shows, and folds nothing while the turn runs.
+    if (answerFirst) {
+      await append([answer]);
+      expect(w.document.querySelector('#timeline .turn-worked')!.classList.contains('is-foldable')).toBe(false);
+      expect(log.classList.contains('is-folded')).toBe(false);
+    }
+    finished(w);
+    await append([...answerFirst ? [] : [answer], { seq: 7, time: at + 50_500, source: 'extension', kind: 'turn_end', turnId: 'held-turn', outcome: 'completed' }]);
+    const line = w.document.querySelector<HTMLElement>('#timeline .turn-worked.is-foldable')!;
+    expect(line.getAttribute('aria-expanded')).toBe('false');
+    expect(log.classList.contains('is-folded')).toBe(true);
+  });
+
+  it('keeps a folded turn open when its question pages out and back in while its work is on screen', async () => {
+    // 162 events: once the oldest page is in, the next newer page drops exactly the turn's start and question.
+    const later = Array.from({ length: 155 }, (_, i): SessionEvent => ({ seq: i + 8, time: T0 + 200_000 + i,
+      source: 'extension', kind: 'user_message', messageId: `later-${i}`, message: text(`Later item ${i + 1}.`) }));
+    const { w, append } = await boot([...foldedTurn, ...later]);
+    finished(w);
+    await append([]);
+    const timeline = w.document.getElementById('timeline')!;
+    const pane = w.document.getElementById('chatBody')!;
+    Object.defineProperties(pane, { clientHeight: { configurable: true, value: 400 },
+      scrollHeight: { configurable: true, get: () => timeline.querySelectorAll('[data-timeline-key]').length * 20 } });
+    w.HTMLElement.prototype.getBoundingClientRect = function () {
+      const index = [...timeline.querySelectorAll('[data-timeline-key]')].indexOf(this);
+      const top = index < 0 ? 0 : index * 20 - pane.scrollTop;
+      return { top, bottom: top + 20, height: 20 } as DOMRect;
+    };
+    const asked = () => timeline.textContent!.includes('Add cursor pagination');
+    const wheel = async (deltaY: number) => {
+      pane.scrollTop = deltaY < 0 ? 0 : pane.scrollHeight - pane.clientHeight;
+      pane.dispatchEvent(new w.WheelEvent('wheel', { deltaY }));
+      await settleHistoryFrame(w);
+    };
+    for (let i = 0; i < 10 && !asked(); i++) await wheel(-100);
+    expect(timeline.querySelector('.work-log')!.classList.contains('is-folded')).toBe(true);
+    await wheel(100);
+    // Its work stays, now with no line over it, and shows.
+    expect(asked()).toBe(false);
+    expect(timeline.querySelector('.work-log')!.classList.contains('is-folded')).toBe(false);
+    for (let i = 0; i < 4 && !asked(); i++) await wheel(-100);
+    expect(asked()).toBe(true);
+    expect(timeline.querySelector('.turn-worked.is-foldable')!.getAttribute('aria-expanded')).toBe('true');
+    expect(timeline.querySelector('.work-log')!.classList.contains('is-folded')).toBe(false);
   });
 
   it('keeps work open that was on screen before history paged in its question', async () => {

@@ -4044,6 +4044,7 @@ function forgetTimelineRows(): void {
   openTurns.clear();
   decidedTurns.clear();
   liveTurnAsked = null;
+  runningTurnAsked = null;
   rowCache.clear();
 }
 
@@ -4072,8 +4073,9 @@ function stepTitle(call: Extract<SessionEvent, { kind: 'tool_call' }>['call']): 
   const failed = 'Command failed ';
   const title = call.tool === 'exec_command' && call.summary.title.startsWith(failed) ? `Ran ${call.summary.title.slice(failed.length)}` : call.summary.title;
   const line = el('b', '');
-  // A command reads as the command it was, in the code face, after the verb this app put before it.
-  const verb = call.tool === 'exec_command' ? /^(Ran|Started) (?=\S)/.exec(title)?.[0] : undefined;
+  // A command reads as the command it was, in the code face, after the words this app put before it
+  // ("Ran ", "Completed " once a background command ends, or "Ran 3 commands: " for a batch).
+  const verb = call.tool === 'exec_command' ? /^(?:Ran|Started|Completed) (?:\d+ commands: )?(?=\S)/.exec(title)?.[0] : undefined;
   if (verb) line.append(verb, el('code', 'step-command', title.slice(verb.length)));
   else line.textContent = title;
   return line;
@@ -6204,6 +6206,8 @@ const turnWork = new WeakMap<HTMLElement, HTMLElement[]>();
 const decidedTurns = new Set<string>();
 /** The turn the timeline last drew as running, by the same key: its work folds once it ends. */
 let liveTurnAsked: string | null = null;
+/** The turn still running in the last paint, by the same key: it never folds. */
+let runningTurnAsked: string | null = null;
 
 /**
  * A finished turn folds its work (its sentences and steps) under its "Worked for" line, so your
@@ -6215,13 +6219,20 @@ let liveTurnAsked: string | null = null;
 function foldWorkedTurns(rows: readonly HTMLElement[]): void {
   let line: HTMLElement | null = null;
   let work: HTMLElement[] = [];
+  const drawn = new Set<string>();
   for (const row of [...rows, null]) {
     if (!row || row.matches('.ev-user_message, .turn-worked')) {
       if (line) {
         const turn = line.dataset.turn ?? '';
-        if (!decidedTurns.has(turn)) {
+        drawn.add(turn);
+        // A line drawn while its turn still runs (developer mode shows no live line) folds nothing yet.
+        if (turn === runningTurnAsked) work = [];
+        else if (!decidedTurns.has(turn)) {
           decidedTurns.add(turn);
-          if (turn !== liveTurnAsked && work.some(shown => shown.isConnected && !shown.classList.contains('is-folded'))) openTurns.add(turn);
+          // The turn that just ended folds once; deciding again later (its question paged back in),
+          // it is any other turn.
+          if (turn === liveTurnAsked) liveTurnAsked = null;
+          else if (work.some(shown => shown.isConnected && !shown.classList.contains('is-folded'))) openTurns.add(turn);
         }
         turnWork.set(line, work);
         paintTurnFold(line);
@@ -6231,6 +6242,9 @@ function foldWorkedTurns(rows: readonly HTMLElement[]): void {
     } else if (line && workRows.has(row)) work.push(row);
     else row.classList.remove('is-folded', 'is-unfolded');
   }
+  // A turn whose question paged out shows its work with no line over it. Its line decides again
+  // when the question pages back in, so work on screen then stays open and never vanishes.
+  for (const turn of decidedTurns) if (!drawn.has(turn)) decidedTurns.delete(turn);
 }
 
 function paintTurnFold(line: HTMLElement): void {
@@ -6280,6 +6294,11 @@ function placeTurnLines(rows: HTMLElement[], workedSeconds: ReadonlyMap<number, 
   // A page of history read further up ends before the chat does: its newest question is not the one
   // the running turn answers, so it keeps its own worked line and the live one stays off it.
   const live = working && timelineReachesEnd();
+  // The turn open now folds once it ends, whichever line shows it while it runs (the live one, or
+  // none in developer mode).
+  const open = openTurnId(events) !== null && timelineReachesEnd() ? asks.at(-1) : undefined;
+  runningTurnAsked = open ? String(open.asked) : null;
+  if (runningTurnAsked) liveTurnAsked = runningTurnAsked;
   const used = new Set<string>();
   // Insert from the end so earlier indices stay valid.
   for (let i = asks.length - 1; i >= 0; i--) {
