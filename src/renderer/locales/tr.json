@@ -2822,5 +2822,15 @@
   "Chats sit under their project folders.": "Sohbetler proje klasörlerinin altında durur.",
   "All chats in one list, active ones on top.": "Tüm sohbetler tek listede, etkin olanlar üstte.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Bir sohbetin aynı anda çalıştırabileceği en fazla yardımcı ajan sohbeti sayısı. Bağlı tarayıcı eklentisi gerekir.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Uzun işler, bir araç sonucundan hemen sonra otomatik Devam ile yeni bir turda sürer. Kısa turlar daha az kesilir. Hedef ve Döngü sohbetlerinde de kullanılır; Pro modellerde ve yardımcı ajanların kendi sohbetlerinde kullanılmaz."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Uzun işler, bir araç sonucundan hemen sonra otomatik Devam ile yeni bir turda sürer. Kısa turlar daha az kesilir. Hedef ve Döngü sohbetlerinde de kullanılır; Pro modellerde ve yardımcı ajanların kendi sohbetlerinde kullanılmaz.",
+  "Stage": "Hazırla",
+  "Unstage": "Hazırlıktan çıkar",
+  "Stage {0} for commit": "{0} dosyasını commit için hazırla",
+  "Commit message": "Commit mesajı",
+  "Commit": "Commit et",
+  "Committing…": "Commit ediliyor…",
+  "Staged {0} of {1}": "{1} dosyadan {0} hazır",
+  "Stage files to commit them.": "Commit etmek için dosyaları hazırlayın.",
+  "Read-only mode is on. Turn it off to stage or commit from Review.": "Salt okunur mod açık. İnceleme'den hazırlamak veya commit etmek için kapatın.",
+  "Committed {0}": "{0} commit edildi"
 }

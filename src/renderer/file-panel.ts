@@ -2,7 +2,7 @@ import type { InputAttachment } from '../shared/input.js';
 import type { LocalProject } from '../shared/projects.js';
 import type { ToolEditReview } from '../shared/session.js';
 import type { ProjectDirectoryListing, ProjectFileEntry, ProjectFileKind, ProjectFilePreview, ProjectFilesChanged } from '../shared/project-files.js';
-import type { ProjectGitChange, ProjectGitChanged, ProjectGitDiff, ProjectGitSnapshot, ProjectGitStatus } from '../shared/project-git.js';
+import type { ProjectGitChange, ProjectGitChanged, ProjectGitCommit, ProjectGitDiff, ProjectGitSnapshot, ProjectGitStatus } from '../shared/project-git.js';
 import { safeExternalLink } from '../shared/external-link.js';
 import { marked } from 'marked';
 import { currentLanguage, onLanguageChange, t, tn, ui } from './i18n.js';
@@ -278,6 +278,20 @@ export function createFilePanel(options: FilePanelOptions) {
   changesList.setAttribute('role', 'region');
   ui(changesList, 'aria-label', () => t('Git changes'));
   changesView.append(changesHeader, changesList);
+  // Review's only Git writes: stage or unstage a file, and commit what is staged.
+  const commitBox = el('form', 'file-commit') as HTMLFormElement; commitBox.hidden = true;
+  const commitMessage = document.createElement('textarea');
+  commitMessage.className = 'file-commit-message';
+  commitMessage.rows = 2; commitMessage.maxLength = 10_000; commitMessage.spellcheck = true;
+  ui(commitMessage, 'placeholder', () => t('Commit message'));
+  ui(commitMessage, 'aria-label', () => t('Commit message'));
+  const commitNote = el('span', 'file-commit-note');
+  const commitButton = el('button', 'btn btn-solid file-commit-button') as HTMLButtonElement;
+  commitButton.type = 'submit';
+  const commitFooter = el('div', 'file-commit-footer');
+  commitFooter.append(commitNote, commitButton);
+  commitBox.append(commitMessage, commitFooter);
+  if (options.reviewOnly) changesView.append(commitBox);
   const preview = el('section', 'file-preview'); preview.hidden = true;
   const previewResize = el('div', 'file-preview-resize');
   previewResize.tabIndex = 0;
@@ -344,6 +358,7 @@ export function createFilePanel(options: FilePanelOptions) {
   let gitDiffValue: ProjectGitDiff | null = null;
   let renderedGitDiffRevision: string | null = null;
   let gitReconcileTimer: number | null = null;
+  let gitWriting = false;
   const retainedDrafts = new Map<string, { preview: ProjectFilePreview & { text: string; revision: string }; text: string }>();
   let expanded = new Set<string>(['']);
   const listings = new Map<string, ProjectDirectoryListing>();
@@ -1073,7 +1088,63 @@ export function createFilePanel(options: FilePanelOptions) {
     return stats;
   }
 
+  function stageable(change: ProjectGitChange): boolean {
+    return !!options.reviewOnly && gitSnapshot?.state === 'ready' && !gitSnapshot.comparison && change.status !== 'C';
+  }
+
+  function stagedPaths(): string[] {
+    return (gitSnapshot?.changes ?? []).filter(change => change.staged && stageable(change))
+      .flatMap(change => change.previousPath ? [change.path, change.previousPath] : [change.path]);
+  }
+
+  function renderCommitBox(): void {
+    const snapshot = gitSnapshot;
+    commitBox.hidden = !options.reviewOnly || mode !== 'changes' || gitDiffPath !== null || !project ||
+      snapshot?.state !== 'ready' || !!snapshot.comparison || !snapshot.changes.length;
+    if (commitBox.hidden || !snapshot) return;
+    const staged = snapshot.changes.filter(change => change.staged && stageable(change)).length;
+    const total = snapshot.changes.filter(stageable).length;
+    commitNote.textContent = snapshot.readOnly ? t('Read-only mode is on. Turn it off to stage or commit from Review.')
+      : staged ? t('Staged {0} of {1}', [staged, total]) : t('Stage files to commit them.');
+    commitMessage.disabled = snapshot.readOnly === true;
+    commitButton.textContent = gitWriting ? t('Committing…') : t('Commit');
+    commitButton.disabled = gitWriting || snapshot.readOnly === true || !staged || !commitMessage.value.trim();
+  }
+
+  async function setStaged(change: ProjectGitChange, staged: boolean): Promise<void> {
+    const current = project;
+    if (!current || gitWriting) return;
+    gitWriting = true;
+    // Show the box as clicked until Git is read again; a repaint meanwhile (the index write wakes
+    // the Git watch) must not flip it back. The next snapshot replaces this guess either way.
+    if (staged) change.staged = 'all'; else delete change.staged;
+    renderChangesList();
+    try { await run(window.api.setProjectGitStaged(current.id, change.path, staged)); }
+    finally { gitWriting = false; }
+    if (project?.id === current.id) await reconcileGitChanges();
+  }
+
+  async function commitStaged(): Promise<void> {
+    const current = project;
+    const message = commitMessage.value;
+    const staged = stagedPaths();
+    if (!current || gitWriting || !message.trim() || !staged.length || gitSnapshot?.readOnly) return;
+    gitWriting = true;
+    renderCommitBox();
+    for (const box of changesList.querySelectorAll<HTMLInputElement>('.file-change-stage')) box.disabled = true;
+    let committed: ProjectGitCommit | null = null;
+    try { committed = await run(window.api.commitProjectGit(current.id, message, staged)); }
+    finally { gitWriting = false; }
+    if (project?.id !== current.id) return;
+    if (committed) {
+      if (commitMessage.value === message) commitMessage.value = '';
+      toast(t('Committed {0}', [committed.oid.slice(0, 7)]));
+    }
+    await reconcileGitChanges();
+  }
+
   function renderChangesList(): void {
+    renderCommitBox();
     changesList.replaceChildren();
     if (!project) {
       changesList.append(el('p', 'file-changes-empty', () => t('Changes is available only for chats in a local project.')));
@@ -1129,7 +1200,18 @@ export function createFilePanel(options: FilePanelOptions) {
         row.title = `${gitStatusLabel(change.status)} · ${change.previousPath ? `${change.previousPath} → ` : ''}${change.path} · ${stats.textContent ?? ''}`;
         row.setAttribute('aria-label', row.title);
         row.addEventListener('click', () => void openGitDiff(change));
-        section.append(row);
+        if (!stageable(change)) { section.append(row); continue; }
+        const item = el('div', 'file-change-item');
+        const stage = document.createElement('input');
+        stage.type = 'checkbox'; stage.className = 'file-change-stage';
+        const fully = change.staged === 'all';
+        stage.checked = fully; stage.indeterminate = change.staged === 'partial';
+        stage.disabled = gitWriting || gitSnapshot.readOnly === true;
+        stage.title = t(fully ? 'Unstage' : 'Stage');
+        stage.setAttribute('aria-label', t('Stage {0} for commit', [change.path]));
+        stage.addEventListener('change', () => void setStaged(change, !fully));
+        item.append(stage, row);
+        section.append(item);
       }
       changesList.append(section);
     }
@@ -1314,6 +1396,8 @@ export function createFilePanel(options: FilePanelOptions) {
     gitReconcileTimer = window.setTimeout(() => {
       gitReconcileTimer = null;
       if (!pane.isConnected || pane.hidden) return;
+      // A stage or commit in flight rereads Git itself once it ends.
+      if (gitWriting) return;
       void reconcileGitChanges(Boolean(gitDiffPath));
     }, 120);
   }
@@ -1399,6 +1483,7 @@ export function createFilePanel(options: FilePanelOptions) {
     renderTree();
     if (showingChanges || showingReview) {
       if (!showingDiff) renderChangesList();
+      else renderCommitBox();
       if (!pane.hidden) renderGitDiff();
     } else if (!pane.hidden) {
       destroyDiffViewer();
@@ -1621,6 +1706,13 @@ export function createFilePanel(options: FilePanelOptions) {
   }
 
   refresh.onclick = () => void (mode === 'changes' ? reconcileGitChanges(true) : refreshAll());
+  commitMessage.addEventListener('input', renderCommitBox);
+  commitMessage.addEventListener('keydown', event => {
+    if (event.key !== 'Enter' || !(event.ctrlKey || event.metaKey)) return;
+    event.preventDefault();
+    commitBox.requestSubmit();
+  });
+  commitBox.addEventListener('submit', event => { event.preventDefault(); void commitStaged(); });
   function closeBranchMenu(restoreFocus = false): void { branchPopup.close(restoreFocus); }
   branchTrigger.addEventListener('click', () => {
     if (branchPopup.open) { closeBranchMenu(); return; }
@@ -1676,6 +1768,8 @@ export function createFilePanel(options: FilePanelOptions) {
       if (gitReconcileTimer !== null) window.clearTimeout(gitReconcileTimer);
       gitReconcileTimer = null;
       gitSnapshot = null; gitLoading = false; gitDiffPath = null; gitDiffValue = null;
+      // A message written for one project must not be committed to the next one.
+      commitMessage.value = '';
       reviewGeneration++; reviewSource = null; reviewValue = null; mode = options.reviewOnly ? 'changes' : 'files';
       generation++;
       listings.clear(); expanded = new Set(['']); selection = { path: '', kind: 'root' };

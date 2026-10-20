@@ -4,7 +4,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { statSync, watch as watchFs, type FSWatcher } from 'node:fs';
 import type { Stats } from 'node:fs';
 import path from 'node:path';
-import type { ProjectGitChange, ProjectGitChanged, ProjectGitDiff, ProjectGitSnapshot, ProjectGitStatus } from '../shared/project-git.js';
+import type { ProjectGitChange, ProjectGitChanged, ProjectGitCommit, ProjectGitDiff, ProjectGitSnapshot, ProjectGitStatus } from '../shared/project-git.js';
 import { getConfig } from './config.js';
 import { rawPromises as fs } from './rawfs.js';
 import { projectFileTarget } from './project-files.js';
@@ -16,6 +16,8 @@ const MAX_BRANCHES = 1_000;
 const MAX_DIFF_SIDE_BYTES = 512 * 1024;
 const UNTRACKED_STAT_BATCH = 16;
 const GIT_TIMEOUT_MS = 15_000;
+// A commit runs the repository's own hooks, which may lint or test before they let it through.
+const GIT_COMMIT_TIMEOUT_MS = 120_000;
 const CHANGE_DEBOUNCE_MS = 180;
 
 interface GitResult { code: number; stdout: Buffer; stderr: string; }
@@ -121,7 +123,7 @@ export function gitExecutable(
   throw new Error('Git was not found on PATH');
 }
 
-async function runGit(cwd: string, args: string[], maxBytes = MAX_GIT_OUTPUT_BYTES): Promise<GitResult> {
+async function runGit(cwd: string, args: string[], maxBytes = MAX_GIT_OUTPUT_BYTES, timeoutMs = GIT_TIMEOUT_MS): Promise<GitResult> {
   const executable = gitExecutable();
   return new Promise((resolve, reject) => {
     const child = spawn(executable, ['--no-optional-locks', ...args], {
@@ -139,7 +141,7 @@ async function runGit(cwd: string, args: string[], maxBytes = MAX_GIT_OUTPUT_BYT
     const timer = setTimeout(() => {
       child.kill();
       finish(new Error('Git took too long to respond'));
-    }, GIT_TIMEOUT_MS);
+    }, timeoutMs);
     child.once('error', error => finish(error));
     child.stdout.on('data', (chunk: Buffer) => {
       stdoutBytes += chunk.length;
@@ -235,7 +237,10 @@ function parseStatus(buffer: Buffer, prefix: string): ProjectGitChange[] {
       const candidate = parts[index++];
       previousPath = candidate ? projectRelative(candidate, prefix) ?? undefined : undefined;
     }
-    changes.push({ status, path: pathValue, previousPath, additions: null, deletions: null, binary: false });
+    // X is the index side and Y the working tree; an unmerged file is neither staged nor not.
+    const indexed = status !== 'C' && xy[0] !== ' ' && xy[0] !== '?';
+    const staged = indexed ? xy[1] === ' ' ? 'all' as const : 'partial' as const : undefined;
+    changes.push({ status, path: pathValue, previousPath, additions: null, deletions: null, binary: false, ...(staged ? { staged } : {}) });
     if (changes.length >= MAX_CHANGES) break;
   }
   return changes;
@@ -402,7 +407,7 @@ export async function readProjectGitSnapshot(projectId: string, baseRef?: string
     const revision = createHash('sha256').update(JSON.stringify(changes)).digest('hex');
     return { projectId, state: 'ready', changes, truncated, revision,
       currentBranch: identity.currentBranch, branches: identity.branches,
-      branchesTruncated: identity.branchesTruncated };
+      branchesTruncated: identity.branchesTruncated, ...(getConfig().readOnly ? { readOnly: true } : {}) };
   } catch (error) {
     return unavailable(projectId, error instanceof Error ? error.message : String(error));
   }
@@ -464,6 +469,68 @@ export async function readProjectGitDiff(projectId: string, relativePath: string
     currentText: binary || tooLarge ? null : current.text,
     note: tooLarge ? 'This diff is too large to display.' : binary ? 'Binary diff · preview unavailable' : undefined
   };
+}
+
+const READ_ONLY_GIT = 'Read-only mode is on. Turn it off to stage or commit from Review.';
+
+/** The only Git writes the app makes: the index and a local commit, never a checkout, fetch or push. */
+async function writableContext(projectId: string): Promise<RepositoryContext> {
+  if (getConfig().readOnly) throw new Error(READ_ONLY_GIT);
+  const context = await repositoryContext(projectId);
+  if (!context) throw new Error('This folder is not a Git repository');
+  return context;
+}
+
+async function gitWrite(context: RepositoryContext, args: string[], timeoutMs?: number): Promise<void> {
+  // Literal pathspecs: a file named `*.ts` stages that file, not every TypeScript file.
+  const result = await runGit(context.projectReal, ['--literal-pathspecs', ...args], 64 * 1024, timeoutMs);
+  if (result.code !== 0) throw new Error(result.stderr || 'Git could not complete this change');
+}
+
+/** Stages or unstages one changed file of the Working tree, as Review currently shows it. */
+export async function setProjectGitStaged(projectId: string, relativePath: string, staged: boolean): Promise<void> {
+  const context = await writableContext(projectId);
+  const snapshot = await readProjectGitSnapshot(projectId);
+  if (snapshot.state !== 'ready') throw new Error(snapshot.message || 'This folder is not a Git repository');
+  const change = snapshot.changes.find(entry => entry.path === relativePath);
+  if (!change) throw new Error('This file is no longer changed');
+  if (change.status === 'C') throw new Error('Resolve this conflict before staging it');
+  // A rename is only reported once the index holds it, so only unstaging has its old path to restore.
+  const paths = [change.path, ...(change.previousPath ? [change.previousPath] : [])];
+  if (staged) await gitWrite(context, ['add', '--all', '--', change.path]);
+  else if (await headExists(context)) await gitWrite(context, ['reset', '--quiet', '--', ...paths]);
+  // Before the first commit there is no HEAD to reset to; unstaging removes the index entry.
+  else await gitWrite(context, ['rm', '--cached', '--quiet', '--ignore-unmatch', '--', ...paths]);
+}
+
+/**
+ * Commits the index, but only when it holds exactly the files Review showed as staged: a file the
+ * agent staged meanwhile, or one staged outside this project, is never committed unseen.
+ */
+export async function commitProjectGit(projectId: string, message: string, expectedPaths: string[]): Promise<ProjectGitCommit> {
+  const context = await writableContext(projectId);
+  if (!message.trim()) throw new Error('Write a commit message first');
+  // From the top level, so the paths are the whole index's even with `diff.relative` configured.
+  const indexed = await runGit(context.root, ['diff', '--cached', '--name-status', '-z', '--no-renames', '--no-ext-diff']);
+  if (indexed.code !== 0) throw new Error(indexed.stderr || 'Git could not read the staged files');
+  const parts = splitZero(indexed.stdout);
+  const staged = new Set<string>();
+  for (let index = 0; index + 1 < parts.length; index += 2) {
+    if (parts[index] === 'U') throw new Error('Resolve the conflicts before committing');
+    const relative = projectRelative(parts[index + 1]!, context.prefix);
+    if (!relative) throw new Error('Files outside this project are staged. Commit them from a terminal.');
+    staged.add(relative);
+  }
+  if (!staged.size) throw new Error('Stage files to commit them.');
+  const expected = new Set(expectedPaths);
+  if (expected.size !== staged.size || [...staged].some(entry => !expected.has(entry))) {
+    throw new Error('The staged files changed. Check them again before committing.');
+  }
+  await gitWrite(context, ['commit', '--quiet', '-m', message], GIT_COMMIT_TIMEOUT_MS);
+  const head = await runGit(context.projectReal, ['rev-parse', '--verify', '--quiet', 'HEAD'], 128);
+  const oid = head.code === 0 ? decode(head.stdout).trim() : '';
+  if (!/^[0-9a-f]{40,64}$/.test(oid)) throw new Error('Git returned an invalid HEAD');
+  return { projectId, oid };
 }
 
 type WatchFactory = (nativePath: string, listener: () => void, recursive?: boolean) => FSWatcher;

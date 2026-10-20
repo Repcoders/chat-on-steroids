@@ -7,7 +7,7 @@ import { EventEmitter } from 'node:events';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { defaultConfig, initConfigPath, saveConfig } from '../src/main/config.js';
 import { initDurableStore, resetDurableForTests } from '../src/main/durable.js';
-import { gitExecutable, ProjectGitWatchSet, readProjectGitDiff, readProjectGitSnapshot } from '../src/main/project-git.js';
+import { commitProjectGit, gitExecutable, ProjectGitWatchSet, readProjectGitDiff, readProjectGitSnapshot, setProjectGitStaged } from '../src/main/project-git.js';
 import { addProject } from '../src/main/projects.js';
 import { validateNewRoot } from '../src/main/sandbox.js';
 
@@ -338,4 +338,84 @@ it('shows a file renamed differently on both sides as conflicts, even with no wo
   expect(byPath['moved.txt']).toBe('C');
   // Deleted on both sides: no working file and no HEAD version, still a readable (empty) diff.
   expect(await readProjectGitDiff(id, 'moved.txt', undefined, snapshot.revision)).toMatchObject({ status: 'C', currentText: '' });
+});
+
+const lastSubject = async (root: string): Promise<string> =>
+  (await exec('git', ['log', '-1', '--format=%s'], { cwd: root })).stdout.trim();
+const headFiles = async (root: string): Promise<string[]> =>
+  (await exec('git', ['show', '--name-only', '--format=%s', 'HEAD'], { cwd: root })).stdout.trim().split(/\r?\n/);
+
+it('stages one of two changed files and commits only it, refusing an index Review did not show', async () => {
+  const { root, id } = await committedProject();
+  await fs.writeFile(path.join(root, 'modified.ts'), 'export const value = 2;\n');
+  await fs.writeFile(path.join(root, 'added.ts'), 'export const added = true;\n');
+  // Brackets are pathspec glob syntax: staging this file must not also stage `a.ts`.
+  await fs.writeFile(path.join(root, '[a].ts'), 'bracketed\n');
+  await fs.writeFile(path.join(root, 'a.ts'), 'plain\n');
+
+  await setProjectGitStaged(id, 'added.ts', true);
+  await setProjectGitStaged(id, '[a].ts', true);
+  let byPath = new Map((await readProjectGitSnapshot(id)).changes.map(change => [change.path, change]));
+  expect(byPath.get('added.ts')).toMatchObject({ status: 'A', staged: 'all' });
+  expect(byPath.get('[a].ts')).toMatchObject({ status: 'A', staged: 'all' });
+  expect(byPath.get('a.ts')).toMatchObject({ status: 'U' });
+  expect(byPath.get('a.ts')?.staged).toBeUndefined();
+  expect(byPath.get('modified.ts')?.staged).toBeUndefined();
+
+  await setProjectGitStaged(id, '[a].ts', false);
+  await git(root, 'add', 'modified.ts');
+  await fs.writeFile(path.join(root, 'modified.ts'), 'export const value = 3;\n');
+  byPath = new Map((await readProjectGitSnapshot(id)).changes.map(change => [change.path, change]));
+  expect(byPath.get('[a].ts')).toMatchObject({ status: 'U' });
+  expect(byPath.get('modified.ts')).toMatchObject({ status: 'M', staged: 'partial' });
+  // Something else staged modified.ts after Review was read: nothing is committed.
+  await expect(commitProjectGit(id, 'Add file', ['added.ts'])).rejects.toThrow('The staged files changed');
+  expect(await lastSubject(root)).toBe('baseline');
+
+  await setProjectGitStaged(id, 'modified.ts', false);
+  const commit = await commitProjectGit(id, 'Add file', ['added.ts']);
+  expect(commit.oid).toBe((await exec('git', ['rev-parse', 'HEAD'], { cwd: root })).stdout.trim());
+  expect(await headFiles(root)).toEqual(['Add file', '', 'added.ts']);
+  byPath = new Map((await readProjectGitSnapshot(id)).changes.map(change => [change.path, change]));
+  expect(byPath.has('added.ts')).toBe(false);
+  expect(byPath.get('modified.ts')).toMatchObject({ status: 'M' });
+  await expect(commitProjectGit(id, 'Nothing', ['modified.ts'])).rejects.toThrow('Stage files to commit them.');
+});
+
+it('refuses to stage or commit in Read-only mode and says so in the snapshot', async () => {
+  const { root, id } = await committedProject();
+  await fs.writeFile(path.join(root, 'added.ts'), 'export const added = true;\n');
+  await git(root, 'add', 'added.ts');
+  await saveConfig({ ...defaultConfig(), roots: [{ name: 'work', path: approved }], readOnly: true });
+
+  expect(await readProjectGitSnapshot(id)).toMatchObject({ state: 'ready', readOnly: true });
+  await expect(setProjectGitStaged(id, 'added.ts', false)).rejects.toThrow('Read-only mode is on');
+  await expect(commitProjectGit(id, 'Add file', ['added.ts'])).rejects.toThrow('Read-only mode is on');
+  expect(await lastSubject(root)).toBe('baseline');
+  expect((await readProjectGitSnapshot(id)).changes).toMatchObject([{ path: 'added.ts', staged: 'all' }]);
+});
+
+it('unstages before the first commit and never commits a file staged outside the project', async () => {
+  const root = path.join(approved, 'fresh');
+  const nested = path.join(root, 'app');
+  await fs.mkdir(nested, { recursive: true });
+  await git(root, 'init');
+  await git(root, 'config', 'user.email', 'test@example.com');
+  await git(root, 'config', 'user.name', 'CoS Test');
+  await fs.writeFile(path.join(nested, 'inside.txt'), 'inside\n');
+  await fs.writeFile(path.join(root, 'outside.txt'), 'outside\n');
+  const { id } = await addProject(nested);
+
+  await setProjectGitStaged(id, 'inside.txt', true);
+  expect((await readProjectGitSnapshot(id)).changes).toMatchObject([{ path: 'inside.txt', status: 'A', staged: 'all' }]);
+  await setProjectGitStaged(id, 'inside.txt', false);
+  expect((await readProjectGitSnapshot(id)).changes).toMatchObject([{ path: 'inside.txt', status: 'U' }]);
+
+  await setProjectGitStaged(id, 'inside.txt', true);
+  await git(root, 'add', 'outside.txt');
+  await expect(commitProjectGit(id, 'First', ['inside.txt'])).rejects.toThrow('Files outside this project are staged');
+  await expect(exec('git', ['rev-parse', '--verify', 'HEAD'], { cwd: root })).rejects.toThrow();
+  await git(root, 'rm', '--cached', '--quiet', 'outside.txt');
+  await commitProjectGit(id, 'First', ['inside.txt']);
+  expect(await headFiles(root)).toEqual(['First', '', 'app/inside.txt']);
 });

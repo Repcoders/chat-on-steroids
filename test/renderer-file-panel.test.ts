@@ -125,6 +125,8 @@ beforeEach(() => {
       }),
       getProjectGitSnapshot: vi.fn(() => ok(cleanGit())),
       getProjectGitDiff: vi.fn(),
+      setProjectGitStaged: vi.fn(() => ok(true)),
+      commitProjectGit: vi.fn(() => ok({ projectId: projectA.id, oid: 'c'.repeat(40) })),
       onProjectGitChanged: vi.fn((listener: (event: ProjectGitChanged) => void) => {
         projectGitChanged = listener;
         return () => { if (projectGitChanged === listener) projectGitChanged = null; };
@@ -574,6 +576,66 @@ it('refreshes a watched directory automatically when the filesystem changes', as
 
   expect((window.api.listProjectFiles as any)).toHaveBeenLastCalledWith(projectA.id, '');
   expect(host.textContent).toContain('generated.ts');
+});
+
+it('stages one of two files from Review and commits it with the typed message', async () => {
+  let staged = false;
+  (window.api.getProjectGitSnapshot as any).mockImplementation(() => ok({
+    ...cleanGit(), revision: staged ? 'staged' : 'unstaged', currentBranch: 'main', changes: [
+      { status: 'M', path: 'src/main.ts', additions: 1, deletions: 0, binary: false, ...(staged ? { staged: 'all' } : {}) },
+      { status: 'U', path: 'notes.md', additions: 2, deletions: 0, binary: false }
+    ]
+  }));
+  const panel = createFilePanel({ host, reviewOnly: true });
+  panel.update(projectA); await panel.show(); await tick();
+  const boxes = () => [...host.querySelectorAll<HTMLInputElement>('.file-change-stage')];
+  const button = host.querySelector<HTMLButtonElement>('.file-commit-button')!;
+  const message = host.querySelector<HTMLTextAreaElement>('.file-commit-message')!;
+  expect(boxes().map(box => box.getAttribute('aria-label'))).toEqual(['Stage src/main.ts for commit', 'Stage notes.md for commit']);
+  expect(boxes().map(box => box.checked)).toEqual([false, false]);
+  expect(host.querySelector('.file-commit-note')?.textContent).toBe('Stage files to commit them.');
+  expect(button.disabled).toBe(true);
+
+  let reread: (() => void) | null = null;
+  (window.api.setProjectGitStaged as any).mockImplementation((_id: string, _path: string, next: boolean) =>
+    new Promise(resolve => { reread = () => { staged = next; resolve({ ok: true, data: true }); }; }));
+  boxes()[0]!.click(); await tick();
+  // While Git works, a repaint (its watch wakes on the index write) keeps the box as clicked.
+  projectGitChanged!({ projectId: projectA.id }); await new Promise(resolve => setTimeout(resolve, 150)); await tick();
+  expect(boxes().map(box => [box.checked, box.disabled])).toEqual([[true, true], [false, true]]);
+  reread!(); await tick();
+  expect(window.api.setProjectGitStaged).toHaveBeenCalledWith(projectA.id, 'src/main.ts', true);
+  expect(boxes().map(box => box.checked)).toEqual([true, false]);
+  expect(host.querySelector('.file-commit-note')?.textContent).toBe('Staged 1 of 2');
+  expect(button.disabled).toBe(true);
+  message.value = 'Update main'; message.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  expect(button.disabled).toBe(false);
+  message.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true }));
+  await tick();
+  expect(window.api.commitProjectGit).toHaveBeenCalledWith(projectA.id, 'Update main', ['src/main.ts']);
+  expect(message.value).toBe('');
+  expect(document.querySelector('.toast')?.textContent).toBe('Committed ccccccc');
+});
+
+it('keeps Review stage and commit controls off in Read-only mode and in a branch comparison', async () => {
+  (window.api.getProjectGitSnapshot as any).mockImplementation((_id: string, selected?: string) => ok({
+    ...cleanGit(), readOnly: true, currentBranch: 'main', branches: [{ ref: 'refs/heads/base', label: 'base' }],
+    changes: [{ status: 'M', path: 'src/main.ts', additions: 1, deletions: 0, binary: false, staged: 'all' }],
+    ...(selected ? { comparison: { ref: selected, label: 'base', baseOid: 'a'.repeat(40), headOid: 'b'.repeat(40) } } : {})
+  }));
+  const panel = createFilePanel({ host, reviewOnly: true });
+  panel.update(projectA); await panel.show(); await tick();
+  const box = host.querySelector<HTMLInputElement>('.file-change-stage')!;
+  expect(box.checked).toBe(true);
+  expect(box.disabled).toBe(true);
+  expect(host.querySelector('.file-commit-note')?.textContent).toBe('Read-only mode is on. Turn it off to stage or commit from Review.');
+  expect(host.querySelector<HTMLTextAreaElement>('.file-commit-message')!.disabled).toBe(true);
+  expect(host.querySelector<HTMLButtonElement>('.file-commit-button')!.disabled).toBe(true);
+  host.querySelector<HTMLButtonElement>('.file-branch-trigger')!.click();
+  [...document.querySelectorAll<HTMLButtonElement>('.file-branch-option')].find(option => option.textContent === 'base')!.click();
+  await tick();
+  expect(host.querySelector('.file-change-stage')).toBeNull();
+  expect(host.querySelector<HTMLElement>('.file-commit')!.hidden).toBe(true);
 });
 
 it('retires a pending Git reconciliation when the panel closes', async () => {

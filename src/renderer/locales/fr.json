@@ -2867,5 +2867,15 @@
   "Chats sit under their project folders.": "Les chats se rangent sous le dossier de leur projet.",
   "All chats in one list, active ones on top.": "Tous les chats dans une seule liste, les actifs en haut.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Le nombre maximal de chats de sous-agents qu’un chat peut lancer en même temps. Nécessite l'extension du navigateur connectée.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Un long travail continue dans un nouveau tour avec un Continuer automatique, juste après un résultat d’outil. Les tours plus courts s’interrompent moins souvent. Aussi dans les chats avec Goal et Loop ; pas avec les modèles Pro ni dans les chats des sous-agents."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Un long travail continue dans un nouveau tour avec un Continuer automatique, juste après un résultat d’outil. Les tours plus courts s’interrompent moins souvent. Aussi dans les chats avec Goal et Loop ; pas avec les modèles Pro ni dans les chats des sous-agents.",
+  "Stage": "Indexer",
+  "Unstage": "Désindexer",
+  "Stage {0} for commit": "Indexer {0} pour le commit",
+  "Commit message": "Message de commit",
+  "Commit": "Valider",
+  "Committing…": "Validation…",
+  "Staged {0} of {1}": "{0} sur {1} indexés",
+  "Stage files to commit them.": "Indexez des fichiers pour les valider.",
+  "Read-only mode is on. Turn it off to stage or commit from Review.": "Le mode lecture seule est activé. Désactivez-le pour indexer ou valider depuis Révision.",
+  "Committed {0}": "Commit {0} créé"
 }

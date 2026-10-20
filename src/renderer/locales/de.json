@@ -2822,5 +2822,15 @@
   "Chats sit under their project folders.": "Chats stehen unter ihren Projektordnern.",
   "All chats in one list, active ones on top.": "Alle Chats in einer Liste, aktive oben.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Wie viele Unteragenten-Chats ein Chat höchstens gleichzeitig ausführen darf. Benötigt die verbundene Browser-Erweiterung.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Lange Arbeit läuft direkt nach einem Tool-Ergebnis in einem neuen Durchlauf mit automatischem Weiter weiter. Kürzere Durchläufe brechen seltener ab. Auch in Goal- und Loop-Chats; nicht bei Pro-Modellen und nicht in den Chats von Unteragenten."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Lange Arbeit läuft direkt nach einem Tool-Ergebnis in einem neuen Durchlauf mit automatischem Weiter weiter. Kürzere Durchläufe brechen seltener ab. Auch in Goal- und Loop-Chats; nicht bei Pro-Modellen und nicht in den Chats von Unteragenten.",
+  "Stage": "Stagen",
+  "Unstage": "Unstagen",
+  "Stage {0} for commit": "{0} für den Commit stagen",
+  "Commit message": "Commit-Nachricht",
+  "Commit": "Committen",
+  "Committing…": "Wird committet…",
+  "Staged {0} of {1}": "{0} von {1} gestagt",
+  "Stage files to commit them.": "Dateien stagen, um sie zu committen.",
+  "Read-only mode is on. Turn it off to stage or commit from Review.": "Der Nur-Lesen-Modus ist an. Schalte ihn aus, um in Review zu stagen oder zu committen.",
+  "Committed {0}": "{0} committet"
 }

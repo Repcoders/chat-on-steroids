@@ -12,7 +12,7 @@ import type { ProviderUsage } from '../shared/provider-usage.js';
 import type { InputArgs, InputEntry } from '../main/session/input.js';
 import type { LocalProject, ProjectColor } from '../shared/projects.js';
 import type { ProjectDirectoryListing, ProjectFileMutationResult, ProjectFilePreview, ProjectFileSaveResult, ProjectFilesChanged } from '../shared/project-files.js';
-import type { ProjectGitChanged, ProjectGitDiff, ProjectGitSnapshot } from '../shared/project-git.js';
+import type { ProjectGitChanged, ProjectGitCommit, ProjectGitDiff, ProjectGitSnapshot } from '../shared/project-git.js';
 import type { PetLibraryState, PetOverlayControlState, PetRuntimeAsset } from '../shared/pets.js';
 import type { SkillSummary, ManagedSkill, GitHubSkillUpdateCheck, SkillLibrary, SkillsDraftScope } from '../shared/skills.js';
 import type { RunningToolActivity, SessionChange, SessionSearchReply, SessionSearchLocation, ToolEditReview } from '../shared/session.js';
@@ -303,6 +303,8 @@ const api = {
   getProjectGitDiff: (projectId: string, path: string, baseRef?: string, expectedRevision?: string) => call<ProjectGitDiff>('projectGit:diff', {
     projectId, path, ...(baseRef ? { baseRef } : {}), ...(expectedRevision ? { expectedRevision } : {})
   }),
+  setProjectGitStaged: (projectId: string, path: string, staged: boolean) => call<boolean>('projectGit:stage', { projectId, path, staged }),
+  commitProjectGit: (projectId: string, message: string, staged: string[]) => call<ProjectGitCommit>('projectGit:commit', { projectId, message, staged }),
   getToolEditReview: (sessionId: string, callId: string, changeIndex: number) =>
     call<ToolEditReview | null>('sessions:toolEditReview', { sessionId, callId, changeIndex }),
   onProjectGitChanged: (listener: (event: ProjectGitChanged) => void): (() => void) => {

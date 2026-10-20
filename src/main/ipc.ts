@@ -93,7 +93,7 @@ import { RESERVED_ROOT_NAMES, uniqueRootName, validateNewRoot, SandboxError, res
 import { addProject, addRemoteProject, expireArmedProjectCreates, getSessionProject, listProjects, localProjectPath, onProjectLinkChange, projectWorkspace, removeProject, retryProjectCreate, setProjectColor } from './projects.js';
 import { createProjectEntry, listProjectDirectory, previewProjectFile, projectFileTarget, renameProjectEntry, revalidateProjectFileTarget, saveProjectTextFile, serverFileSnapshot } from './project-files.js';
 import { ProjectFileWatchSet } from './project-file-watcher.js';
-import { ProjectGitWatchSet, readProjectGitDiff, readProjectGitSnapshot } from './project-git.js';
+import { commitProjectGit, ProjectGitWatchSet, readProjectGitDiff, readProjectGitSnapshot, setProjectGitStaged } from './project-git.js';
 import { hasSecret, isEncryptionAvailable, secureStorageStatus, setAsideUnreadableSecrets, setSecret, storedSecretsUnreadable } from './secrets.js';
 import { setupApiKeySlot } from '../shared/setup-profile.js';
 import { addSetupProfile, removeSetupProfile, switchSetupProfile } from './setup-profiles.js';
@@ -1085,6 +1085,16 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     const { projectId, path, baseRef, expectedRevision } = z.object({ projectId: projectFileId, path: projectRelativePath.min(1),
       baseRef: z.string().min(1).max(256).optional(), expectedRevision: z.string().length(64).regex(/^[0-9a-f]+$/).optional() }).strict().parse(payload);
     return readProjectGitDiff(projectId, path, baseRef, expectedRevision);
+  });
+  handle('projectGit:stage', async payload => {
+    const { projectId, path, staged } = z.object({ projectId: projectFileId, path: projectRelativePath.min(1), staged: z.boolean() }).strict().parse(payload);
+    await setProjectGitStaged(projectId, path, staged);
+    return true;
+  });
+  handle('projectGit:commit', async payload => {
+    const { projectId, message, staged } = z.object({ projectId: projectFileId, message: z.string().min(1).max(10_000),
+      staged: z.array(projectRelativePath.min(1)).min(1).max(2_000) }).strict().parse(payload);
+    return commitProjectGit(projectId, message, staged);
   });
   handle('sessions:toolEditReview', async payload => {
     const { sessionId, callId, changeIndex } = z.object({
