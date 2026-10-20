@@ -128,6 +128,22 @@ app.whenReady().then(async () => {
   assert.deepEqual(await js('window.deleted'),toRemove);
   assert.equal(await bar(),null,'Nothing is picked after Remove');
   await capture('6-removed.png');
+  // Picked chats hidden in a collapsed group drop out on the next paint, their hidden "Selected" too.
+  const other=(await order()).find(id=>id.startsWith('chat-')&&id!=='chat-6');
+  await click(other,ctrl);
+  assert.deepEqual((await picked()).sort(),[other,'chat-6'].sort());
+  await js(`{const box=${row(other)}.closest('details');box.dataset.closedByCheck='';box.open=false;}`);
+  const pinnedIds=()=>js(`[...document.querySelectorAll('#sessionList .sess.is-pinned')].map(r=>r.dataset.id)`);
+  const pinnedBefore=await pinnedIds();
+  // One paint, from the bar's menu: the hidden chats are out of reach, so the action changes nothing.
+  await js(`document.querySelector('#sidebarSelection .row-menu-button').click()`);
+  await until(`!!document.querySelector('.row-menu [data-row-action="pin"]')`);
+  await choose('pin');
+  assert.equal(await bar(),null);
+  assert.deepEqual(await pinnedIds(),pinnedBefore);
+  assert.deepEqual(await js(`[...document.querySelectorAll('#sessionList .sess:not(.is-picked) .sess-top > .sr-only')].map(s=>s.closest('.sess').dataset.id)`),[],
+    'A row that is no longer picked keeps no hidden "Selected"');
+  await js(`document.querySelector('[data-closed-by-check]').open=true`);
   console.log(JSON.stringify({ removed: toRemove, question: (await js('window.questions'))[0] }));
   assert.deepEqual(errors,[]);
   console.log('PASS: Ctrl/Shift-click picks several chats, the bar counts them, and Pin, Mark as read, Block and Remove reach all of them');

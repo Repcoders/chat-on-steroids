@@ -1310,7 +1310,11 @@ async function removePicked(chats: SessionSummary[]): Promise<void> {
 /** The bar above the chat list while chats are picked: how many, their actions, and Clear. */
 function paintSelectionBar(): void {
   if (sidebarSelection.keep(shownPickable())) {
-    for (const row of $('sessionList').querySelectorAll<HTMLElement>('.sess.is-picked')) row.classList.toggle('is-picked', sidebarSelection.has(row.dataset.id!));
+    for (const row of $('sessionList').querySelectorAll<HTMLElement>('.sess.is-picked')) {
+      if (sidebarSelection.has(row.dataset.id!)) continue;
+      row.classList.remove('is-picked');
+      row.querySelector('.sess-top > .sr-only')?.remove();
+    }
   }
   let bar = document.getElementById('sidebarSelection');
   if (!sidebarSelection.size) { bar?.remove(); return; }
