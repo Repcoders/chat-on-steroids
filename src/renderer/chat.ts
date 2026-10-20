@@ -93,7 +93,7 @@ import { DEFAULT_HANDOFF_LENGTH, DEFAULT_HANDOFF_PROMPT, HANDOFF_LENGTHS, MAX_HA
 import { browserExtensionRequired, type AppState, type Config } from '../shared/types.js';
 import { $, ago, clockTime, compactNumber, disclosureChevron, el, icon, run, setIcon, toast } from './dom.js';
 import { APPROVAL_ANSWERED_TEXT, APPROVAL_PROGRESS_PREFIX, APPROVAL_WAITING_TEXT, type ApprovalCardView } from '../shared/approval-wait.js';
-import { openRowMenu, rowMenuOpenFor, toggleRowMenu, type RowMenuItem, type RowMenuOptions } from './row-menu.js';
+import { closeRowMenu, openRowMenu, rowMenuOpenFor, toggleRowMenu, type RowMenuItem, type RowMenuOptions } from './row-menu.js';
 import { createSearchPopup } from './search-popup.js';
 import { primaryShortcut } from './shortcuts.js';
 import { initSshProjectDialog } from './ssh-project-dialog.js';
@@ -2081,6 +2081,79 @@ function syncSelectedWorkspace(): void {
   // Branch in new chat and Edit: the composer notices and the link back follow the selection in either layout.
   paintBranchNotices();
   paintEditNotice();
+  paintLineage();
+}
+
+/**
+ * Earlier chats and branches (#45). Compact & Resume moves a session from one ChatGPT chat to the
+ * next, and Branch in new chat starts other sessions from its replies. The header button lists
+ * them as one tree: this session's chats in order, each with the branches made from it. A chat
+ * scrolls this timeline to where it begins; a branch opens its own session.
+ */
+function paintLineage(): void {
+  const button = $<HTMLButtonElement>('chatLineage');
+  const selected = !newChatSelected && selectedId ? sessions.find(row => row.id === selectedId) : undefined;
+  // A partial summary can come without `chatIds`.
+  const shown = !!selected && ((selected.chatIds?.length ?? 0) > 1 || sessions.some(row => branchedFrom(row, selected.id)));
+  const owner = shown ? `lineage:${selected!.id}` : '';
+  // The open list belongs to the chat it was opened for.
+  if (!rowMenuOpenFor(owner) && document.querySelector('.row-menu [data-lineage]')) closeRowMenu();
+  button.hidden = !shown;
+  if (!shown) return;
+  if (!button.childElementCount) {
+    button.append(icon('i-lineage'));
+    ui(button, 'title', () => t('Earlier chats and branches'));
+    ui(button, 'aria-label', () => t('Earlier chats and branches'));
+  }
+  const id = selected!.id;
+  button.onclick = event => {
+    event.stopPropagation();
+    toggleRowMenu({ owner, anchor: () => $('chatLineage'), label: () => t('Earlier chats and branches'), items: () => lineageItems(id) });
+  };
+}
+
+function branchedFrom(row: SessionSummary, sessionId: string): boolean {
+  return !!row.origin?.branchOf && row.origin.fromSessionId === sessionId;
+}
+
+/** The tree as menu items: each chat, oldest first, then the branches made from it. */
+function lineageItems(sessionId: string): RowMenuItem[] {
+  const session = sessions.find(row => row.id === sessionId);
+  if (!session) return [];
+  const chats = session.chatIds ?? [];
+  const branches = sessions.filter(row => branchedFrom(row, sessionId)).sort((a, b) => a.startedAt - b.startedAt);
+  const branch = (row: SessionSummary, last: boolean): RowMenuItem => ({
+    action: `lineage-branch:${row.id}`, icon: 'i-git-branch', label: () => shownSessionTitle(row), title: () => t('Open this branch'),
+    // The rail of the chats runs on past a branch while a later chat follows.
+    data: { lineage: 'branch', lineageRail: last ? 'end' : 'through' }, run: () => selectSession(row.id)
+  });
+  const items: RowMenuItem[] = [];
+  chats.forEach((chat, index) => {
+    const last = index === chats.length - 1;
+    const current = chat === session.conversationId;
+    const left = session.retiredChatAt?.[chat];
+    items.push({
+      action: `lineage-chat:${chat}`, icon: 'i-chat', label: () => t('Chat {0}', [index + 1]), checked: current,
+      ...(current ? { hint: () => t('Current') } : left ? { hint: () => t('Until {0}', [new Date(left).toLocaleString(currentLanguage(), { dateStyle: 'short', timeStyle: 'short' })]) } : {}),
+      title: () => t('Scroll to where this chat starts'),
+      data: { lineage: 'chat', lineageRail: chats.length === 1 ? 'none' : index === 0 ? 'below' : last ? 'above' : 'both' },
+      run: () => void revealChatStart(sessionId, chat)
+    });
+    // A branch made from a chat the session no longer lists hangs under the newest one.
+    for (const row of branches.filter(row => row.origin!.branchOf!.conversationId === chat || (last && !chats.includes(row.origin!.branchOf!.conversationId))))
+      items.push(branch(row, last));
+  });
+  if (!chats.length) items.push(...branches.map(row => branch(row, true)));
+  return items;
+}
+
+/** Scrolls this session's timeline to where one of its ChatGPT chats begins (#45). */
+async function revealChatStart(sessionId: string, conversationId: string): Promise<void> {
+  const selection = selectionGeneration;
+  const reply = await api.locateChatStart(sessionId, conversationId);
+  if (selection !== selectionGeneration || selectedId !== sessionId) return;
+  if (!reply.ok || !reply.data) { toast(reply.ok ? t('The start of this chat is not in the recording') : t(reply.error)); return; }
+  await revealChatLocation(sessionId, reply.data);
 }
 
 /**
@@ -3971,7 +4044,10 @@ function rowForLocation(location: SessionSearchLocation): HTMLElement | null {
   const event = events.find(candidate => candidate.seq === location.seq) ?? (location.messageId === null ? undefined
     : events.find(candidate => candidate.kind === location.kind && 'messageId' in candidate && candidate.messageId === location.messageId));
   if (!event) return null;
-  const key = itemKey({ kind: 'event', event });
+  // A Compact & Resume's own rows are drawn inside its card: the card stands for them.
+  const card = timelineItems(events).find(item => item.kind === 'compaction' && [item.block.prompt, item.block.brief, item.block.end,
+    item.block.handoff, item.block.resume, ...item.block.notes].some(folded => folded?.seq === event.seq));
+  const key = itemKey(card ?? { kind: 'event', event });
   return [...$('timeline').querySelectorAll<HTMLElement>('[data-timeline-key]')].find(row => row.dataset.timelineKey === key) ?? null;
 }
 

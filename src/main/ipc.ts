@@ -134,7 +134,7 @@ import {
   withSessionMutationFence
 } from './session/store.js';
 import { forgetSession, notifyChanged, onSessionChange } from './session/recorder.js';
-import { findInSession, locateMessage, locateSearchMatch, searchSessions } from './session/search.js';
+import { findInSession, locateChatStart, locateMessage, locateSearchMatch, searchSessions } from './session/search.js';
 import { readSessionEvents, readSessionList, sessionListCursorSchema } from './session/read-model.js';
 import { exportSessionMarkdown } from './session/markdown-export.js';
 import { blockedChatIds, setChatsBlocked } from './session/blocked-chats.js';
@@ -1684,6 +1684,11 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
   handle('sessions:locate-message', async (payload) => {
     const { id, messageId } = sessionIdArg.extend({ messageId: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) }).parse(payload);
     return locateMessage(id, messageId);
+  });
+  // Earlier chats and branches (#45): where one ChatGPT chat of the session begins, to scroll there.
+  handle('sessions:locate-chat-start', async (payload) => {
+    const { id, conversationId } = sessionIdArg.extend({ conversationId: z.string().min(1).max(128) }).parse(payload);
+    return locateChatStart(id, conversationId);
   });
   handle('sessions:rename', async (payload) => {
     const { id, title } = sessionNameArg.parse(payload);
