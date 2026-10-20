@@ -2,7 +2,7 @@
  * English source of the texts the main process shows outside the window: the tray menu and its
  * tooltip, the Session finish desktop notice with its buttons, tunnel-loss notices, and the
  * one-time notice that the CoS browser hid to the tray, the window that says an update is installing,
- * native file dialogs and the worker checkout removal confirmation.
+ * native file dialogs, the worker checkout removal confirmation and Setup's demo folder question.
  *
  * Same contract as STOP_NOTICE_TEXTS (#855): the main process has no interface catalogs, so the
  * renderer translates exactly these strings and publishes them; anything else is refused, and a
@@ -63,7 +63,13 @@ export const MAIN_TEXTS = [
   'Keep checkout',
   'Remove checkout; preserve Git branch',
   // The turn-completion notice when an answer has no text to show.
-  'ChatGPT finished.'
+  'ChatGPT finished.',
+  // Setup's Try a demo asks before sharing the folder it made.
+  'Share a demo folder with ChatGPT?',
+  'Chat On Steroids made a new folder for a first try, with a text file and a check to run: {0}',
+  'ChatGPT can read, edit and run commands in it, like in any folder you share. You can stop sharing it in Workspace.',
+  'Cancel',
+  'Share demo folder'
 ] as const;
 
 export type MainText = typeof MAIN_TEXTS[number];

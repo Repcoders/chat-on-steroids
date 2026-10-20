@@ -2867,5 +2867,12 @@
   "Chats sit under their project folders.": "Os chats ficam sob as pastas dos projetos.",
   "All chats in one list, active ones on top.": "Todos os chats em uma lista, os ativos no topo.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "O máximo de chats de subagentes que um chat pode ter ao mesmo tempo. Requer a extensão do navegador conectada.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Um trabalho longo continua em um novo turno com um Continuar automático, logo após um resultado de ferramenta. Turnos mais curtos falham menos. Também em chats com Goal e Loop; não com modelos Pro nem nos chats dos subagentes."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Um trabalho longo continua em um novo turno com um Continuar automático, logo após um resultado de ferramenta. Turnos mais curtos falham menos. Também em chats com Goal e Loop; não com modelos Pro nem nos chats dos subagentes.",
+  "New here? Try it on a demo folder: ChatGPT reads a file, edits it and runs a check.": "É novo por aqui? Experimente com uma pasta de demonstração: o ChatGPT lê um arquivo, edita e executa uma verificação.",
+  "Try a demo": "Experimentar uma demonstração",
+  "This is a short demo in the folder {0}. Read demo.txt there, change the line “{1}” to “{2}”, then run {3} in that folder and tell me what it printed.": "Esta é uma demonstração curta na pasta {0}. Leia demo.txt lá, troque a linha “{1}” por “{2}”, depois execute {3} nessa pasta e me diga o que apareceu.",
+  "Share a demo folder with ChatGPT?": "Compartilhar uma pasta de demonstração com o ChatGPT?",
+  "Chat On Steroids made a new folder for a first try, with a text file and a check to run: {0}": "O Chat On Steroids criou uma pasta nova para uma primeira tentativa, com um arquivo de texto e uma verificação para executar: {0}",
+  "ChatGPT can read, edit and run commands in it, like in any folder you share. You can stop sharing it in Workspace.": "O ChatGPT pode ler, editar e executar comandos nela, como em qualquer pasta que você compartilha. Você pode parar de compartilhá-la em Área de trabalho.",
+  "Share demo folder": "Compartilhar pasta de demonstração"
 }

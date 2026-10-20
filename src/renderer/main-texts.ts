@@ -66,6 +66,13 @@ export function mainTexts(): Record<MainText, string> {
     'Keep checkout': t('Keep checkout'),
     'Remove checkout; preserve Git branch': t('Remove checkout; preserve Git branch'),
     'ChatGPT finished.': t('ChatGPT finished.'),
+    'Share a demo folder with ChatGPT?': t('Share a demo folder with ChatGPT?'),
+    'Chat On Steroids made a new folder for a first try, with a text file and a check to run: {0}':
+      t('Chat On Steroids made a new folder for a first try, with a text file and a check to run: {0}'),
+    'ChatGPT can read, edit and run commands in it, like in any folder you share. You can stop sharing it in Workspace.':
+      t('ChatGPT can read, edit and run commands in it, like in any folder you share. You can stop sharing it in Workspace.'),
+    'Cancel': t('Cancel'),
+    'Share demo folder': t('Share demo folder'),
   };
 }
 

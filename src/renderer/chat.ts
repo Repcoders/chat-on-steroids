@@ -92,6 +92,7 @@ import {
 import { DEFAULT_HANDOFF_LENGTH, DEFAULT_HANDOFF_PROMPT, HANDOFF_LENGTHS, MAX_HANDOFF_PROMPT_CHARS, type HandoffLength } from '../shared/handoff.js';
 import { browserExtensionRequired, type AppState, type Config } from '../shared/types.js';
 import { $, ago, clockTime, compactNumber, disclosureChevron, el, icon, run, setIcon, toast } from './dom.js';
+import { DEMO_AFTER, DEMO_BEFORE } from '../shared/demo-folder.js';
 import { APPROVAL_ANSWERED_TEXT, APPROVAL_PROGRESS_PREFIX, APPROVAL_WAITING_TEXT, type ApprovalCardView } from '../shared/approval-wait.js';
 import { openRowMenu, rowMenuOpenFor, toggleRowMenu, type RowMenuItem, type RowMenuOptions } from './row-menu.js';
 import { createSearchPopup } from './search-popup.js';
@@ -7799,6 +7800,13 @@ export function openChatSearch(): void {
  */
 export function openChatView(name: string): void {
   showView(name);
+}
+
+/** Setup's Try a demo: a new chat with the demo's request in its composer, for the person to send. */
+export function startDemoChat(demo: { folder: string; run: string }): void {
+  selectNewChat();
+  prefillComposer(t('This is a short demo in the folder {0}. Read demo.txt there, change the line “{1}” to “{2}”, then run {3} in that folder and tell me what it printed.',
+    [demo.folder, DEMO_BEFORE, DEMO_AFTER, demo.run]));
 }
 
 function showView(name: string): void {

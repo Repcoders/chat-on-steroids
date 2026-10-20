@@ -2867,5 +2867,12 @@
   "Chats sit under their project folders.": "Les chats se rangent sous le dossier de leur projet.",
   "All chats in one list, active ones on top.": "Tous les chats dans une seule liste, les actifs en haut.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Le nombre maximal de chats de sous-agents qu’un chat peut lancer en même temps. Nécessite l'extension du navigateur connectée.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Un long travail continue dans un nouveau tour avec un Continuer automatique, juste après un résultat d’outil. Les tours plus courts s’interrompent moins souvent. Aussi dans les chats avec Goal et Loop ; pas avec les modèles Pro ni dans les chats des sous-agents."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Un long travail continue dans un nouveau tour avec un Continuer automatique, juste après un résultat d’outil. Les tours plus courts s’interrompent moins souvent. Aussi dans les chats avec Goal et Loop ; pas avec les modèles Pro ni dans les chats des sous-agents.",
+  "New here? Try it on a demo folder: ChatGPT reads a file, edits it and runs a check.": "Nouveau ici ? Essayez avec un dossier de démo : ChatGPT lit un fichier, le modifie et lance une vérification.",
+  "Try a demo": "Essayer une démo",
+  "This is a short demo in the folder {0}. Read demo.txt there, change the line “{1}” to “{2}”, then run {3} in that folder and tell me what it printed.": "Ceci est une courte démo dans le dossier {0}. Lis demo.txt dans ce dossier, remplace la ligne « {1} » par « {2} », puis lance {3} dans ce dossier et dis-moi ce qui s’est affiché.",
+  "Share a demo folder with ChatGPT?": "Partager un dossier de démo avec ChatGPT ?",
+  "Chat On Steroids made a new folder for a first try, with a text file and a check to run: {0}": "Chat On Steroids a créé un nouveau dossier pour un premier essai, avec un fichier texte et une vérification à lancer : {0}",
+  "ChatGPT can read, edit and run commands in it, like in any folder you share. You can stop sharing it in Workspace.": "ChatGPT peut y lire, modifier et exécuter des commandes, comme dans tout dossier que vous partagez. Vous pouvez arrêter le partage dans Espace de travail.",
+  "Share demo folder": "Partager le dossier de démo"
 }

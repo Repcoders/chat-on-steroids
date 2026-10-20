@@ -2822,5 +2822,12 @@
   "Chats sit under their project folders.": "Sohbetler proje klasörlerinin altında durur.",
   "All chats in one list, active ones on top.": "Tüm sohbetler tek listede, etkin olanlar üstte.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Bir sohbetin aynı anda çalıştırabileceği en fazla yardımcı ajan sohbeti sayısı. Bağlı tarayıcı eklentisi gerekir.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Uzun işler, bir araç sonucundan hemen sonra otomatik Devam ile yeni bir turda sürer. Kısa turlar daha az kesilir. Hedef ve Döngü sohbetlerinde de kullanılır; Pro modellerde ve yardımcı ajanların kendi sohbetlerinde kullanılmaz."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Uzun işler, bir araç sonucundan hemen sonra otomatik Devam ile yeni bir turda sürer. Kısa turlar daha az kesilir. Hedef ve Döngü sohbetlerinde de kullanılır; Pro modellerde ve yardımcı ajanların kendi sohbetlerinde kullanılmaz.",
+  "New here? Try it on a demo folder: ChatGPT reads a file, edits it and runs a check.": "Yeni misiniz? Bir demo klasöründe deneyin: ChatGPT bir dosyayı okur, düzenler ve bir denetim çalıştırır.",
+  "Try a demo": "Demoyu dene",
+  "This is a short demo in the folder {0}. Read demo.txt there, change the line “{1}” to “{2}”, then run {3} in that folder and tell me what it printed.": "Bu, {0} klasöründe kısa bir demo. Oradaki demo.txt dosyasını oku, “{1}” satırını “{2}” olarak değiştir, sonra o klasörde {3} komutunu çalıştır ve ne yazdırdığını söyle.",
+  "Share a demo folder with ChatGPT?": "Bir demo klasörü ChatGPT ile paylaşılsın mı?",
+  "Chat On Steroids made a new folder for a first try, with a text file and a check to run: {0}": "Chat On Steroids ilk deneme için bir metin dosyası ve çalıştırılacak bir denetim içeren yeni bir klasör oluşturdu: {0}",
+  "ChatGPT can read, edit and run commands in it, like in any folder you share. You can stop sharing it in Workspace.": "ChatGPT, paylaştığınız her klasörde olduğu gibi bunda da okuyabilir, düzenleyebilir ve komut çalıştırabilir. Paylaşımı Çalışma alanı’nda durdurabilirsiniz.",
+  "Share demo folder": "Demo klasörünü paylaş"
 }

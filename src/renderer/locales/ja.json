@@ -2777,5 +2777,12 @@
   "Chats sit under their project folders.": "チャットはプロジェクトのフォルダーの下に並びます。",
   "All chats in one list, active ones on top.": "すべてのチャットを 1 つのリストに。作業中のものが上に来ます。",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "1 つのチャットが同時に実行できるサブエージェントのチャットの上限。ブラウザー拡張機能の接続が必要です。",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "長い作業はツール結果の直後に、自動の「続ける」で新しいターンに引き継がれます。短いターンほど途切れにくくなります。ゴールとループのチャットでも使われます。Pro モデルとサブエージェント自身のチャットでは使われません。"
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "長い作業はツール結果の直後に、自動の「続ける」で新しいターンに引き継がれます。短いターンほど途切れにくくなります。ゴールとループのチャットでも使われます。Pro モデルとサブエージェント自身のチャットでは使われません。",
+  "New here? Try it on a demo folder: ChatGPT reads a file, edits it and runs a check.": "はじめてですか？デモ用フォルダーで試せます。ChatGPT がファイルを読み、編集し、チェックを実行します。",
+  "Try a demo": "デモを試す",
+  "This is a short demo in the folder {0}. Read demo.txt there, change the line “{1}” to “{2}”, then run {3} in that folder and tell me what it printed.": "これはフォルダー {0} での短いデモです。そこにある demo.txt を読み、「{1}」の行を「{2}」に変更してから、そのフォルダーで {3} を実行し、表示された内容を教えてください。",
+  "Share a demo folder with ChatGPT?": "デモ用フォルダーを ChatGPT と共有しますか？",
+  "Chat On Steroids made a new folder for a first try, with a text file and a check to run: {0}": "Chat On Steroids が最初のお試し用に、テキストファイルと実行するチェックを入れた新しいフォルダーを作成しました: {0}",
+  "ChatGPT can read, edit and run commands in it, like in any folder you share. You can stop sharing it in Workspace.": "ChatGPT は共有した他のフォルダーと同じように、この中で読み取り、編集、コマンドの実行ができます。共有はワークスペースで解除できます。",
+  "Share demo folder": "デモ用フォルダーを共有"
 }

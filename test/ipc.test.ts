@@ -1219,6 +1219,34 @@ describe('root namespace invariants', () => {
     expect(getConfig().roots).toHaveLength(1);
   });
 
+  it('shares Try a demo’s new folder only once the person agrees, and removes it when they decline', async () => {
+    const { tmpdir } = await import('node:os');
+    const { DEMO_BEFORE } = await import('../src/shared/demo-folder.js');
+    await saveConfig({ ...defaultConfig(), roots: [] });
+    const demo = (): Promise<any> => handlers.get('roots:demo')!(null, undefined) as Promise<any>;
+    const demoFolders = async () => (await fs.readdir(tmpdir())).filter(name => name.startsWith('cos-demo-'));
+    const before = new Set(await demoFolders());
+
+    // Declined: nothing shared, and nothing left behind in the temporary folder.
+    expect(await demo()).toEqual({ ok: true, data: null });
+    expect(dialog.showMessageBox).toHaveBeenCalledTimes(1);
+    expect(getConfig().roots).toEqual([]);
+    expect((await demoFolders()).filter(name => !before.has(name))).toEqual([]);
+
+    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({ response: 1 } as never);
+    const shared = await demo();
+    expect(shared.ok, shared.error).toBe(true);
+    const root = getConfig().roots.find(row => row.name === 'demo')!;
+    try {
+      expect(shared.data).toEqual({ folder: '/demo', run: process.platform === 'win32' ? '.\\check.cmd' : './check.sh' });
+      expect(await fs.readFile(path.join(root.path, 'demo.txt'), 'utf8')).toContain(DEMO_BEFORE);
+      expect(currentWindow).toBeNull();
+      expect(vi.mocked(dialog.showMessageBox).mock.calls.at(-1)?.at(-1)).toMatchObject({ buttons: ['Cancel', 'Share demo folder'], cancelId: 0 });
+    } finally {
+      await fs.rm(path.dirname(root.path), { recursive: true, force: true });
+    }
+  });
+
   it('refuses a live rename into the reserved /skills namespace', async () => {
     const base = defaultConfig();
     await saveConfig({

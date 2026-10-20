@@ -37,6 +37,7 @@ import { inputArgs, listInputs, editQueuedInput, sendQueuedInputNow, reorderQueu
 import { draftOpeningMessage, onGoalChange, nativeGoalFailure } from './goal.js';
 import { cancelTaskRequest, runTaskRequest } from './task-request.js';
 import { randomUUID } from 'node:crypto';
+import { tmpdir } from 'node:os';
 import { retryGoalBrowserHelper } from './goal.js';
 import { requestBrowserPreferences } from './browser-preferences.js';
 import { sendDesktopInput, cancelDesktopInput, retryQueuedInputBrowser } from './session/start-input.js';
@@ -90,6 +91,7 @@ import type { WorkerWorktreeCleanupOffer } from '../shared/session.js';
 import { unifiedExecManager } from './codex/manager.js';
 import { inFlightToolCalls } from './mcp/call-context.js';
 import { RESERVED_ROOT_NAMES, uniqueRootName, validateNewRoot, SandboxError, resolvePath } from './sandbox.js';
+import { createDemoFolder, removeDemoFolder } from './demo-folder.js';
 import { addProject, addRemoteProject, expireArmedProjectCreates, getSessionProject, listProjects, localProjectPath, onProjectLinkChange, projectWorkspace, removeProject, retryProjectCreate, setProjectColor } from './projects.js';
 import { createProjectEntry, listProjectDirectory, previewProjectFile, projectFileTarget, renameProjectEntry, revalidateProjectFileTarget, saveProjectTextFile, serverFileSnapshot } from './project-files.js';
 import { ProjectFileWatchSet } from './project-file-watcher.js';
@@ -846,6 +848,41 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     });
     if (result.canceled || !result.filePaths[0]) return buildState();
     return approveRoot(result.filePaths[0]);
+  });
+
+  // Setup's Try a demo: a new folder made for it, shared only after the person agrees, like any
+  // folder. The chat then gets its shared path and the command that runs the folder's check.
+  handle('roots:demo', async () => {
+    const demo = await createDemoFolder(tmpdir());
+    const options: Electron.MessageBoxOptions = {
+      type: 'question',
+      title: mainText('Share a demo folder with ChatGPT?'),
+      message: mainText('Share a demo folder with ChatGPT?'),
+      detail: [
+        mainText('Chat On Steroids made a new folder for a first try, with a text file and a check to run: {0}').replace('{0}', () => demo.folder),
+        mainText('ChatGPT can read, edit and run commands in it, like in any folder you share. You can stop sharing it in Workspace.')
+      ].join('\n\n'),
+      buttons: [mainText('Cancel'), mainText('Share demo folder')],
+      defaultId: 1,
+      cancelId: 0,
+      noLink: true
+    };
+    try {
+      const owner = getWindow();
+      const { response } = owner && !owner.isDestroyed() ? await dialog.showMessageBox(owner, options) : await dialog.showMessageBox(options);
+      if (response !== 1) { await removeDemoFolder(demo.parent); return null; }
+      // A folder already inside a shared one (a whole home folder) needs no second approval.
+      let shared = await resolvePath(getConfig().roots, demo.folder).catch(error => { if (error instanceof SandboxError) return null; throw error; });
+      if (!shared) {
+        push('state:changed', await approveRoot(demo.folder));
+        shared = await resolvePath(getConfig().roots, demo.folder);
+      }
+      return { folder: shared.virtual, run: demo.run };
+    } catch (error) {
+      // Kept only once shared: otherwise nothing would ever point at it again.
+      if (!(await resolvePath(getConfig().roots, demo.folder).then(() => true, () => false))) await removeDemoFolder(demo.parent);
+      throw error;
+    }
   });
 
   handle('projects:list', () => listProjects());

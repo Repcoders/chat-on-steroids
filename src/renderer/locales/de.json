@@ -2822,5 +2822,12 @@
   "Chats sit under their project folders.": "Chats stehen unter ihren Projektordnern.",
   "All chats in one list, active ones on top.": "Alle Chats in einer Liste, aktive oben.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Wie viele Unteragenten-Chats ein Chat höchstens gleichzeitig ausführen darf. Benötigt die verbundene Browser-Erweiterung.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Lange Arbeit läuft direkt nach einem Tool-Ergebnis in einem neuen Durchlauf mit automatischem Weiter weiter. Kürzere Durchläufe brechen seltener ab. Auch in Goal- und Loop-Chats; nicht bei Pro-Modellen und nicht in den Chats von Unteragenten."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Lange Arbeit läuft direkt nach einem Tool-Ergebnis in einem neuen Durchlauf mit automatischem Weiter weiter. Kürzere Durchläufe brechen seltener ab. Auch in Goal- und Loop-Chats; nicht bei Pro-Modellen und nicht in den Chats von Unteragenten.",
+  "New here? Try it on a demo folder: ChatGPT reads a file, edits it and runs a check.": "Neu hier? Probiere es mit einem Demo-Ordner aus: ChatGPT liest eine Datei, bearbeitet sie und führt eine Prüfung aus.",
+  "Try a demo": "Demo ausprobieren",
+  "This is a short demo in the folder {0}. Read demo.txt there, change the line “{1}” to “{2}”, then run {3} in that folder and tell me what it printed.": "Das ist eine kurze Demo im Ordner {0}. Lies dort demo.txt, ändere die Zeile „{1}“ in „{2}“, führe dann in diesem Ordner {3} aus und sag mir, was es ausgegeben hat.",
+  "Share a demo folder with ChatGPT?": "Einen Demo-Ordner für ChatGPT freigeben?",
+  "Chat On Steroids made a new folder for a first try, with a text file and a check to run: {0}": "Chat On Steroids hat für einen ersten Versuch einen neuen Ordner mit einer Textdatei und einer Prüfung angelegt: {0}",
+  "ChatGPT can read, edit and run commands in it, like in any folder you share. You can stop sharing it in Workspace.": "ChatGPT kann darin lesen, bearbeiten und Befehle ausführen, wie in jedem freigegebenen Ordner. Die Freigabe kannst du unter Arbeitsbereich beenden.",
+  "Share demo folder": "Demo-Ordner freigeben"
 }

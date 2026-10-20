@@ -2777,5 +2777,12 @@
   "Chats sit under their project folders.": "聊天显示在各自的项目文件夹下。",
   "All chats in one list, active ones on top.": "所有聊天在同一列表中，进行中的排在最前。",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "一个聊天可同时运行的子智能体聊天上限。需要已连接的浏览器扩展。",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "长时间的工作会在工具结果之后，通过自动“继续”在新轮次中接着进行。轮次越短越不容易中断。也用于目标和循环聊天；不用于 Pro 模型或子智能体自己的聊天。"
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "长时间的工作会在工具结果之后，通过自动“继续”在新轮次中接着进行。轮次越短越不容易中断。也用于目标和循环聊天；不用于 Pro 模型或子智能体自己的聊天。",
+  "New here? Try it on a demo folder: ChatGPT reads a file, edits it and runs a check.": "第一次用？先在演示文件夹里试试：ChatGPT 会读取一个文件、修改它并运行一项检查。",
+  "Try a demo": "试用演示",
+  "This is a short demo in the folder {0}. Read demo.txt there, change the line “{1}” to “{2}”, then run {3} in that folder and tell me what it printed.": "这是在文件夹 {0} 中的简短演示。请读取其中的 demo.txt，把“{1}”这一行改成“{2}”，然后在该文件夹中运行 {3}，并告诉我它输出了什么。",
+  "Share a demo folder with ChatGPT?": "要与 ChatGPT 共享演示文件夹吗？",
+  "Chat On Steroids made a new folder for a first try, with a text file and a check to run: {0}": "Chat On Steroids 为首次试用新建了一个文件夹，里面有一个文本文件和一项要运行的检查：{0}",
+  "ChatGPT can read, edit and run commands in it, like in any folder you share. You can stop sharing it in Workspace.": "ChatGPT 可以在其中读取、编辑和运行命令，与你共享的任何文件夹一样。你可以在“工作区”中停止共享它。",
+  "Share demo folder": "共享演示文件夹"
 }
