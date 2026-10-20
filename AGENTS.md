@@ -4563,6 +4563,16 @@ uncommitted and untracked changes. Its list, line counts and file preview must s
 comparison identity, and a changed ref/HEAD cannot publish an old diff as current.
 A non-repository, binary file, oversized diff or truncated change set is an
 explicit state rather than a reason to invent content or mutate the worktree.
+The code viewer and editor have a Blame toggle (local projects and exact, untruncated UTF-8
+previews only, so the annotated text is the file's bytes; the choice is a per-viewer
+`localStorage` convenience). `projectGit:blame` (`getProjectGitBlame(projectId, path, contents)`)
+takes the text the surface shows, at most 256 Ki characters, re-resolves the project and file like
+the other Git reads, and runs `git blame --incremental --no-textconv --contents -` against HEAD
+under the same bounded, timed runner. It returns `ProjectGitBlame` (`src/shared/project-git.ts`):
+a commit table (author, author time, subject; `oid: null` for a line that is not committed yet)
+and one commit index per line. A file HEAD does not have is all uncommitted. Results are cached by
+HEAD, path and text hash (eight entries). The editor keeps the gutter on lines while you type and
+marks rewritten lines as not committed until the next read; Git stays the source of truth.
 
 An exact successful `apply_patch` may also retain a bounded immutable before/after review asset
 beside the session record. That historical review belongs to the recorded tool call, not to HEAD or

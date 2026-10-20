@@ -5,10 +5,11 @@ import { setLanguage } from '../src/renderer/i18n.js';
 import { createAgentPanel } from '../src/renderer/agent-panel.js';
 import type { LocalProject } from '../src/shared/projects.js';
 import type { ProjectDirectoryListing, ProjectFilePreview, ProjectFilesChanged } from '../src/shared/project-files.js';
-import type { ProjectGitChanged, ProjectGitDiff, ProjectGitSnapshot } from '../src/shared/project-git.js';
+import type { ProjectGitBlame, ProjectGitChanged, ProjectGitDiff, ProjectGitSnapshot } from '../src/shared/project-git.js';
 
 const createPdfViewer = vi.hoisted(() => vi.fn());
 const codeMount = vi.hoisted(() => ({ wait: null as Promise<void> | null, calls: 0 }));
+const blameCalls = vi.hoisted(() => ({ applied: [] as Array<{ lines: any[]; uncommitted: any }>, cleared: 0 }));
 vi.mock('../src/renderer/file-pdf-viewer.js', () => ({ createProjectPdfViewer: createPdfViewer }));
 vi.mock('../src/renderer/file-code-editor.js', () => ({
   createProjectCodeEditor: async (options: { parent: HTMLElement; text: string; onChange?: (text: string) => void }) => {
@@ -17,7 +18,11 @@ vi.mock('../src/renderer/file-code-editor.js', () => ({
     const input = document.createElement('textarea'); input.className = 'test-code-input'; input.value = options.text;
     options.parent.append(input);
     input.addEventListener('input', () => options.onChange?.(input.value));
-    return { getValue: () => input.value, focus: () => input.focus(), destroy: () => input.remove(), language: 'Plain text' };
+    return {
+      getValue: () => input.value, focus: () => input.focus(), destroy: () => input.remove(), language: 'Plain text',
+      blame: () => ({ text: input.value, apply: (lines: any[], uncommitted: any) => { blameCalls.applied.push({ lines, uncommitted }); } }),
+      clearBlame: () => { blameCalls.cleared++; }
+    };
   },
   createProjectDiffViewer: async (options: { parent: HTMLElement; baseText: string; currentText: string }) => {
     const view = document.createElement('pre');
@@ -95,6 +100,7 @@ it('rearms a lost watch without resending watches for ordinary file changes or a
 
 beforeEach(() => {
   codeMount.wait = null; codeMount.calls = 0;
+  blameCalls.applied = []; blameCalls.cleared = 0;
   dom = new JSDOM('<body><section id="host"></section><button id="toggle"></button></body>', { url: 'https://cos.local/' });
   vi.stubGlobal('window', dom.window);
   vi.stubGlobal('document', dom.window.document);
@@ -125,6 +131,7 @@ beforeEach(() => {
       }),
       getProjectGitSnapshot: vi.fn(() => ok(cleanGit())),
       getProjectGitDiff: vi.fn(),
+      getProjectGitBlame: vi.fn(),
       onProjectGitChanged: vi.fn((listener: (event: ProjectGitChanged) => void) => {
         projectGitChanged = listener;
         return () => { if (projectGitChanged === listener) projectGitChanged = null; };
@@ -1232,4 +1239,102 @@ it('offers no file changes for a project on a server, and still previews it', as
 
   panel.update(projectB); await tick();
   for (const label of ['New file', 'New folder', 'Reveal']) expect(action(label)?.hidden, label).toBe(false);
+});
+
+it('toggles a Blame gutter on a code preview and in the editor for the text shown, and only for a local project', async () => {
+  const code = { ...preview, path: 'src/main.ts', name: 'main.ts', text: 'one\ntwo\n' };
+  (window.api.previewProjectFile as any).mockImplementation(() => ok(code));
+  const oid = 'c'.repeat(40);
+  const blame = (state: ProjectGitBlame['state'] = 'ready'): ProjectGitBlame => ({
+    projectId: projectA.id, path: 'src/main.ts', state, revision: 'r'.repeat(64),
+    commits: state === 'ready' ? [{ oid, author: 'Ada', authorTime: 1_767_323_045, summary: 'First lines' }, { oid: null, author: '', authorTime: 0, summary: '' }] : [],
+    lines: state === 'ready' ? [0, 1] : []
+  });
+  (window.api.getProjectGitBlame as any).mockImplementation(() => ok(blame()));
+  const panel = createFilePanel({ host, toggle });
+  panel.update(projectA); toggle.click(); await tick();
+  host.querySelector<HTMLButtonElement>('[data-path="src"]')!.click(); await tick();
+  host.querySelector<HTMLButtonElement>('[data-path="src/main.ts"]')!.click(); await tick(); await tick();
+  const toggleBlame = () => host.querySelector<HTMLButtonElement>('.file-preview-blame')!;
+  expect(toggleBlame().getAttribute('aria-pressed')).toBe('false');
+  expect(window.api.getProjectGitBlame).not.toHaveBeenCalled();
+
+  toggleBlame().click(); await tick();
+  expect(window.api.getProjectGitBlame).toHaveBeenCalledWith(projectA.id, 'src/main.ts', 'one\ntwo\n');
+  expect(toggleBlame().getAttribute('aria-pressed')).toBe('true');
+  const { lines, uncommitted } = blameCalls.applied.at(-1)!;
+  expect(lines[0]).toMatchObject({ key: oid, uncommitted: false });
+  expect(lines[0].label).toMatch(/^Ada · \S/);
+  expect(lines[0].title).toContain('First lines');
+  expect(lines[0].title).toContain('cccccccc');
+  expect(lines[1]).toBe(uncommitted);
+  expect(uncommitted).toMatchObject({ label: 'Not committed yet', uncommitted: true });
+
+  // Edit keeps Blame on and annotates the editor's own text.
+  host.querySelector<HTMLButtonElement>('.file-preview-actions [aria-label="Edit"]')!.click(); await tick(); await tick();
+  expect(host.querySelector('.test-code-input')).not.toBeNull();
+  expect(window.api.getProjectGitBlame).toHaveBeenCalledTimes(2);
+  expect(blameCalls.applied).toHaveLength(2);
+  expect(toggleBlame().getAttribute('aria-pressed')).toBe('true');
+  toggleBlame().click(); await tick();
+  expect(blameCalls.cleared).toBe(1);
+  expect(toggleBlame().getAttribute('aria-pressed')).toBe('false');
+  expect(window.localStorage.getItem('chat-on-steroids.file-blame')).toBe('0');
+
+  // Outside a repository it says so and turns itself off.
+  (window.api.getProjectGitBlame as any).mockImplementation(() => ok(blame('not-repository')));
+  toggleBlame().click(); await tick();
+  expect(document.querySelector('.toast')?.textContent).toBe('This folder is not a Git repository.');
+  expect(toggleBlame().getAttribute('aria-pressed')).toBe('false');
+  expect(blameCalls.applied).toHaveLength(2);
+
+  // A project on a server has no Git here, so there is no Blame.
+  panel.update({ ...projectB, path: 'me@devbox:/srv/beta', remote: { host: 'me@devbox', path: '/srv/beta' } }); await tick();
+  host.querySelector<HTMLButtonElement>('[data-path="src"]')!.click(); await tick();
+  host.querySelector<HTMLButtonElement>('[data-path="src/main.ts"]')!.click(); await tick(); await tick();
+  expect(host.querySelector('.file-preview-title > strong')?.textContent).toBe('main.ts');
+  expect(host.querySelector('.file-preview-blame')).toBeNull();
+});
+
+it('offers and reads no Blame for a truncated preview or a project on a server', async () => {
+  // A file over the editor limit is previewed cut short, possibly decoded from UTF-16 with its BOM
+  // dropped, and without a revision. Blaming that text would mark committed lines as new.
+  const large = { ...preview, path: 'src/main.ts', name: 'main.ts', text: 'export {}\n', revision: undefined, truncated: true, bytes: 600_000 };
+  (window.api.previewProjectFile as any).mockImplementation(() => ok(large));
+  window.localStorage.setItem('chat-on-steroids.file-blame', '1');
+  const panel = createFilePanel({ host, toggle });
+  panel.update(projectA); toggle.click(); await tick();
+  host.querySelector<HTMLButtonElement>('[data-path="src"]')!.click(); await tick();
+  host.querySelector<HTMLButtonElement>('[data-path="src/main.ts"]')!.click(); await tick(); await tick();
+  expect(host.querySelector('.test-code-input')).not.toBeNull();
+  expect(host.querySelector('.file-preview-blame')).toBeNull();
+  expect(window.api.getProjectGitBlame).not.toHaveBeenCalled();
+
+  // With Blame remembered on, a project on a server reads nothing either, and the choice survives.
+  (window.api.previewProjectFile as any).mockImplementation(() => ok({ ...large, revision: 'a'.repeat(64), truncated: false, bytes: 10 }));
+  panel.update({ ...projectB, path: 'me@devbox:/srv/beta', remote: { host: 'me@devbox', path: '/srv/beta' } }); await tick();
+  host.querySelector<HTMLButtonElement>('[data-path="src"]')!.click(); await tick();
+  host.querySelector<HTMLButtonElement>('[data-path="src/main.ts"]')!.click(); await tick(); await tick();
+  expect(host.querySelector('.test-code-input')).not.toBeNull();
+  expect(window.api.getProjectGitBlame).not.toHaveBeenCalled();
+  expect(window.localStorage.getItem('chat-on-steroids.file-blame')).toBe('1');
+});
+
+it('formats an open Blame gutter again in a newly chosen language', async () => {
+  const code = { ...preview, path: 'src/main.ts', name: 'main.ts', text: 'one\n' };
+  (window.api.previewProjectFile as any).mockImplementation(() => ok(code));
+  (window.api.getProjectGitBlame as any).mockImplementation(() => ok({
+    projectId: projectA.id, path: 'src/main.ts', state: 'ready', revision: 'r'.repeat(64),
+    commits: [{ oid: null, author: '', authorTime: 0, summary: '' }], lines: [0]
+  } satisfies ProjectGitBlame));
+  window.localStorage.setItem('chat-on-steroids.file-blame', '1');
+  const panel = createFilePanel({ host, toggle });
+  panel.update(projectA); toggle.click(); await tick();
+  host.querySelector<HTMLButtonElement>('[data-path="src"]')!.click(); await tick();
+  host.querySelector<HTMLButtonElement>('[data-path="src/main.ts"]')!.click(); await tick(); await tick();
+  expect(blameCalls.applied.at(-1)!.uncommitted.label).toBe('Not committed yet');
+  try {
+    setLanguage('de'); await tick();
+    expect(blameCalls.applied.at(-1)!.uncommitted.label).toBe('Noch nicht committet');
+  } finally { setLanguage('en'); }
 });

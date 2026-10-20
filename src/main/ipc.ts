@@ -93,7 +93,7 @@ import { RESERVED_ROOT_NAMES, uniqueRootName, validateNewRoot, SandboxError, res
 import { addProject, addRemoteProject, expireArmedProjectCreates, getSessionProject, listProjects, localProjectPath, onProjectLinkChange, projectWorkspace, removeProject, retryProjectCreate, setProjectColor } from './projects.js';
 import { createProjectEntry, listProjectDirectory, previewProjectFile, projectFileTarget, renameProjectEntry, revalidateProjectFileTarget, saveProjectTextFile, serverFileSnapshot } from './project-files.js';
 import { ProjectFileWatchSet } from './project-file-watcher.js';
-import { ProjectGitWatchSet, readProjectGitDiff, readProjectGitSnapshot } from './project-git.js';
+import { ProjectGitWatchSet, readProjectGitBlame, readProjectGitDiff, readProjectGitSnapshot } from './project-git.js';
 import { hasSecret, isEncryptionAvailable, secureStorageStatus, setAsideUnreadableSecrets, setSecret, storedSecretsUnreadable } from './secrets.js';
 import { setupApiKeySlot } from '../shared/setup-profile.js';
 import { addSetupProfile, removeSetupProfile, switchSetupProfile } from './setup-profiles.js';
@@ -1085,6 +1085,11 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     const { projectId, path, baseRef, expectedRevision } = z.object({ projectId: projectFileId, path: projectRelativePath.min(1),
       baseRef: z.string().min(1).max(256).optional(), expectedRevision: z.string().length(64).regex(/^[0-9a-f]+$/).optional() }).strict().parse(payload);
     return readProjectGitDiff(projectId, path, baseRef, expectedRevision);
+  });
+  handle('projectGit:blame', async payload => {
+    const { projectId, path, contents } = z.object({ projectId: projectFileId, path: projectRelativePath.min(1),
+      contents: z.string().max(256 * 1024) }).strict().parse(payload);
+    return readProjectGitBlame(projectId, path, contents);
   });
   handle('sessions:toolEditReview', async payload => {
     const { sessionId, callId, changeIndex } = z.object({

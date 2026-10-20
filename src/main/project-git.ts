@@ -4,7 +4,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { statSync, watch as watchFs, type FSWatcher } from 'node:fs';
 import type { Stats } from 'node:fs';
 import path from 'node:path';
-import type { ProjectGitChange, ProjectGitChanged, ProjectGitDiff, ProjectGitSnapshot, ProjectGitStatus } from '../shared/project-git.js';
+import type { ProjectGitBlame, ProjectGitBlameCommit, ProjectGitChange, ProjectGitChanged, ProjectGitDiff, ProjectGitSnapshot, ProjectGitStatus } from '../shared/project-git.js';
 import { getConfig } from './config.js';
 import { rawPromises as fs } from './rawfs.js';
 import { projectFileTarget } from './project-files.js';
@@ -17,6 +17,7 @@ const MAX_DIFF_SIDE_BYTES = 512 * 1024;
 const UNTRACKED_STAT_BATCH = 16;
 const GIT_TIMEOUT_MS = 15_000;
 const CHANGE_DEBOUNCE_MS = 180;
+const BLAME_CACHE_LIMIT = 8;
 
 interface GitResult { code: number; stdout: Buffer; stderr: string; }
 interface RepositoryContext { projectId: string; projectReal: string; root: string; gitDir: string; commonDir: string; prefix: string; }
@@ -121,12 +122,15 @@ export function gitExecutable(
   throw new Error('Git was not found on PATH');
 }
 
-async function runGit(cwd: string, args: string[], maxBytes = MAX_GIT_OUTPUT_BYTES): Promise<GitResult> {
+async function runGit(cwd: string, args: string[], maxBytes = MAX_GIT_OUTPUT_BYTES, input?: Buffer): Promise<GitResult> {
   const executable = gitExecutable();
   return new Promise((resolve, reject) => {
     const child = spawn(executable, ['--no-optional-locks', ...args], {
-      cwd, env: cleanGitEnvironment(), windowsHide: true, stdio: ['ignore', 'pipe', 'pipe']
+      cwd, env: cleanGitEnvironment(), windowsHide: true, stdio: ['pipe', 'pipe', 'pipe']
     });
+    // Git may exit before reading all of the input (a bad path); its exit code reports that.
+    child.stdin.on('error', () => undefined);
+    child.stdin.end(input);
     const stdout: Buffer[] = [], stderr: Buffer[] = [];
     let stdoutBytes = 0, stderrBytes = 0, settled = false;
     const finish = (error?: Error, code = -1): void => {
@@ -464,6 +468,102 @@ export async function readProjectGitDiff(projectId: string, relativePath: string
     currentText: binary || tooLarge ? null : current.text,
     note: tooLarge ? 'This diff is too large to display.' : binary ? 'Binary diff · preview unavailable' : undefined
   };
+}
+
+const blameCache = new Map<string, ProjectGitBlame>();
+
+function textLineCount(text: string): number {
+  return text.length === 0 ? 0 : text.split('\n').length - (text.endsWith('\n') ? 1 : 0);
+}
+
+/** `git blame --incremental`: the porcelain records without the file's own lines. */
+function parseBlame(buffer: Buffer, lineCount: number): Pick<ProjectGitBlame, 'commits' | 'lines'> {
+  const commits: ProjectGitBlameCommit[] = [];
+  const byOid = new Map<string, number>();
+  const lines = new Array<number>(lineCount);
+  let group: { commit: number; first: number; count: number } | null = null;
+  for (const record of new TextDecoder('utf-8').decode(buffer).split('\n')) {
+    const header = /^([0-9a-f]{40,64}) \d+ (\d+) (\d+)$/.exec(record);
+    if (header) {
+      const oid = header[1]!;
+      let commit = byOid.get(oid);
+      if (commit === undefined) {
+        commit = commits.push({ oid: /^0+$/.test(oid) ? null : oid, author: '', authorTime: 0, summary: '' }) - 1;
+        byOid.set(oid, commit);
+      }
+      group = { commit, first: Number(header[2]) - 1, count: Number(header[3]) };
+      if (group.first < 0 || group.count < 1 || group.first + group.count > lineCount) throw new Error('Git returned an invalid blame');
+      continue;
+    }
+    if (!group) continue;
+    const space = record.indexOf(' ');
+    const key = space < 0 ? record : record.slice(0, space), value = space < 0 ? '' : record.slice(space + 1);
+    const commit = commits[group.commit]!;
+    if (key === 'filename') {
+      lines.fill(group.commit, group.first, group.first + group.count);
+      group = null;
+    } else if (commit.oid !== null) {
+      // Uncommitted lines stay blank; Git names their author "External file (--contents)".
+      if (key === 'author') commit.author = value.slice(0, 200);
+      else if (key === 'author-time') commit.authorTime = Number(value) || 0;
+      else if (key === 'summary') commit.summary = value.slice(0, 300);
+    }
+  }
+  for (let index = 0; index < lineCount; index++) if (lines[index] === undefined) throw new Error('Git returned an incomplete blame');
+  return { commits, lines };
+}
+
+/**
+ * Annotates `contents`, the text the viewer or editor shows for a file, against HEAD. Lines
+ * that differ from HEAD (or a file HEAD does not have) come back with `oid: null`. The
+ * result is cached by HEAD, path and text, so toggling Blame or reopening the file is cheap.
+ */
+export async function readProjectGitBlame(projectId: string, relativePath: string, contents: string): Promise<ProjectGitBlame> {
+  const blank = (state: ProjectGitBlame['state'], message?: string): ProjectGitBlame =>
+    ({ projectId, path: relativePath, state, revision: '', commits: [], lines: [], ...(message ? { message } : {}) });
+  let context: RepositoryContext | null;
+  try { context = await repositoryContext(projectId); }
+  catch (error) { return blank('unavailable', error instanceof Error ? error.message : String(error)); }
+  if (!context) return blank('not-repository');
+  const repository = context;
+  try {
+    const target = await projectFileTarget(projectId, relativePath, { allowRoot: false });
+    if (target.kind !== 'file') throw new Error('Choose a regular file');
+    const readHead = async (): Promise<string> => {
+      const head = await runGit(repository.projectReal, ['rev-parse', '--verify', '--quiet', 'HEAD'], 128);
+      return head.code === 0 ? decode(head.stdout).trim() : '';
+    };
+    const headOid = await readHead();
+    const bytes = Buffer.from(contents, 'utf8');
+    const revision = createHash('sha256').update(JSON.stringify([headOid, relativePath, createHash('sha256').update(bytes).digest('hex')])).digest('hex');
+    const key = `${projectId}:${revision}`;
+    const cached = blameCache.get(key);
+    if (cached) {
+      blameCache.delete(key); blameCache.set(key, cached);
+      return cached;
+    }
+    const lineCount = textLineCount(contents);
+    const inHead = headOid !== '' &&
+      (await runGit(context.projectReal, ['cat-file', '-e', `${headOid}:${repositoryPath(context, relativePath)}`], 128)).code === 0;
+    let annotated: Pick<ProjectGitBlame, 'commits' | 'lines'>;
+    if (!inHead) {
+      annotated = { commits: [{ oid: null, author: '', authorTime: 0, summary: '' }], lines: new Array<number>(lineCount).fill(0) };
+    } else {
+      const result = await runGit(context.projectReal,
+        ['blame', '--incremental', '--no-textconv', '--contents', '-', '--', relativePath], MAX_GIT_OUTPUT_BYTES, bytes);
+      if (result.code !== 0) throw new Error(result.stderr || 'Git blame failed');
+      annotated = parseBlame(result.stdout, lineCount);
+    }
+    const value: ProjectGitBlame = { projectId, path: relativePath, state: 'ready', revision, ...annotated };
+    // A commit or checkout during the read could have annotated against a newer HEAD.
+    if (await readHead() === headOid) {
+      blameCache.set(key, value);
+      while (blameCache.size > BLAME_CACHE_LIMIT) blameCache.delete(blameCache.keys().next().value!);
+    }
+    return value;
+  } catch (error) {
+    return blank('unavailable', error instanceof Error ? error.message : String(error));
+  }
 }
 
 type WatchFactory = (nativePath: string, listener: () => void, recursive?: boolean) => FSWatcher;

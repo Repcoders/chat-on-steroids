@@ -42,6 +42,28 @@ export interface ProjectGitDiff {
   note?: string;
 }
 
+/** The last commit that touched a line, or `oid: null` for a line that is not committed yet. */
+export interface ProjectGitBlameCommit {
+  oid: string | null;
+  author: string;
+  /** Seconds since the epoch, as Git records it. */
+  authorTime: number;
+  summary: string;
+}
+
+/** Per-line authorship of the text the viewer or editor shows, compared with HEAD. */
+export interface ProjectGitBlame {
+  projectId: string;
+  path: string;
+  state: 'ready' | 'not-repository' | 'unavailable';
+  /** HEAD, path and the annotated text, hashed. */
+  revision: string;
+  commits: ProjectGitBlameCommit[];
+  /** One index into `commits` per line of the annotated text, top to bottom. */
+  lines: number[];
+  message?: string;
+}
+
 /** Git metadata changed. This is only an invalidation signal; main rereads Git before publishing. */
 export interface ProjectGitChanged {
   projectId: string;
