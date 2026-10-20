@@ -146,6 +146,8 @@ let sessionPageCursor: { updatedAt: number; id: string } | null = null;
 let sessionPageLoading = false;
 /** True after the user has explicitly paged beyond the newest page. */
 let loadedOlderSessions = false;
+/** Whether the newest page has arrived once. A row merged in earlier (an answer link at launch) started no paging. */
+let newestSessionPageRead = false;
 /**
  * Where each project's own history continues (#1190): absent until the project was first
  * expanded, a cursor while it has older chats that are not loaded, null once all of them are.
@@ -1271,11 +1273,13 @@ async function loadSessions(detail: 'reread' | 'changed' = 'reread'): Promise<vo
     sessions = sessions.filter(row => present.has(row.id) || (!!list.nextCursor && !!oldest &&
       (row.updatedAt < oldest.updatedAt || (row.updatedAt === oldest.updatedAt && row.id < oldest.id))));
     mergeSessionRows(list.sessions);
+    if (!newestSessionPageRead) sessionPageCursor = list.nextCursor ?? null;
   }
   else {
     sessions = list.sessions;
     sessionPageCursor = list.nextCursor ?? null;
   }
+  newestSessionPageRead = true;
   sessionTotal = typeof list.total === 'number' ? list.total : list.sessions.length;
   activeId = list.activeId;
   // Whole-set replacement on every page, older pages included: a block belongs to a

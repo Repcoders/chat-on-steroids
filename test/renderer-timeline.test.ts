@@ -166,7 +166,7 @@ async function settleHistoryFrame(w: Pick<Window, 'requestAnimationFrame'>): Pro
   await settle();
 }
 
-async function boot(events: SessionEvent[], selectExisting = true, pausedHelpers: Array<{ id: string; sourceSessionId: string }> = [], projects: LocalProject[] = [], options: { origin?: SessionSummary["origin"]; developerMode?: boolean; playfulStatus?: boolean; followOutput?: boolean; followUp?: 'steer' | 'queue'; enterSends?: boolean; sessions?: SessionSummary[]; pro?: boolean; astra?: boolean; reserveOpenings?: boolean; handoff?: Handoff | null; deferProcessStop?: boolean; defaultChatModel?: string; noModels?: boolean; approvalCard?: () => unknown; answerApproval?: (id: string, cardId: string, choice: string) => unknown; summary?: Partial<SessionSummary>; holdInputs?: Promise<void> } = {}) {
+async function boot(events: SessionEvent[], selectExisting = true, pausedHelpers: Array<{ id: string; sourceSessionId: string }> = [], projects: LocalProject[] = [], options: { origin?: SessionSummary["origin"]; developerMode?: boolean; playfulStatus?: boolean; followOutput?: boolean; followUp?: 'steer' | 'queue'; enterSends?: boolean; sessions?: SessionSummary[]; pro?: boolean; astra?: boolean; reserveOpenings?: boolean; handoff?: Handoff | null; deferProcessStop?: boolean; defaultChatModel?: string; noModels?: boolean; approvalCard?: () => unknown; answerApproval?: (id: string, cardId: string, choice: string) => unknown; summary?: Partial<SessionSummary>; holdInputs?: Promise<void>; listSessions?: (args?: unknown) => Promise<unknown> } = {}) {
   const html = await fs.readFile(path.join(process.cwd(), 'src', 'renderer', 'index.html'), 'utf8');
   dom = new JSDOM(html, { url: 'https://local.test/', pretendToBeVisual: true });
   const w = dom.window;
@@ -254,7 +254,9 @@ async function boot(events: SessionEvent[], selectExisting = true, pausedHelpers
         answerLinkListener = fn;
         return () => undefined;
       },
-      listSessions: () => {
+      listSessions: (args?: unknown) => {
+        // `listSessions`: the test answers the sidebar's reads itself, the first one included.
+        if (options.listSessions) return options.listSessions(args);
         const sessions = options.sessions ?? [{ ...summary(live.events), ...options.summary, ...(options.origin ? { origin: options.origin } : {}), ...(projects[0] ? { projectId: projects[0].id } : {}) }];
         const known = new Set(sessions.map(row => row.id));
         const openings = live.inputs.filter(row => row.opening && row.sessionId && !known.has(row.sessionId)).map(row => ({
@@ -6351,6 +6353,28 @@ describe('answer links', () => {
     expect(api.locateMessage).toHaveBeenCalledWith(linked, replyId);
     expect(w.document.querySelector(`.sess.is-sel[data-id="${linked}"]`)).not.toBeNull();
     expect(w.document.querySelector('#timeline .is-search-hit')?.textContent).toContain('Tag first, then build.');
+  });
+
+  it('keeps the sidebar paging when a link opened the app before its first page arrived', async () => {
+    const newest = { ...summary([]), updatedAt: T0 + 2 };
+    const older = { ...summary([]), id: '2026-10-17-older001', title: 'Older chat', updatedAt: T0 + 1 };
+    let release!: () => void;
+    const firstPage = new Promise<void>(resolve => { release = resolve; });
+    const page = (sessions: SessionSummary[], nextCursor: unknown) => ({ ok: true, data: { sessions, total: 2, nextCursor, activeId: null, pressure: [], blocked: [] } });
+    const listSessions = vi.fn(async (args?: unknown) => {
+      if ((args as { cursor?: unknown } | undefined)?.cursor) return page([older], null);
+      await firstPage;
+      return page([newest], { updatedAt: newest.updatedAt, id: newest.id });
+    });
+    const { w, openAnswerLink } = await boot([ask, reply(), end], false, [], [], { listSessions });
+    (w as any).api.locateMessage = vi.fn(async () => ({ ok: true, data: { seq: 2, kind: 'assistant_message', messageId: replyId, position: 2 } }));
+    openAnswerLink({ sessionId: newest.id, messageId: replyId }); await settle();
+    release(); await settle(); await settle();
+    expect(w.document.querySelector(`.sess.is-sel[data-id="${newest.id}"]`)).not.toBeNull();
+    w.document.getElementById('sessionList')!.closest('.scroll')!.dispatchEvent(new w.Event('scroll'));
+    await settle();
+    expect(listSessions).toHaveBeenCalledWith(expect.objectContaining({ cursor: { updatedAt: newest.updatedAt, id: newest.id } }));
+    expect(w.document.querySelector(`[data-id="${older.id}"]`)).not.toBeNull();
   });
 
   it('says so when the linked chat was removed or no longer holds the answer', async () => {
