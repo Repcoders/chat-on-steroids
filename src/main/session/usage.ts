@@ -49,7 +49,7 @@ function recordReadings(rows: readonly ModelUsage[], at: number): void {
     const key = usageLimitKey(row);
     const readings = history.get(key) ?? [];
     const last = readings.at(-1);
-    if (last && (at < last.at || (last.value === value && at - last.at < HISTORY_EVERY_MS))) continue;
+    if (last && (at < last.at || (last.value === value && last.resetAt === row.resetAt && at - last.at < HISTORY_EVERY_MS))) continue;
     // A later snapshot with the same capture time replaces its reading, as it replaced the snapshot.
     if (last?.at === at) readings.pop();
     readings.push({ at, value, resetAt: row.resetAt });

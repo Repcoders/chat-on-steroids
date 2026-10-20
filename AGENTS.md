@@ -2152,8 +2152,8 @@ the Usage tab and the `usage` tool label them as Codex. An extension before 2.1.
 
 The same accepted snapshots feed a small local **limit history** (durable `usage-history`, version 1):
 one `[at, value, resetAt]` reading per limit, keyed by `shared/usage.ts::usageLimitKey()` (scope,
-model, window and measure, so a count and a percent never share a trend), written when the value
-changes or every 5 minutes, kept for 8 days and at most 600 readings per limit; a later snapshot with
+model, window and measure, so a count and a percent never share a trend), written when the value or
+reset time changes or every 5 minutes, kept for 8 days and at most 600 readings per limit; a later snapshot with
 the same capture time replaces its reading. Usage overview rows carry `readings`: only those since the
 limit last went up or passed the reset its previous reading reported (`usageLimitSegment`). Snapshots
 carry no account identity, so an account switch is only separated by those two signals. The Usage tab

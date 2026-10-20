@@ -214,6 +214,16 @@ describe('passive usage limits and canonical token totals', () => {
     usage.observeUsage([model(55)], now);
     expect((await usage.usageOverview()).limits[0]?.readings).toEqual([{ at: now, value: 55, resetAt: null }]);
   });
+  it('keeps a reset time that moved later, so the next reading does not look like a new window', async () => {
+    const model = (remaining: number, resetAt: number) => limit({ model: 'gpt-example', scope: 'model', remaining, remainingPercent: null, resetAt });
+    const start = now;
+    usage.observeUsage([model(50, start + 30 * 60000)]);
+    now += 60000;
+    usage.observeUsage([model(50, start + 90 * 60000)]); // Same value, but the window now ends later.
+    now += 39 * 60000;
+    usage.observeUsage([model(45, start + 90 * 60000)]);
+    expect((await usage.usageOverview()).limits[0]?.readings?.map(reading => reading.value)).toEqual([50, 50, 45]);
+  });
   it('removes exhausted pre-reset observations without inventing a replenished balance', async () => {
     usage.observeUsage([limit({ model: 'gpt-example', scope: 'model', remaining: 0, remainingPercent: null, resetAt: now + 1000 })]);
     now += 1001;
