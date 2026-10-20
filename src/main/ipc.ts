@@ -137,6 +137,7 @@ import { forgetSession, notifyChanged, onSessionChange } from './session/recorde
 import { findInSession, locateMessage, locateSearchMatch, searchSessions } from './session/search.js';
 import { readSessionEvents, readSessionList, sessionListCursorSchema } from './session/read-model.js';
 import { exportSessionMarkdown } from './session/markdown-export.js';
+import { exportSavedAnswer, listSavedAnswers, locateSavedAnswer, removeSavedAnswer, saveAnswer } from './session/saved-answers.js';
 import { blockedChatIds, setChatsBlocked } from './session/blocked-chats.js';
 import { setChatsTrusted, trustedChatIds } from './session/trusted-chats.js';
 import {
@@ -1286,6 +1287,21 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     }).parse(payload);
     return exportSessionMarkdown(request, getWindow());
   });
+
+  // The saved answers shelf. Saving names an answer the way export does; main copies its whole
+  // Markdown from the recording, so the renderer cannot put text of its own on the shelf.
+  const savedAnswerArg = z.object({ id: z.string().uuid() }).strict();
+  handle('savedAnswers:list', async () => listSavedAnswers());
+  handle('savedAnswers:save', async (payload) => {
+    const { id, turnId, messageId } = sessionIdArg.extend({
+      turnId: z.string().min(1).max(200).optional(),
+      messageId: z.string().min(1).max(200).optional()
+    }).strict().parse(payload);
+    return saveAnswer(id, turnId, messageId);
+  });
+  handle('savedAnswers:remove', async (payload) => removeSavedAnswer(savedAnswerArg.parse(payload).id));
+  handle('savedAnswers:locate', async (payload) => locateSavedAnswer(savedAnswerArg.parse(payload).id));
+  handle('savedAnswers:export', async (payload) => exportSavedAnswer(savedAnswerArg.parse(payload).id, getWindow()));
 
   // The Install button. The renderer decides nothing about what is installed - it cannot
   // name a file, a version or a path - it only says "now", and only a staged, digest-checked

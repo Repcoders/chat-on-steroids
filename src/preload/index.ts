@@ -17,6 +17,7 @@ import type { PetLibraryState, PetOverlayControlState, PetRuntimeAsset } from '.
 import type { SkillSummary, ManagedSkill, GitHubSkillUpdateCheck, SkillLibrary, SkillsDraftScope } from '../shared/skills.js';
 import type { RunningToolActivity, SessionChange, SessionSearchReply, SessionSearchLocation, ToolEditReview } from '../shared/session.js';
 import type { TurnTrace } from '../shared/turn-trace.js';
+import type { SavedAnswerView } from '../shared/saved-answers.js';
 import type { RunningExecProcess } from '../shared/background-exec.js';
 import type { PluginSnapshot, PluginInstallRequest, PluginConfigPatch } from '../shared/plugins.js';
 /**
@@ -257,6 +258,11 @@ const api = {
   writeClipboard: (text: string) => call<boolean>('clipboard:write', { text }),
   exportMarkdown: (request: { id: string; scope: 'answer' | 'session'; turnId?: string; messageId?: string; target: 'clipboard' | 'file' }) =>
     call<{ done: 'copied' } | { done: 'saved'; name: string } | { done: 'cancelled' }>('sessions:exportMarkdown', request),
+  savedAnswers: () => call<SavedAnswerView[]>('savedAnswers:list'),
+  saveAnswer: (request: { id: string; turnId?: string; messageId?: string }) => call<SavedAnswerView[]>('savedAnswers:save', request),
+  removeSavedAnswer: (id: string) => call<SavedAnswerView[]>('savedAnswers:remove', { id }),
+  locateSavedAnswer: (id: string) => call<{ sessionId: string; location: SessionSearchLocation } | null>('savedAnswers:locate', { id }),
+  exportSavedAnswer: (id: string) => call<{ done: 'saved'; name: string } | { done: 'cancelled' }>('savedAnswers:export', { id }),
   // `external`: the system's own browser even for a page the CoS browser would open.
   openLink: (url: string, options: { external?: boolean } = {}) => call<boolean>('link:open', { url, ...(options.external ? { external: true } : {}) }),
   showCosBrowser: () => call<boolean>('cosBrowser:show'),
