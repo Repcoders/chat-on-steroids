@@ -114,13 +114,34 @@ it('keeps a fence open past quoted or listed fence lines written inside it', () 
     '> ```',
     '> $$ a $$',
     '- ```',
-    '- \[ c \]',
+    '- \\[ c \\]',
     '```',
     '',
     '$$ b $$'
   ].join('\n');
   expect(answerArtifacts(answer)).toEqual([
-    { kind: 'code', language: 'md', text: '> ```\n> $$ a $$\n- ```\n- \[ c \]' },
+    { kind: 'code', language: 'md', text: '> ```\n> $$ a $$\n- ```\n- \\[ c \\]' },
     { kind: 'formula', text: 'b' }
+  ]);
+});
+
+it('leaves out formulas inside indented code, at the top and in a list', () => {
+  const answer = [
+    'Run:',
+    '',
+    '    $$',
+    '    x = 1',
+    '    $$',
+    '',
+    '- Then:',
+    '',
+    '      \\[ z \\]',
+    '',
+    '$$ y $$'
+  ].join('\n');
+  expect(answerArtifacts(answer)).toEqual([
+    { kind: 'code', text: '$$\nx = 1\n$$' },
+    { kind: 'code', text: '\\[ z \\]' },
+    { kind: 'formula', text: 'y' }
   ]);
 });

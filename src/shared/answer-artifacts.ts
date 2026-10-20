@@ -54,9 +54,11 @@ function withoutCode(text: string): string {
   return kept.join('\n').replace(/(`+)(?:[^`\n]|[^`\n][^\n]*?[^`\n])\1(?!`)/g, span => ' '.repeat(span.length));
 }
 
-function displayFormulas(text: string): Array<{ at: number; artifact: AnswerArtifact }> {
+/** The formulas outside code; `code` holds the spans of marked's code blocks, indented ones too. */
+function displayFormulas(text: string, code: Array<[number, number]>): Array<{ at: number; artifact: AnswerArtifact }> {
   if (!text.includes('\\[') && !text.includes('$$')) return [];
-  const prose = withoutCode(text);
+  let prose = withoutCode(text);
+  for (const [from, to] of code) prose = prose.slice(0, from) + prose.slice(from, to).replace(/[^\n]/g, ' ') + prose.slice(to);
   const out: Array<{ at: number; artifact: AnswerArtifact }> = [];
   DISPLAY_OPEN.lastIndex = 0;
   for (let match = DISPLAY_OPEN.exec(prose); match; match = DISPLAY_OPEN.exec(prose)) {
@@ -77,9 +79,17 @@ export function answerArtifacts(markdown: string): AnswerArtifact[] {
   let tokens: Token[];
   try { tokens = new Lexer({ gfm: true }).lex(text); } catch { return []; }
   const found: Array<{ at: number; artifact: AnswerArtifact }> = [];
+  const spans: Array<[number, number]> = [];
   const visit = (token: Token, at: number): void => {
     if (token.type === 'code') {
       const code = token as Tokens.Code;
+      // The block's lines from where it starts: a nested block's raw has lost its indent, not its lines.
+      let end = at - 1;
+      for (let lines = code.raw.trim().split('\n').length; lines > 0 && end < text.length; lines--) {
+        end = text.indexOf('\n', end + 1);
+        if (end < 0) end = text.length;
+      }
+      spans.push([at, end]);
       if (!code.text.trim()) return;
       const language = code.lang?.trim().split(/\s+/)[0];
       found.push({ at, artifact: { kind: 'code', text: code.text, ...(language ? { language } : {}) } });
@@ -101,6 +111,6 @@ export function answerArtifacts(markdown: string): AnswerArtifact[] {
   };
   let offset = 0;
   for (const token of tokens) { visit(token, offset); offset += token.raw.length; }
-  found.push(...displayFormulas(text));
+  found.push(...displayFormulas(text, spans));
   return found.sort((a, b) => a.at - b.at).map(entry => entry.artifact);
 }
