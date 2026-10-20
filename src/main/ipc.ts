@@ -24,6 +24,7 @@ import { committedResumeAncestorsFromSummary, DEFAULT_RECORDING_STORAGE_GIB, REA
 import { safeExternalLink } from '../shared/external-link.js';
 import { wakeBrowserWork } from './browser-wake.js';
 import { refreshKeepAwake } from './keep-awake.js';
+import { refreshTaskbarProgress } from './taskbar-progress.js';
 import { getChatModels, startChatModelDiscovery, configureChatModelDiscovery } from './chat-models.js';
 import { releaseSessionFinish, requestSessionFinishGoal } from './session/finish.js';
 import { GOAL_MARKER_INSTRUCTION } from '../shared/goal-templates.js';
@@ -251,6 +252,7 @@ const settingsPatch = z.object({
     localAppUsage: z.boolean().optional(),
     keepAwake: z.boolean().optional(),
     keepScreenAwake: z.boolean().optional(),
+    taskbarProgress: z.boolean().optional(),
     privacyScreenshots: z.boolean(),
     theme: z.enum(['light', 'dark'])
   }),
@@ -438,6 +440,7 @@ function mergeSettings(current: Config, base: SettingsSnapshot, wanted: Settings
       localAppUsage: pick(current.ui.localAppUsage, base.ui.localAppUsage, wanted.ui.localAppUsage),
       keepAwake: pick(current.ui.keepAwake, base.ui.keepAwake, wanted.ui.keepAwake),
       keepScreenAwake: pick(current.ui.keepScreenAwake, base.ui.keepScreenAwake, wanted.ui.keepScreenAwake),
+      taskbarProgress: pick(current.ui.taskbarProgress, base.ui.taskbarProgress, wanted.ui.taskbarProgress),
       privacyScreenshots: pick(
         current.ui.privacyScreenshots,
         base.ui.privacyScreenshots,
@@ -717,6 +720,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     void refreshAppProxy();
     setRecordingStorageLimit(next.sessions.storageLimitGiB ?? DEFAULT_RECORDING_STORAGE_GIB);
     if ((before.ui.keepAwake !== false) !== (next.ui.keepAwake !== false) || (before.ui.keepScreenAwake === true) !== (next.ui.keepScreenAwake === true)) refreshKeepAwake();
+    if ((before.ui.taskbarProgress === true) !== (next.ui.taskbarProgress === true)) refreshTaskbarProgress();
     nativeTheme.themeSource = next.ui.theme;
     if (process.platform === 'win32') getWindow()?.setTitleBarOverlay(titleBarOverlayForTheme(next.ui.theme, next.ui.appearance));
     // BrowserWindow's native backing color is fixed at construction unless updated explicitly.

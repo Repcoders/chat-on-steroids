@@ -4272,6 +4272,20 @@ it('keeps the computer awake while a chat works, the screen too when chosen, or 
   }
 });
 
+// While chats work, the taskbar shows progress and the title the count. Off until switched on.
+it('shows running chats on the taskbar only once switched on, and saves both ways', async () => {
+  const mounted = await mountChat({});
+  const w = mounted.window;
+  const taskbar = w.document.getElementById('taskbarProgress') as HTMLInputElement;
+  expect(taskbar.checked).toBe(false);
+  taskbar.checked = true;
+  taskbar.dispatchEvent(new w.Event('change', { bubbles: true }));
+  await settle();
+  expect(mounted.calls.at(-1)?.ui.taskbarProgress).toBe(true);
+  mounted.push({ ...mounted.state, config: { ...mounted.state.config, ui: { ...mounted.state.config.ui, taskbarProgress: false } } });
+  expect(taskbar.checked).toBe(false);
+});
+
 // The maintainer's idea (2026-10-14): where a minimized built-in browser goes. Only shown for that browser.
 it('offers where the built-in browser minimizes to, only while it is the chosen browser, and saves the tray', async () => {
   const mounted = await mountChat({});

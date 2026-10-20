@@ -756,6 +756,7 @@ function save(over: { readOnly?: boolean; theme?: 'light' | 'dark'; appearance?:
       localAppUsage: $<HTMLInputElement>('localAppUsage').checked,
       keepAwake: $<HTMLSelectElement>('keepAwake').value !== 'off',
       keepScreenAwake: $<HTMLSelectElement>('keepAwake').value === 'screen',
+      taskbarProgress: $<HTMLInputElement>('taskbarProgress').checked,
       minimizeToTray: $<HTMLInputElement>('minimizeToTray').checked,
       developerMode: $<HTMLInputElement>('developerMode').checked,
       playfulStatus: $<HTMLInputElement>('playfulStatus').checked,
@@ -1696,6 +1697,7 @@ function apply(next: AppState): void {
   if (previousState && (previousState.config.ui.localAppUsage !== false) !== (config.ui.localAppUsage !== false)) void refreshOtherApps(true);
   const awakeChoice = (ui: typeof config.ui) => ui.keepAwake === false ? 'off' : ui.keepScreenAwake === true ? 'screen' : 'computer';
   applyValue($<HTMLSelectElement>('keepAwake'), awakeChoice(config.ui), previousState ? awakeChoice(previousState.config.ui) : undefined);
+  applyChecked($<HTMLInputElement>('taskbarProgress'), config.ui.taskbarProgress === true, previousState?.config.ui.taskbarProgress);
   applyChecked($<HTMLInputElement>('autoConnect'), config.ui.autoConnect, previousState?.config.ui.autoConnect);
   applyChecked($<HTMLInputElement>('developerMode'), config.ui.developerMode === true, previousState?.config.ui.developerMode);
   applyChecked($<HTMLInputElement>('playfulStatus'), config.ui.playfulStatus === true, previousState?.config.ui.playfulStatus);
@@ -2785,6 +2787,7 @@ for (const id of [
   'autoConnect',
   'startAtLogin',
   'keepAwake',
+  'taskbarProgress',
   'minimizeToTray',
   'developerMode',
   'playfulStatus',

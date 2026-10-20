@@ -209,6 +209,8 @@ export interface UiPrefs {
   keepAwake?: boolean;
   /** With keepAwake: also keep the screen on (Modern Standby laptops sleep once it turns off). */
   keepScreenAwake?: boolean;
+  /** While chats work: taskbar progress, "(2 running)" in the window title, the count on the Dock icon. Missing means off. */
+  taskbarProgress?: boolean;
   /** Default screenshots to the active window instead of the whole primary monitor. */
   privacyScreenshots: boolean;
   /** Browser for app-originated launches; connected source tabs retain placement ownership. */
