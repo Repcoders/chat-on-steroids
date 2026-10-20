@@ -4198,6 +4198,21 @@ select option::checkmark { order: 1; margin-inline-start: auto; color: var(--ink
 }
 /* A failed worker's last action: where it stopped, plainly. */
 .agent-card-last { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--soft); font-size: calc(12px * var(--text-scale, 1)); line-height: 1.4; }
+/* A working worker's note field, under its row and in line with its text. The copy to the main chat
+   shows only while a note is being written. */
+.agent-note { display: grid; grid-template-columns: minmax(0, 1fr) 28px; gap: 6px 4px; margin: -4px 12px 10px 56px; }
+.agent-note-input { min-width: 0; height: 28px; padding: 0 10px; border: 1px solid var(--line); border-radius: 7px; background: transparent;
+  color: var(--ink); font: inherit; font-size: calc(12.5px * var(--text-scale, 1)); transition: border-color 120ms ease; }
+.agent-note-input::placeholder { color: var(--faint); }
+.agent-note-input:focus { outline: none; border-color: var(--accent-edge); }
+.agent-note[aria-busy] .agent-note-input { color: var(--soft); }
+.agent-note-send { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border-radius: 7px; color: var(--soft); }
+.agent-note-send:hover { background: var(--hover); color: var(--ink); }
+.agent-note-copy { grid-column: 1 / -1; justify-self: start; display: inline-flex; align-items: center; gap: 6px; color: var(--faint);
+  font-size: calc(12px * var(--text-scale, 1)); cursor: pointer; }
+.agent-note-copy-box { margin: 0; accent-color: var(--ink); }
+.agent-note:not(:focus-within):has(.agent-note-input:placeholder-shown) .agent-note-copy { display: none; }
+@media (prefers-reduced-motion: reduce) { .agent-note-input { transition: none; } }
 /* A worker's two views (#105): pills like the dock's tabs, on their own line under its name. */
 .agent-panel-header:has(.agent-panel-views) { flex-wrap: wrap; row-gap: 10px; padding-bottom: 10px; }
 .agent-panel-views { display: flex; gap: 4px; flex-basis: 100%; min-width: 0; }

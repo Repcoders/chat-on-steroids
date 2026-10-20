@@ -1,6 +1,6 @@
 import { JSDOM } from 'jsdom';
 import { afterEach, expect, it, vi } from 'vitest';
-import { createAgentPanel } from '../src/renderer/agent-panel.js';
+import { createAgentPanel, sendWorkerNote, workerNoteMessages, type WorkerNoteMessage } from '../src/renderer/agent-panel.js';
 import type { SessionSummary } from '../src/shared/session.js';
 import { workerBrief } from '../src/shared/worker-brief.js';
 
@@ -492,4 +492,103 @@ it('keeps a failed worker\'s last action in the roster', () => {
   toggle.click();
   expect(document.querySelector('.agent-card-last')?.textContent).toBe('Last action: Ran npm test');
   expect(document.querySelector('.agent-card-activity')).toBeNull();
+});
+
+it('takes a note in the row of a working worker, keeps it through repaints, and empties it once sent (#59)', async () => {
+  dom = new JSDOM('<main></main><button></button>');
+  Object.assign(globalThis, { document: dom.window.document });
+  const toggle = document.querySelector('button')!;
+  let answer!: (sent: boolean) => void;
+  const sendNote = vi.fn(() => new Promise<boolean>(done => { answer = done; }));
+  const panel = createAgentPanel({ host: document.querySelector('main')!, toggle, load: async () => null, render: () => [], openMain: vi.fn(), working: () => true,
+    agent: worker => ({ state: worker.id === 'busy' ? 'active' : 'sleeping', task: 'Placeholder task', conversationId: 'c' }), sendNote });
+  const worker = (id: string, agentId: string, updatedAt = 1) => ({ id, title: agentId, updatedAt, startedAt: 0, conversationId: 'c',
+    origin: { kind: 'worker', fromSessionId: 'prime', agentId } }) as unknown as SessionSummary;
+  panel.update('prime', [worker('busy', 'worker-1'), worker('idle', 'worker-2')]);
+  toggle.click();
+  // Only the working worker takes a note; an idle one is reached by opening its chat.
+  const forms = () => [...document.querySelectorAll<HTMLFormElement>('.agent-note')];
+  expect(forms().map(form => form.dataset.workerSession)).toEqual(['busy']);
+  const field = () => forms()[0]!.querySelector<HTMLInputElement>('.agent-note-input')!;
+  expect(field().placeholder).toBe('Note to Worker 1');
+  field().focus(); field().value = 'Use the placeholder branch';
+  field().dispatchEvent(new dom.window.Event('input'));
+  field().setSelectionRange(4, 4);
+  // A worker update rebuilds the roster: the words, the focus and the caret stay.
+  panel.update('prime', [worker('busy', 'worker-1', 2), worker('idle', 'worker-2', 2)]);
+  expect(field().value).toBe('Use the placeholder branch');
+  expect(document.activeElement).toBe(field());
+  expect(field().selectionStart).toBe(4);
+  const copy = forms()[0]!.querySelector<HTMLInputElement>('.agent-note-copy-box')!;
+  copy.checked = true; copy.dispatchEvent(new dom.window.Event('change'));
+  forms()[0]!.querySelector<HTMLButtonElement>('.agent-note-send')!.click();
+  expect(sendNote).toHaveBeenCalledWith({ sessionId: 'busy', identity: 'worker-1', text: 'Use the placeholder branch', copy: true });
+  expect(field().readOnly).toBe(true);
+  forms()[0]!.querySelector<HTMLButtonElement>('.agent-note-send')!.click();
+  expect(sendNote).toHaveBeenCalledTimes(1);
+  answer(true); await Promise.resolve(); await Promise.resolve();
+  expect(field().value).toBe('');
+  expect(field().readOnly).toBe(false);
+  expect(forms()[0]!.querySelector<HTMLInputElement>('.agent-note-copy-box')!.checked).toBe(true);
+  // A refused note keeps its words to send again.
+  field().value = 'Second placeholder note'; field().dispatchEvent(new dom.window.Event('input'));
+  forms()[0]!.querySelector<HTMLButtonElement>('.agent-note-send')!.click();
+  answer(false); await Promise.resolve(); await Promise.resolve();
+  expect(field().value).toBe('Second placeholder note');
+});
+
+it('sends a worker note to its own chat, and its copy to the prime as the app\u2019s message, in the prime\u2019s Follow-up mode (#59)', () => {
+  const worker = { id: 'worker-session', projectId: 'project-a' }, prime = { id: 'prime-session' };
+  expect(workerNoteMessages({ worker, prime, identity: 'worker-2', text: 'Skip the {1} fixture', copy: false, primeMode: 'after-turn' }))
+    .toEqual([{ sessionId: 'worker-session', projectId: 'project-a', text: 'Skip the {1} fixture', mode: 'auto' }]);
+  // The copy says what the worker is being told, not that it got it; it is no message the person typed,
+  // so prompt recall and Skill routing leave it alone.
+  expect(workerNoteMessages({ worker, prime, identity: 'worker-2', text: 'Skip the {1} fixture', copy: true, primeMode: 'after-turn' })).toEqual([
+    { sessionId: 'worker-session', projectId: 'project-a', text: 'Skip the {1} fixture', mode: 'auto' },
+    { sessionId: 'prime-session', projectId: null, text: 'I am telling worker-2 directly: Skip the {1} fixture', mode: 'after-turn', authoredSource: 'none' }
+  ]);
+  expect(workerNoteMessages({ worker, prime: null, identity: 'worker-2', text: 'Placeholder', copy: true, primeMode: 'auto' })).toHaveLength(1);
+});
+
+it('copies a worker note to the prime only after the outbox kept the worker\u2019s message (#59)', async () => {
+  const messages = workerNoteMessages({ worker: { id: 'worker-session' }, prime: { id: 'prime-session' }, identity: 'worker-1',
+    text: 'Placeholder note', copy: true, primeMode: 'auto' });
+  for (const state of ['failed', 'cancelled']) {
+    const send = vi.fn(async () => ({ state }));
+    expect(await sendWorkerNote(messages, send)).toBe(false);
+    expect(send).toHaveBeenCalledTimes(1);
+  }
+  const refused = vi.fn(async () => null);
+  expect(await sendWorkerNote(messages, refused)).toBe(false);
+  expect(refused).toHaveBeenCalledTimes(1);
+  const send = vi.fn(async (_message: WorkerNoteMessage) => ({ state: 'queued' }));
+  expect(await sendWorkerNote(messages, send)).toBe(true);
+  expect(send.mock.calls.map(([message]) => message.sessionId)).toEqual(['worker-session', 'prime-session']);
+  // The worker has the note even when the prime's copy is refused.
+  const copyRefused = vi.fn().mockResolvedValueOnce({ state: 'queued' }).mockResolvedValueOnce(null);
+  expect(await sendWorkerNote(messages, copyRefused)).toBe(true);
+});
+
+it('holds the roster repaint while an IME composes in a note field (#59)', () => {
+  dom = new JSDOM('<main></main><button></button>');
+  Object.assign(globalThis, { document: dom.window.document });
+  const toggle = document.querySelector('button')!;
+  const panel = createAgentPanel({ host: document.querySelector('main')!, toggle, load: async () => null, render: () => [], openMain: vi.fn(), working: () => true,
+    agent: () => ({ state: 'active', task: 'Placeholder task', conversationId: 'c' }), sendNote: vi.fn(async () => true) });
+  const worker = (updatedAt: number) => ({ id: 'busy', title: 'worker-1', updatedAt, startedAt: 0, conversationId: 'c',
+    origin: { kind: 'worker', fromSessionId: 'prime', agentId: 'worker-1' } }) as unknown as SessionSummary;
+  panel.update('prime', [worker(1)]); toggle.click();
+  const field = () => document.querySelector<HTMLInputElement>('.agent-note-input')!;
+  const composing = field();
+  composing.focus();
+  composing.dispatchEvent(new dom.window.CompositionEvent('compositionstart'));
+  composing.value = '\u306b\u307b'; composing.dispatchEvent(new dom.window.Event('input'));
+  panel.update('prime', [worker(2)]);
+  expect(field()).toBe(composing);
+  composing.value = '\u65e5\u672c'; composing.dispatchEvent(new dom.window.Event('input'));
+  composing.dispatchEvent(new dom.window.CompositionEvent('compositionend'));
+  // The update that waited is painted once the conversion is done, with the converted words.
+  expect(field()).not.toBe(composing);
+  expect(field().value).toBe('\u65e5\u672c');
+  expect(document.activeElement).toBe(field());
 });
