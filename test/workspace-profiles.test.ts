@@ -53,11 +53,11 @@ describe('workspace profiles in the config file', () => {
     expect(switched.ui.minimizeToTray).toBe(loaded.ui.minimizeToTray);
   });
 
-  it('drops a damaged or repeated profile alone, keeping the others and every other setting', async () => {
+  it('drops a damaged profile, or one repeating an id or a name in any case, alone, keeping the others and every other setting', async () => {
     const config = reviewDay();
     const damaged = { id: 'p-bad', name: 'Bad', settings: { turnNotifications: 'yes', keepAwake: 'always', backgroundPlacement: 'window' } };
     const many = Array.from({ length: 10 }, (_, index) => ({ ...review, id: `p-${index}`, name: `Profile ${index}` }));
-    await fs.writeFile(path.join(dir, 'config.json'), JSON.stringify({ ...config, roots: [], workspaceProfiles: [overnight, damaged, { ...overnight, name: 'Copy' }, ...many] }), 'utf8');
+    await fs.writeFile(path.join(dir, 'config.json'), JSON.stringify({ ...config, roots: [], workspaceProfiles: [overnight, damaged, { ...overnight, name: 'Copy' }, { ...review, id: 'p-shouting', name: 'OVERNIGHT' }, ...many] }), 'utf8');
     const loaded = await loadConfig();
     expect(loaded.readOnly).toBe(false);
     expect(loaded.workspaceProfiles?.map(profile => profile.id)).toEqual(['p-overnight', 'p-0', 'p-1', 'p-2', 'p-3', 'p-4', 'p-5', 'p-6']);
