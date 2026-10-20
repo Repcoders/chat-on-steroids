@@ -640,6 +640,43 @@ describe('account-observed worker admission', () => {
     const result = spawn({ caller: prime, workers: [{ task: 'native confirmation', model: 'future-model', reasoning_effort: 'high' }] });
     expect(result.created[0]).toMatchObject({ model: 'future-model', reasoningEffort: 'high' });
   });
+
+  it('starts a worker on a saved role\'s model and reasoning, named after the role unless labelled', async () => {
+    const base = defaultConfig();
+    await saveConfig({ ...base, multiAgent: { ...base.multiAgent, enabled: true, maxWorkers: 3, defaultModel: 'gpt-5-6-thinking', defaultReasoning: 'high',
+      roles: [{ name: 'Reviewer', model: 'gpt-5-6-pro', reasoning: 'pro' }, { name: 'Scout', model: '', reasoning: 'pro' }] } });
+    try {
+      const result = spawn({ caller: prime, workers: [
+        { task: 'review the change', role: ' reviewer ' },
+        { task: 'map the code', role: 'Scout', label: 'Map' },
+        { task: 'explicit wins', role: 'Reviewer', reasoning_effort: 'high', model: '5.6' }
+      ] });
+      expect(result.created.map(worker => [worker.label, worker.model, worker.reasoningEffort])).toEqual([
+        ['Reviewer', 'gpt-5-6-pro', 'pro'], ['Map', 'gpt-5-6-thinking', 'pro'], ['Reviewer', '5.6', 'high']
+      ]);
+    } finally { await setEnabled(true); }
+  });
+
+  it('refuses an unknown role with the saved names and a stale role with the observed ids, before any worker', async () => {
+    const opened = vi.fn();
+    onSpawnRequest(opened);
+    const base = defaultConfig();
+    await saveConfig({ ...base, multiAgent: { ...base.multiAgent, enabled: true,
+      roles: [{ name: 'Reviewer', model: 'gpt-retired', reasoning: 'high' }, { name: 'Scout', model: '5.6', reasoning: 'ultra' }] } });
+    try {
+      expect(() => spawn({ caller: prime, workers: [{ task: 'first', model: '5.6' }, { task: 'second', role: 'Tester' }] }))
+        .toThrow('Worker 2\'s role "Tester" is not saved in Settings. Saved roles: Reviewer, Scout');
+      expect(() => spawn({ caller: prime, workers: [{ task: 'stale', role: 'Reviewer' }] }))
+        .toThrow(/model "gpt-retired" saved in role "Reviewer" is not observed.*Observed model ids and reasoning: 5\.6 \(high, pro\)/);
+      expect(() => spawn({ caller: prime, workers: [{ task: 'stale effort', role: 'Scout' }] }))
+        .toThrow(/reasoning_effort "ultra" saved in role "Scout" is not observed for model "5\.6"/);
+      expect(swarmState().agents).toEqual([]);
+      expect(opened).not.toHaveBeenCalled();
+      await setEnabled(true);
+      expect(() => spawn({ caller: prime, workers: [{ task: 'none saved', role: 'Reviewer' }] }))
+        .toThrow('Worker 1\'s role "Reviewer" is not saved in Settings. No worker roles are saved in Settings → Agents & automation.');
+    } finally { await setEnabled(true); }
+  });
 });
 
 describe('worker models', () => {
@@ -3843,6 +3880,22 @@ describe('through the MCP endpoint', () => {
     expect(pendingWorkerSpawns()).toEqual([]);
     await flushDurable();
     expect(await readDurable(stateName)).toBeNull();
+  });
+
+  it('spawns on a saved role named in the tool call and refuses it once its model is gone', async () => {
+    const base = defaultConfig();
+    await saveConfig({ ...base, multiAgent: { ...base.multiAgent, enabled: true, roles: [{ name: 'Reviewer', model: 'placeholder-model', reasoning: 'high' }] } });
+    const observed = (ids: string[]) => ({ state: 'ready' as const, requestedAt: null, observedAt: 1, models: ids.map(id => ({ id, label: id, efforts: ['medium' as const, 'high' as const] })) });
+    const catalog = vi.spyOn(chatModels, 'getChatModels').mockReturnValue(observed(['placeholder-model', 'other-model']));
+    try {
+      const spawned = await asChat(PRIME_CHAT, 'spawn', { workers: [{ task: 'review the change', role: 'Reviewer' }] });
+      expect(spawned).toContain('worker-1 (Reviewer, invited, model placeholder-model, reasoning high)');
+      resetAgentsForTests();
+      catalog.mockReturnValue(observed(['other-model']));
+      const refused = await asChat(PRIME_CHAT, 'spawn', { workers: [{ task: 'review the change', role: 'Reviewer' }] });
+      expect(refused).toContain('Worker 1\'s model "placeholder-model" saved in role "Reviewer" is not observed in the ChatGPT account. Observed model ids and reasoning: other-model (medium, high)');
+      expect(swarmRunning()).toBe(false);
+    } finally { catalog.mockRestore(); await setEnabled(true); }
   });
 
   it('exposes no key field anywhere in the agents schema', async () => {

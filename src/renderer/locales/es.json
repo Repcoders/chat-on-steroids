@@ -2882,5 +2882,16 @@
   "{0} sub-agents need attention|many": "{0} subagentes necesitan atención",
   "A tool call from an untrusted chat was refused. To allow it, open this chat's ⋯ menu in the sidebar (or right-click its row) and choose Trust chat.": "Se rechazó una llamada a herramienta de un chat no fiable. Para permitirla, abre el menú ⋯ de este chat en la barra lateral (o haz clic derecho en su fila) y elige «Confiar en el chat».",
   "A tool call from a worker whose main chat is not currently allowed was refused. Open that main chat's ⋯ menu in the sidebar and choose Trust chat if it is untrusted, or Release chat if it is blocked.": "Se rechazó una llamada a herramienta de un trabajador cuyo chat principal no está permitido ahora. Abre el menú ⋯ de ese chat principal en la barra lateral y elige «Confiar en el chat» si no es de confianza, o «Desbloquear chat» si está bloqueado.",
-  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "Se rechazó una llamada a herramienta de un trabajador creado por la aplicación porque aún no se ha comprobado el chat principal que lo inició. Vuelve a ese chat principal en la barra lateral; cuando aparezca su fila, abre su menú ⋯ y elige «Confiar en el chat», o «Desbloquear chat» si está bloqueado, y vuelve a intentarlo cuando el trabajador esté conectado o recuperado allí."
+  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "Se rechazó una llamada a herramienta de un trabajador creado por la aplicación porque aún no se ha comprobado el chat principal que lo inició. Vuelve a ese chat principal en la barra lateral; cuando aparezca su fila, abre su menú ⋯ y elige «Confiar en el chat», o «Desbloquear chat» si está bloqueado, y vuelve a intentarlo cuando el trabajador esté conectado o recuperado allí.",
+  "Sub-agent roles": "Roles de subagente",
+  "Named model and reasoning pairs. Ask for a role by name when you want a sub-agent on it.": "Pares con nombre de modelo y razonamiento. Pide un rol por su nombre cuando quieras un subagente con él.",
+  "Add role": "Añadir rol",
+  "Role name, e.g. Reviewer": "Nombre del rol, p. ej. Reviewer",
+  "Role name": "Nombre del rol",
+  "Role model": "Modelo del rol",
+  "Role reasoning": "Razonamiento del rol",
+  "Remove role {0}": "Eliminar el rol {0}",
+  "Another role already has this name": "Otro rol ya tiene este nombre",
+  "Sub-agent default": "Predeterminado de subagente",
+  "A role needs a name to be saved": "Un rol necesita un nombre para guardarse"
 }

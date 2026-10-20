@@ -3,6 +3,7 @@ import type { PluginRefreshStatus } from './plugin-refresh.js';
 import { WINDOWS_COMPUTER_READ_METHODS, WINDOWS_COMPUTER_INPUT_METHODS } from './windows-computer.js';
 import { BROWSER_READ_TOOLS, BROWSER_WRITE_TOOLS } from './browser-control.js';
 import type { CommandAllowlistSettings } from './command-allowlist.js';
+import type { WorkerRole } from './worker-roles.js';
 export type { CommandAllowlistSettings } from './command-allowlist.js';
 /** Types shared between the main process and the renderer. No runtime logic here. */
 
@@ -363,6 +364,8 @@ export interface GoalSettings {
 export interface MultiAgentSettings {
   defaultModel?: string;
   defaultReasoning?: ReasoningEffort | '';
+  /** Named model/reasoning setups that `agents` spawn selects with `workers[].role`. */
+  roles?: WorkerRole[];
   enabled: boolean;
   /** Upper bound on simultaneous slot-holding workers in one prime family. */
   maxWorkers: number;

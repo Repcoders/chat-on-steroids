@@ -3579,6 +3579,14 @@ Worker model and reasoning belong to the user's saved app settings by default. M
 instructions and the agents schema require omitting each override unless the user explicitly
 requests it; do not ask for those settings merely to spawn. `agents.ts` resolves omitted fields
 from current config at admission, so the executor need not know or repeat their concrete values.
+Named roles (`multiAgent.roles`, `src/shared/worker-roles.ts`: up to eight `{ name, model, reasoning }`,
+names unique case-insensitively, edited in Settings → Agents & automation → ChatGPT models) are selected per worker
+with `workers[].role`. The schema carries no role names, because ChatGPT may cache the tool list;
+the Core instructions list the saved names when there are any. Admission resolves the name from
+current config: an unknown name fails the whole spawn with the saved names, explicit
+`model`/`reasoning_effort` win over the role, an empty half keeps the saved default, and the
+role's values are checked as strictly as explicit arguments (observed ids on refusal, never the
+silent fallback a saved default gets). A worker without a label is named after its role.
 An exact caller without its own family receives a successful empty `agents status`, regardless
 of other active primes. A permitted unresolved request can likewise inspect its own state and
 start its own family. Missing both exact proof and permitted request identity refuses only that

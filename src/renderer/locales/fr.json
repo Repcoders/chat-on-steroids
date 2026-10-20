@@ -2882,5 +2882,16 @@
   "{0} sub-agents need attention|many": "{0} sous-agents demandent votre attention",
   "A tool call from an untrusted chat was refused. To allow it, open this chat's ⋯ menu in the sidebar (or right-click its row) and choose Trust chat.": "Un appel d’outil d’un chat non approuvé a été refusé. Pour l’autoriser, ouvrez le menu ⋯ de ce chat dans la barre latérale (ou faites un clic droit sur sa ligne) et choisissez « Faire confiance au chat ».",
   "A tool call from a worker whose main chat is not currently allowed was refused. Open that main chat's ⋯ menu in the sidebar and choose Trust chat if it is untrusted, or Release chat if it is blocked.": "Un appel d’outil d’un worker dont le chat principal n’est pas autorisé actuellement a été refusé. Ouvrez le menu ⋯ de ce chat principal dans la barre latérale et choisissez « Faire confiance au chat » s’il n’est pas approuvé, ou « Débloquer le chat » s’il est bloqué.",
-  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "Un appel d’outil d’un worker créé par l’application a été refusé, car le chat principal qui l’a lancé n’est pas encore prouvé. Revenez à ce chat principal dans la barre latérale ; une fois sa ligne affichée, ouvrez son menu ⋯ et choisissez « Faire confiance au chat », ou « Débloquer le chat » s’il est bloqué, puis réessayez une fois le worker rattaché ou rétabli."
+  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "Un appel d’outil d’un worker créé par l’application a été refusé, car le chat principal qui l’a lancé n’est pas encore prouvé. Revenez à ce chat principal dans la barre latérale ; une fois sa ligne affichée, ouvrez son menu ⋯ et choisissez « Faire confiance au chat », ou « Débloquer le chat » s’il est bloqué, puis réessayez une fois le worker rattaché ou rétabli.",
+  "Sub-agent roles": "Rôles des sous-agents",
+  "Named model and reasoning pairs. Ask for a role by name when you want a sub-agent on it.": "Des paires nommées de modèle et de raisonnement. Demandez un rôle par son nom pour qu'un sous-agent l'utilise.",
+  "Add role": "Ajouter un rôle",
+  "Role name, e.g. Reviewer": "Nom du rôle, p. ex. Reviewer",
+  "Role name": "Nom du rôle",
+  "Role model": "Modèle du rôle",
+  "Role reasoning": "Raisonnement du rôle",
+  "Remove role {0}": "Retirer le rôle {0}",
+  "Another role already has this name": "Un autre rôle porte déjà ce nom",
+  "Sub-agent default": "Défaut des sous-agents",
+  "A role needs a name to be saved": "Un rôle a besoin d'un nom pour être enregistré"
 }

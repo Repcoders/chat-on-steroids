@@ -87,6 +87,7 @@ import { formatLogAsJson, formatLogForClipboard, getLog, logInfo, logWarn, onLog
 import { managedWorktreeCleanupOffers, acknowledgeManagedWorktreeCleanupOffer } from './agents.js';
 import { listOfferedWorkerWorktrees, disposeOfferedWorkerWorktree, WorkerWorktreeError } from './worktrees/index.js';
 import type { WorkerWorktreeCleanupOffer } from '../shared/session.js';
+import { workerRolesSchema, type WorkerRole } from '../shared/worker-roles.js';
 import { unifiedExecManager } from './codex/manager.js';
 import { inFlightToolCalls } from './mcp/call-context.js';
 import { RESERVED_ROOT_NAMES, uniqueRootName, validateNewRoot, SandboxError, resolvePath } from './sandbox.js';
@@ -274,6 +275,7 @@ const settingsPatch = z.object({
     enabled: z.boolean(),
     defaultModel: z.string().max(80).optional(),
     defaultReasoning: z.enum(['', ...REASONING_EFFORTS]).optional(),
+    roles: workerRolesSchema.optional(),
     maxWorkers: z.number().int().min(1).max(8),
     globalMaxWorkers: z.number().int().min(0).max(64).optional(),
     allowUnattributedCalls: z.boolean(),
@@ -351,6 +353,9 @@ function mergeSettings(current: Config, base: SettingsSnapshot, wanted: Settings
   const pick = <T>(live: T, before: T, next: T): T => (Object.is(before, next) ? live : next);
   const pickRules = (live: string[], before: string[], next: string[]): string[] =>
     before.length === next.length && before.every((rule, index) => rule === next[index]) ? live : next;
+  // The role list is edited as one value; a form that did not touch it keeps the live list.
+  const pickRoles = (live?: WorkerRole[], before?: WorkerRole[], next?: WorkerRole[]): WorkerRole[] | undefined =>
+    next === undefined || JSON.stringify(before ?? []) === JSON.stringify(next) ? live : next;
   const capabilities = Object.fromEntries(
     CAPABILITIES.map((capability) => [
       capability,
@@ -473,6 +478,7 @@ function mergeSettings(current: Config, base: SettingsSnapshot, wanted: Settings
     multiAgent: {
       defaultModel: pick(current.multiAgent.defaultModel, base.multiAgent.defaultModel, wanted.multiAgent.defaultModel),
       defaultReasoning: pick(current.multiAgent.defaultReasoning, base.multiAgent.defaultReasoning, wanted.multiAgent.defaultReasoning),
+      roles: pickRoles(current.multiAgent.roles, base.multiAgent.roles, wanted.multiAgent.roles),
       enabled: pick(current.multiAgent.enabled, base.multiAgent.enabled, wanted.multiAgent.enabled),
       maxWorkers: pick(current.multiAgent.maxWorkers, base.multiAgent.maxWorkers, wanted.multiAgent.maxWorkers),
       globalMaxWorkers: pick(

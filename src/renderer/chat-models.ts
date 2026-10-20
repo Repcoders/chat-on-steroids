@@ -43,12 +43,14 @@ function chooseAutomatic(): void {
   paintPair('composerModel', 'composerReasoning', '', '');
   paintStatus();
 }
-const pairs = [
+/** What an empty choice means in a pair added later, where it is not Automatic. */
+const emptyLabels = new Map<string, () => string>();
+const pairs: Array<readonly [string, string, boolean]> = [
   ['composerModel', 'composerReasoning', false],
   ['defaultChatModel', 'defaultChatReasoning', true],
   ['workerModel', 'workerReasoning', false],
   ['helperModel', 'helperReasoning', false]
-] as const;
+];
 const effortNames: Record<string, string> = { none: "Instant", minimal: "Minimal", low: "Low", medium: "Medium", high: "High", xhigh: "Extra high", max: "Max", ultra: "Ultra", pro: 'Pro' } satisfies Record<ReasoningEffort, string>;
 const composerEfforts = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra', 'pro'] as const;
 const effortLabel = (effort: string): string => effortNames[effort] ? t(effortNames[effort]) : effort;
@@ -160,11 +162,18 @@ function distinctModelChoices(models: ChatModelCatalog['models']): Array<{ id: s
   });
 }
 
+/** A tracked pair with no model of its own offers the efforts of the default sub-agent model it follows. */
+function effortsFor(modelId: string, value: string, models = catalog.models): readonly ReasoningEffort[] {
+  const id = value || (emptyLabels.has(modelId) ? (document.getElementById('workerModel') as HTMLSelectElement | null)?.value ?? '' : '');
+  return models.find(item => item.id === id)?.efforts ?? [];
+}
+
 function paintPair(modelId: string, effortId: string, modelValue?: string, effortValue?: string, allowEmpty = false): void {
   const model = document.getElementById(modelId) as HTMLSelectElement | null;
   const effort = document.getElementById(effortId) as HTMLSelectElement | null;
   if (!model || !effort) return;
   const models = modelId === 'composerModel' ? composerModels() : catalog.models;
+  const empty = emptyLabels.get(modelId) ?? (() => t('Automatic'));
   // No saved sub-agent default starts workers on ChatGPT's current model. The select says so as
   // Automatic instead of naming a model nothing would use; a model picked there still gets its
   // preferred effort.
@@ -177,10 +186,10 @@ function paintPair(modelId: string, effortId: string, modelValue?: string, effor
     // cannot prove which efforts that alias supports. Retain both requested values
     // until the user deliberately selects a family; native selection proves the pair.
     const modelChoices = [...distinctModelChoices(models), { id: nextModel, label: `${observed.label} · ${nextModel}` }];
-    if (automaticModel) modelChoices.unshift({ id: '', label: () => t('Automatic') });
+    if (automaticModel) modelChoices.unshift({ id: '', label: empty });
     options(model, modelChoices, nextModel);
     const effortChoices = [{ id: nextEffort, label: () => nextEffort ? effortLabel(nextEffort) : t('Keep requested model settings') }];
-    if (allowEmpty && nextEffort) effortChoices.unshift({ id: '', label: () => t('Automatic') });
+    if (allowEmpty && nextEffort) effortChoices.unshift({ id: '', label: empty });
     options(effort, effortChoices, nextEffort);
     return;
   }
@@ -196,12 +205,18 @@ function paintPair(modelId: string, effortId: string, modelValue?: string, effor
     nextEffort = supported.includes('high') ? 'high' : supported[0] ?? '';
   }
   const modelChoices = distinctModelChoices(models);
-  if (automaticModel) modelChoices.unshift({ id: '', label: () => t('Automatic') });
+  if (automaticModel) modelChoices.unshift({ id: '', label: empty });
   const effortChoices: Array<{ id: string; label: string | (() => string) }> =
-    (models.find(item => item.id === nextModel)?.efforts ?? []).map(id => ({ id, label: () => effortLabel(id) }));
-  if (allowEmpty || (automaticModel && !nextModel)) effortChoices.unshift({ id: '', label: () => t('Automatic') });
+    effortsFor(modelId, nextModel, models).map(id => ({ id, label: () => effortLabel(id) }));
+  if (allowEmpty || (automaticModel && !nextModel)) effortChoices.unshift({ id: '', label: empty });
   options(model, modelChoices, nextModel);
   options(effort, effortChoices, nextEffort);
+  // Role pairs that follow the default sub-agent model offer its efforts, however it was set.
+  if (modelId === 'workerModel') {
+    for (const [roleModel, roleEffort] of pairs) {
+      if (emptyLabels.has(roleModel) && !(document.getElementById(roleModel) as HTMLSelectElement | null)?.value) paintPair(roleModel, roleEffort, undefined, undefined, true);
+    }
+  }
 }
 
 /** The next shortcut action is a projection of the same select Send reads. */
@@ -562,27 +577,43 @@ export function initChatModels(onPaint?: () => void): void {
     if (!modelMenu.open) closeModelChoices();
     else if (!catalog.models.length) $('refreshComposerModels').click();
   });
-  for (const [modelId, effortId, allowEmpty] of pairs) {
-    document.getElementById(modelId)?.addEventListener('change', () => {
-      if (modelId === 'composerModel' && composerContext) {
-        composerContext.edited = true;
-        if ($<HTMLSelectElement>(modelId).value) composerContext.automatic = false;
-      }
-      const model = $<HTMLSelectElement>(modelId);
-      const effort = $<HTMLSelectElement>(effortId);
-      const supported = catalog.models.find(item => item.id === model.value)?.efforts ?? [];
-      const nextEffort = allowEmpty
-        ? supported.includes(effort.value as ReasoningEffort) ? effort.value : ''
-        : model.value ? supported.includes('high') ? 'high' : supported[0] ?? '' : '';
-      paintPair(modelId, effortId, model.value, nextEffort, allowEmpty);
-      paintStatus();
-    });
-    document.getElementById(effortId)?.addEventListener('change', () => {
-      if (effortId === 'composerReasoning' && composerContext) composerContext.edited = true;
-      paintStatus();
-    });
-  }
+  for (const [modelId, effortId, allowEmpty] of pairs) wirePair(modelId, effortId, allowEmpty);
   for (const id of ['refreshChatModels', 'refreshComposerModels']) document.getElementById(id)?.addEventListener('click', () => { void discoverModels(); });
   for (const [modelId, effortId, allowEmpty] of pairs) paintPair(modelId, effortId, undefined, undefined, allowEmpty);
   paintStatus();
+}
+
+/**
+ * Paints a settings pair added after startup, such as a worker role row, from the same catalog
+ * as the fixed pairs, and keeps it repainted until the returned call drops it. Its empty choice
+ * is kept and named by `emptyLabel`, so an empty saved value survives every repaint.
+ */
+export function trackModelPair(modelId: string, effortId: string, model: string, effort: string, emptyLabel: () => string): () => void {
+  const pair = [modelId, effortId, true] as const;
+  pairs.push(pair);
+  emptyLabels.set(modelId, emptyLabel);
+  wirePair(modelId, effortId, true);
+  paintPair(modelId, effortId, model, effort, true);
+  return () => { const at = pairs.indexOf(pair); if (at >= 0) pairs.splice(at, 1); emptyLabels.delete(modelId); };
+}
+
+function wirePair(modelId: string, effortId: string, allowEmpty: boolean): void {
+  document.getElementById(modelId)?.addEventListener('change', () => {
+    if (modelId === 'composerModel' && composerContext) {
+      composerContext.edited = true;
+      if ($<HTMLSelectElement>(modelId).value) composerContext.automatic = false;
+    }
+    const model = $<HTMLSelectElement>(modelId);
+    const effort = $<HTMLSelectElement>(effortId);
+    const supported = effortsFor(modelId, model.value);
+    const nextEffort = allowEmpty
+      ? supported.includes(effort.value as ReasoningEffort) ? effort.value : ''
+      : model.value ? supported.includes('high') ? 'high' : supported[0] ?? '' : '';
+    paintPair(modelId, effortId, model.value, nextEffort, allowEmpty);
+    paintStatus();
+  });
+  document.getElementById(effortId)?.addEventListener('change', () => {
+    if (effortId === 'composerReasoning' && composerContext) composerContext.edited = true;
+    paintStatus();
+  });
 }
