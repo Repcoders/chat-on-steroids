@@ -36,17 +36,19 @@ export interface SessionArtifactsReply {
 /** A display formula opens a line, after any quote or list marker, as ChatGPT writes it (math.ts). */
 const DISPLAY_OPEN = /(^|\n)[ \t>]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?(\\\[|\$\$)/g;
 /** A code fence, after the same quote or list marker a formula may follow. */
-const FENCE = /^[ \t>]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?(`{3,}|~{3,})(.*)$/;
+const FENCE = /^([ \t>]*)((?:[-*+]|\d{1,9}[.)])[ \t]+)?(`{3,}|~{3,})(.*)$/;
 
 /** The text with code fences and code spans blanked, offsets kept: a formula in code is code. */
 function withoutCode(text: string): string {
-  // The open fence: closed by a run of the same character at least as long, with nothing after it.
-  let fence: string | null = null;
+  // The open fence: closed by a run of the same character at least as long, with nothing after it,
+  // in the same quote and not after a list marker. A quoted or listed fence inside a block is code.
+  let fence: string | null = null, quote = '';
   const kept = text.split('\n').map(line => {
-    const [, marker, rest] = FENCE.exec(line) ?? [];
+    const [, lead = '', item, marker, rest] = FENCE.exec(line) ?? [];
+    const depth = lead.replace(/[^>]/g, '');
     if (fence === null && !marker) return line;
-    if (fence === null) fence = marker!;
-    else if (marker && marker[0] === fence[0] && marker.length >= fence.length && !rest!.trim()) fence = null;
+    if (fence === null) { fence = marker!; quote = depth; }
+    else if (marker && !item && depth === quote && marker[0] === fence[0] && marker.length >= fence.length && !rest!.trim()) fence = null;
     return ' '.repeat(line.length);
   });
   return kept.join('\n').replace(/(`+)(?:[^`\n]|[^`\n][^\n]*?[^`\n])\1(?!`)/g, span => ' '.repeat(span.length));

@@ -107,3 +107,20 @@ it('leaves out formulas inside code fenced in a quote or a list item', () => {
     { kind: 'code', language: 'tex', text: '\\[ listed code \\]' }
   ]);
 });
+
+it('keeps a fence open past quoted or listed fence lines written inside it', () => {
+  const answer = [
+    '```md',
+    '> ```',
+    '> $$ a $$',
+    '- ```',
+    '- \[ c \]',
+    '```',
+    '',
+    '$$ b $$'
+  ].join('\n');
+  expect(answerArtifacts(answer)).toEqual([
+    { kind: 'code', language: 'md', text: '> ```\n> $$ a $$\n- ```\n- \[ c \]' },
+    { kind: 'formula', text: 'b' }
+  ]);
+});
