@@ -4109,6 +4109,12 @@ unpinned groups and a drag never crosses between them. Only recorded chats are p
 workers or unattributed activity. Pinned rows carry a quiet pin mark at rest (it makes way for the
 row's "⋯" on hover, focus or while its menu is open), and Pin chat/Unpin chat is the first item of
 the chat's row menu, keeping keyboard focus on the rebuilt row's menu button.
+`renderer/sidebar-dates.ts` draws date labels above the unpinned chats of the main Chats list in
+the project tree layout: Today, Yesterday, Previous 7 days, then one per month (with its year when
+it is not this year), by the local calendar and each chat's `updatedAt`, the time its row's age shows.
+They are plain text, never folders: no disclosure, no saved state, not focusable and not a drag
+scope or drop target, so pins and manual order work as before. A list the person has sorted by
+hand out of date order shows no labels at all, since any label would misstate the chats below it.
 The worker drawer is a read-only split view of the selected worker's own recorded conversation;
 opening it never switches the prime composer. Its cards show the scoped worker id, task, observed
 current-conversation model and broker status when known, falling back to recorded session activity.
