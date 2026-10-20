@@ -4955,7 +4955,9 @@ describe('reading position memory', () => {
     w.document.getElementById('timelineContent')!.getBoundingClientRect = () => ({ height: pane.scrollHeight } as DOMRect);
     const layout = w.HTMLElement.prototype.getBoundingClientRect;
     w.HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
-      const index = this.dataset.timelineKey ? keyed().indexOf(this) : -1;
+      // The divider sits where the row after it starts.
+      const row = this.classList.contains('new-since-read') ? this.nextElementSibling as HTMLElement : this;
+      const index = row?.dataset.timelineKey ? keyed().indexOf(row) : -1;
       if (index < 0) return layout.call(this);
       const top = index * 100 - pane.scrollTop;
       return { top, bottom: top + 100, height: 100, left: 0, right: 100, width: 100, x: 0, y: top, toJSON: () => ({}) } as DOMRect;
@@ -4996,6 +4998,11 @@ describe('reading position memory', () => {
     expect(divider.textContent).toBe('New since you read');
     expect(divider.nextElementSibling?.textContent).toContain('Question asked meanwhile');
     expect(w.document.getElementById('jumpLatest')!.classList.contains('is-shown')).toBe(true);
+    // Left again before reaching it, what arrived is still new next time.
+    await select(second.id);
+    await select(first.id);
+    expect(onTop()).toEqual(left);
+    expect(timeline.querySelector('.new-since-read')?.nextElementSibling?.textContent).toContain('Question asked meanwhile');
     // Live output while reading there does not take the reader to the end.
     await append([{ seq: 33, time: T0 + 33, source: 'extension', kind: 'user_message', messageId: 'reading-later', message: text('Later question') }]);
     expect(onTop()).toEqual(left);
@@ -5019,6 +5026,8 @@ describe('reading position memory', () => {
   it('opens a branch source at its reply, without New since you read', async () => {
     const { w, first, second, timeline, select, readTo, append } = await readingBoot(30, 'reading-27');
     (w as any).api.locateMessage = vi.fn(async () => ({ ok: true, data: { seq: 27, kind: 'user_message', messageId: 'reading-27', position: 27 } }));
+    let centered: Element | null = null;
+    w.HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) { centered = this; };
     await select(first.id);
     readTo(1230);
     await select(second.id);
@@ -5027,6 +5036,7 @@ describe('reading position memory', () => {
     await settleHistoryFrame(w); await settleHistoryFrame(w);
     expect(w.document.querySelector(`.sess.is-sel[data-id="${first.id}"]`)).not.toBeNull();
     expect((w as any).api.locateMessage).toHaveBeenCalledWith(first.id, 'reading-27');
+    expect(centered!.textContent).toContain('Reading item 27');
     expect(timeline.textContent).toContain('Question asked meanwhile');
     expect(timeline.querySelector('.new-since-read')).toBeNull();
   });

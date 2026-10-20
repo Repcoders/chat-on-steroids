@@ -4073,7 +4073,10 @@ function rememberReading(): void {
     const rect = row.getBoundingClientRect();
     if (rect.height <= 0 || rect.bottom <= edge) continue;
     if (rect.top >= edge + pane.clientHeight) return;
-    readingPositions.set(id, { offset: rect.top - edge, from: detailCursor,
+    // What arrived while they were away stays new until they have scrolled down to it.
+    const unread = newSince?.session === id &&
+      (!newSinceDivider.isConnected || newSinceDivider.getBoundingClientRect().top >= edge + pane.clientHeight);
+    readingPositions.set(id, { offset: rect.top - edge, from: unread ? newSince!.from : detailCursor,
       location: { seq: event.seq, kind: event.kind, messageId: event.messageId ?? null, position: residenceOf(event) } });
     if (readingPositions.size > MAX_READING_POSITIONS) readingPositions.delete(readingPositions.keys().next().value!);
     return;
