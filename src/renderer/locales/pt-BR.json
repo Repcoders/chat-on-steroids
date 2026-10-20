@@ -2875,7 +2875,7 @@
   "Chat removed": "Chat removido",
   "Star an answer to keep it here.": "Marque uma resposta com a estrela para guardá-la aqui.",
   "No saved answers match": "Nenhuma resposta salva corresponde",
-  "The shelf holds at most 500 answers. Remove one first.": "Cabem no máximo 500 respostas salvas. Remova uma primeiro.",
+  "Saved answers are full. Remove one first.": "Não cabem mais respostas salvas. Remova uma primeiro.",
   "This answer is too long to save.": "Esta resposta é longa demais para salvar.",
   "This saved answer was removed": "Esta resposta salva foi removida"
 }

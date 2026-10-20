@@ -5365,7 +5365,7 @@ it('lists saved answers on the shelf, searches them and opens one at its answer'
   const trip = { id: '7b0c2b8e-4d0f-4c55-9a43-2f1d6e8a9b10', sessionId: summary([]).id, turnId: 'done-turn', messageId: null, anchorMessageId: 'reply',
     title: 'Trip plan', markdown: 'Day one, then day two.\n', savedAt: T0 + 5_000, orphaned: false };
   const gone = { id: '0e6f3c1a-2b4d-4e8f-9a1b-3c5d7e9f1a2b', sessionId: '2026-10-01-removed01', turnId: 'old-turn', messageId: null, anchorMessageId: 'old',
-    title: 'Café notes', markdown: 'Keep the receipts.\n', savedAt: T0, orphaned: true };
+    title: 'Café notes', markdown: 'Keep the receipts.\n\nFile them by month.\n', savedAt: T0, orphaned: true };
   api.savedAnswers = vi.fn(async () => ({ ok: true, data: [trip, gone] }));
   api.writeClipboard = vi.fn(async () => ({ ok: true, data: true }));
   api.locateSavedAnswer = vi.fn(async () => ({ ok: true, data: { sessionId: trip.sessionId, location: { seq: 2, kind: 'assistant_message', messageId: 'reply', position: 2 } } }));
@@ -5374,13 +5374,22 @@ it('lists saved answers on the shelf, searches them and opens one at its answer'
   expect(dialog.open).toBe(true);
   const rows = () => [...dialog.querySelectorAll<HTMLElement>('.saved-answer')];
   expect(rows().map(row => row.querySelector('b')!.textContent)).toEqual(['Trip plan', 'Café notes']);
-  // Its chat was removed: the entry keeps its text and its actions, but has no chat to open.
+  // Its chat was removed: the entry keeps its text and its actions, and unfolds to the whole answer
+  // instead of opening a chat.
   const orphan = rows()[1]!;
   expect(orphan.classList.contains('is-orphaned')).toBe(true);
   expect(orphan.querySelector('.saved-answer-meta')!.textContent).toContain('Chat removed');
-  expect(orphan.querySelector<HTMLButtonElement>('.search-result')!.disabled).toBe(true);
+  const unfold = orphan.querySelector<HTMLButtonElement>('.search-result')!;
+  expect(orphan.querySelector('.search-snippet')!.textContent).toBe('Keep the receipts. File them by month.');
+  unfold.click(); await settle();
+  expect(dialog.open).toBe(true);
+  expect(api.locateSavedAnswer).not.toHaveBeenCalled();
+  expect(unfold.getAttribute('aria-expanded')).toBe('true');
+  expect(orphan.querySelector('.search-snippet')!.textContent).toBe('Keep the receipts.\n\nFile them by month.');
+  unfold.click(); await settle();
+  expect(unfold.getAttribute('aria-expanded')).toBe('false');
   orphan.querySelector<HTMLButtonElement>('.saved-answer-actions .answer-action')!.click(); await settle();
-  expect(api.writeClipboard).toHaveBeenCalledWith('Keep the receipts.\n');
+  expect(api.writeClipboard).toHaveBeenCalledWith('Keep the receipts.\n\nFile them by month.\n');
 
   // Every word must match, case and accents ignored.
   const field = w.document.getElementById('savedAnswersSearch') as HTMLInputElement;
@@ -5394,6 +5403,32 @@ it('lists saved answers on the shelf, searches them and opens one at its answer'
   rows()[0]!.querySelector<HTMLButtonElement>('.search-result')!.click(); await settle();
   expect(dialog.open).toBe(false);
   expect(api.locateSavedAnswer).toHaveBeenCalledWith(trip.id);
+});
+
+it('keeps a removal when an older shelf list answers after it', async () => {
+  const reply: SessionEvent = { kind: 'assistant_message', seq: 2, time: T0 + 1_000, source: 'extension', turnId: 'done-turn', messageId: 'reply', message: text('Day one, then day two.'), final: true, state: 'final' };
+  const { w } = await boot([reply, { seq: 3, time: T0 + 2_000, source: 'extension', kind: 'turn_end', turnId: 'done-turn', outcome: 'completed' }]);
+  const api = (w as any).api;
+  const entry = { id: '7b0c2b8e-4d0f-4c55-9a43-2f1d6e8a9b10', sessionId: summary([]).id, turnId: 'done-turn', messageId: null, anchorMessageId: 'reply',
+    title: 'Trip plan', markdown: 'Day one, then day two.\n', savedAt: T0, orphaned: false };
+  api.saveAnswer = vi.fn(async () => ({ ok: true, data: [entry] }));
+  api.removeSavedAnswer = vi.fn(async () => ({ ok: true, data: [] }));
+  const star = w.document.querySelector<HTMLButtonElement>('.ev-assistant_message .answer-actions .answer-save')!;
+  star.click(); await settle();
+  expect(star.getAttribute('aria-pressed')).toBe('true');
+
+  // The shelf is read again on open; that list is still on its way when the entry is removed.
+  let answerList!: (reply: unknown) => void;
+  api.savedAnswers = vi.fn(() => new Promise(resolve => { answerList = resolve; }));
+  const dialog = w.document.getElementById('savedAnswersDialog') as HTMLDialogElement;
+  (w.document.getElementById('sidebarSavedAnswers') as HTMLButtonElement).click(); await settle();
+  [...dialog.querySelectorAll<HTMLButtonElement>('.saved-answer .saved-answer-actions .answer-action')].at(-1)!.click(); await settle();
+  expect(api.removeSavedAnswer).toHaveBeenCalledWith(entry.id);
+  expect(dialog.querySelectorAll('.saved-answer')).toHaveLength(0);
+
+  answerList({ ok: true, data: [entry] }); await settle();
+  expect(dialog.querySelectorAll('.saved-answer')).toHaveLength(0);
+  expect(star.getAttribute('aria-pressed')).toBe('false');
 });
 
 it('opens each turn with how long it has worked, live while running and still once ended', async () => {

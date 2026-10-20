@@ -2128,14 +2128,18 @@ named as `sessions:exportMarkdown` names it. Main reads the answer whole with `r
 same completed-turn rule and overflow read as export) and keeps its own copy of that Markdown, with the
 chat title, the answer's first message id (`anchorMessageId`) and `savedAt`; the renderer cannot put
 text of its own on the shelf. One entry per answer (`savedAnswerKey`), at most 500, each at most 100,000
-characters; saving the same answer again changes nothing, and a save past a limit is refused.
+characters and 2,000,000 together (every change rewrites the file and answers with the whole shelf);
+saving the same answer again changes nothing, and a save past a limit is refused.
 `savedAnswers:list`, `:save` and `:remove { id }` answer `SavedAnswerView[]`, newest first, where
 `orphaned` means `sessionDirectoryMissing` proved the chat's history gone; corrupt or unreadable history
 is not orphaned. Removing a chat keeps its entries: they still copy (`clipboard:write`) and export
-(`savedAnswers:export { id }`, a save dialog named after the title), but no longer open. Sidebar → Saved
-answers opens `#savedAnswersDialog`, which searches title and text in the renderer (every word,
-`foldCase`); an entry opens its chat at the answer through `savedAnswers:locate { id }` → `{ sessionId,
-location: SessionSearchLocation } | null` and the same `revealChatLocation` as search results.
+(`savedAnswers:export { id }`, a save dialog named after the title), but no longer open: their row unfolds
+to the whole answer instead. Sidebar → Saved answers opens `#savedAnswersDialog`, which searches title and
+text in the renderer (every word, `foldCase`, folded once per entry); an entry opens its chat at the answer
+through `savedAnswers:locate { id }` → `{ sessionId, location: SessionSearchLocation } | null` and the same
+`revealChatLocation` as search results. The renderer shows only the reply to its latest shelf request, so
+an older list cannot undo a later star or removal. Tests: `saved-answers.test.ts`, and the saved answers
+cases in `renderer-timeline.test.ts`.
 
 ### Context pressure and Usage are different measurements
 

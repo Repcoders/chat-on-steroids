@@ -102,3 +102,18 @@ it('refuses an answer longer than the shelf keeps', async () => {
   await expect(shelf.saveAnswer('session-a', 't1')).rejects.toThrow('too long to save');
   expect(await shelf.listSavedAnswers()).toEqual([]);
 });
+
+it('refuses an answer once the shelf holds as many characters as it keeps', async () => {
+  const turns = Array.from({ length: 21 }, (_, n) => `turn-${n}`);
+  store.readEvents.mockResolvedValue(turns.flatMap((turnId, n) => [
+    { seq: n * 2 + 1, time: n, source: 'extension', kind: 'assistant_message', turnId, messageId: `m-${n}`, final: true, state: 'final',
+      message: { text: 'x', truncated: true, chars: 99_000, assetId: 'abcdef12.txt' } },
+    { seq: n * 2 + 2, time: n, source: 'extension', kind: 'turn_end', turnId, outcome: 'completed' }
+  ]) as SessionEvent[]);
+  store.readOverflowText.mockResolvedValue('x'.repeat(99_000));
+  for (const turnId of turns.slice(0, 20)) await shelf.saveAnswer('session-a', turnId);
+  await expect(shelf.saveAnswer('session-a', turns[20])).rejects.toThrow('Saved answers are full');
+  const saved = await shelf.listSavedAnswers();
+  expect(saved).toHaveLength(20);
+  expect(saved.reduce((sum, entry) => sum + entry.markdown.length, 0)).toBeLessThanOrEqual(shelf.MAX_SHELF_CHARS);
+});

@@ -2785,7 +2785,7 @@
   "Chat removed": "聊天已删除",
   "Star an answer to keep it here.": "为回答加星标，即可保存在这里。",
   "No saved answers match": "没有匹配的已保存回答",
-  "The shelf holds at most 500 answers. Remove one first.": "最多可保存 500 个回答。请先移除一个。",
+  "Saved answers are full. Remove one first.": "已保存的回答已满。请先移除一个。",
   "This answer is too long to save.": "这个回答太长，无法保存。",
   "This saved answer was removed": "这个已保存的回答已被移除"
 }

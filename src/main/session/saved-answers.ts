@@ -19,6 +19,9 @@ const STATE = 'saved-answers';
 const STATE_VERSION = 1;
 export const MAX_SAVED_ANSWERS = 500;
 export const MAX_SAVED_ANSWER_CHARS = 100_000;
+/** All entries together: every change rewrites the file and answers with the whole shelf. */
+export const MAX_SHELF_CHARS = 2_000_000;
+const SHELF_FULL = 'Saved answers are full. Remove one first.';
 
 let entries: SavedAnswer[] = [];
 let restoring: Promise<void> | null = null;
@@ -44,7 +47,9 @@ function ready(): Promise<void> {
   restoring ??= (async () => {
     const saved = await readDurable<{ version: number; entries: unknown[] }>(STATE);
     if (saved?.version !== STATE_VERSION || !Array.isArray(saved.entries)) return;
-    entries = saved.entries.filter(validEntry).slice(0, MAX_SAVED_ANSWERS);
+    let chars = 0;
+    entries = saved.entries.filter(validEntry).slice(0, MAX_SAVED_ANSWERS)
+      .filter(entry => (chars += entry.markdown.length) <= MAX_SHELF_CHARS);
   })();
   return restoring;
 }
@@ -90,9 +95,11 @@ export function saveAnswer(sessionId: string, turnId?: string, messageId?: strin
   return mutate(async current => {
     const key = savedAnswerKey(sessionId, turnId, messageId);
     if (current.some(entry => savedAnswerKey(entry.sessionId, entry.turnId, entry.messageId) === key)) return null;
-    if (current.length >= MAX_SAVED_ANSWERS) throw new Error(`The shelf holds at most ${MAX_SAVED_ANSWERS} answers. Remove one first.`);
+    if (current.length >= MAX_SAVED_ANSWERS) throw new Error(SHELF_FULL);
     const answer = await readAnswerMarkdown(sessionId, turnId, messageId);
     if (answer.markdown.length > MAX_SAVED_ANSWER_CHARS) throw new Error('This answer is too long to save.');
+    const chars = current.reduce((sum, entry) => sum + entry.markdown.length, 0);
+    if (chars + answer.markdown.length > MAX_SHELF_CHARS) throw new Error(SHELF_FULL);
     return [...current, {
       id: randomUUID(), sessionId, turnId: turnId ?? null, messageId: turnId ? null : messageId ?? null,
       anchorMessageId: answer.entries[0]?.messageId ?? null, title: answer.title.slice(0, 500),

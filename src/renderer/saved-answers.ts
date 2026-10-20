@@ -16,10 +16,29 @@ const SNIPPET_CHARS = 240;
 let shelf: SavedAnswerView[] = [];
 let loaded: Promise<void> | null = null;
 const listeners = new Set<() => void>();
+/** Each entry's title and text folded once for search; an entry's text never changes. */
+const folded = new Map<string, string>();
+let requests = 0;
+let shown = 0;
+
+/**
+ * Asks main for the shelf (or to change it). Main answers in the order it was asked, so a reply is
+ * shown unless the reply to a later request already is.
+ */
+function request(call: Promise<{ ok: true; data: SavedAnswerView[] } | { ok: false; error: string }>): Promise<void> {
+  const generation = ++requests;
+  return run(call).then(next => {
+    if (!next || generation < shown) return;
+    shown = generation;
+    publish(next);
+  });
+}
 
 function publish(next: SavedAnswerView[] | null): void {
   if (!next) return;
   shelf = next;
+  const ids = new Set(next.map(entry => entry.id));
+  for (const id of folded.keys()) if (!ids.has(id)) folded.delete(id);
   // Timeline rows are cached across repaints, so their stars are repainted here, in place.
   for (const button of document.querySelectorAll<HTMLButtonElement>('button[data-saved-answer]')) paintSaveButton(button);
   for (const listener of listeners) listener();
@@ -27,7 +46,7 @@ function publish(next: SavedAnswerView[] | null): void {
 
 /** Reads the shelf again: its first read at startup, and each time it is opened. */
 export function loadSavedAnswers(): Promise<void> {
-  loaded = run(api.savedAnswers()).then(publish);
+  loaded = request(api.savedAnswers());
   return loaded;
 }
 
@@ -49,8 +68,8 @@ export function saveAnswerButton(sessionId: string, turnId: string | null, messa
     try {
       await loaded;
       const entry = savedEntry(key);
-      publish(await run(entry ? api.removeSavedAnswer(entry.id)
-        : api.saveAnswer({ id: sessionId, ...(turnId ? { turnId } : messageId ? { messageId } : {}) })));
+      await request(entry ? api.removeSavedAnswer(entry.id)
+        : api.saveAnswer({ id: sessionId, ...(turnId ? { turnId } : messageId ? { messageId } : {}) }));
     } finally { delete button.dataset.busy; }
   });
   return button;
@@ -72,7 +91,8 @@ export function matchingSavedAnswers(entries: readonly SavedAnswerView[], query:
   const words = foldCase(query).split(/\s+/).filter(Boolean);
   if (!words.length) return [...entries];
   return entries.filter(entry => {
-    const text = foldCase(`${entry.title}\n${entry.markdown}`);
+    let text = folded.get(entry.id);
+    if (text === undefined) folded.set(entry.id, text = foldCase(`${entry.title}\n${entry.markdown}`));
     return words.every(word => text.includes(word));
   });
 }
@@ -112,15 +132,23 @@ export function initSavedAnswers(options: SavedAnswersOptions): { open(): void }
     item.setAttribute('role', 'listitem');
     const open = el('button', 'search-result') as HTMLButtonElement;
     open.type = 'button';
-    open.disabled = entry.orphaned;
     const title = el('b', '', entry.title || t('Untitled session'));
     title.dir = 'auto';
-    const snippet = el('span', 'search-snippet', entry.markdown.replace(/\s+/g, ' ').trim().slice(0, SNIPPET_CHARS));
+    const preview = entry.markdown.replace(/\s+/g, ' ').trim().slice(0, SNIPPET_CHARS);
+    const snippet = el('span', 'search-snippet', preview);
     snippet.dir = 'auto';
     const date = new Date(entry.savedAt).toLocaleDateString(currentLanguage(), { year: 'numeric', month: 'short', day: 'numeric' });
     const meta = el('span', 'saved-answer-meta', () => entry.orphaned ? `${date} · ${t('Chat removed')}` : date);
     open.append(title, snippet, meta);
-    open.addEventListener('click', () => { close(); options.open(entry); });
+    if (entry.orphaned) {
+      // No chat to open it in: the row unfolds to the whole answer instead.
+      open.setAttribute('aria-expanded', 'false');
+      open.addEventListener('click', () => {
+        const expanded = item.classList.toggle('is-expanded');
+        open.setAttribute('aria-expanded', String(expanded));
+        snippet.textContent = expanded ? entry.markdown.trim() : preview;
+      });
+    } else open.addEventListener('click', () => { close(); options.open(entry); });
     const actions = el('div', 'saved-answer-actions');
     actions.append(
       action('i-copy', 'Copy answer', async () => {
@@ -130,7 +158,7 @@ export function initSavedAnswers(options: SavedAnswersOptions): { open(): void }
         const result = await run(api.exportSavedAnswer(entry.id));
         if (result?.done === 'saved') toast(t('Saved {0}', [result.name]));
       }),
-      action('i-trash', 'Remove from saved answers', async () => publish(await run(api.removeSavedAnswer(entry.id)))));
+      action('i-trash', 'Remove from saved answers', () => void request(api.removeSavedAnswer(entry.id))));
     item.append(open, actions);
     return item;
   };
@@ -164,7 +192,7 @@ export function initSavedAnswers(options: SavedAnswersOptions): { open(): void }
   field.addEventListener('input', paint);
   field.addEventListener('keydown', event => {
     if (event.key === 'Escape') { event.preventDefault(); close(); }
-    else if (event.key === 'Enter') results.querySelector<HTMLButtonElement>('.search-result:not(:disabled)')?.click();
+    else if (event.key === 'Enter') results.querySelector<HTMLButtonElement>('.saved-answer:not(.is-orphaned) > .search-result')?.click();
   });
   opener.addEventListener('click', open);
   dialog.addEventListener('click', event => { if (event.target === dialog) close(); });

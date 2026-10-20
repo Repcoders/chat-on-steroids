@@ -2875,7 +2875,7 @@
   "Chat removed": "Chat supprimé",
   "Star an answer to keep it here.": "Marquez une réponse d’une étoile pour la garder ici.",
   "No saved answers match": "Aucune réponse enregistrée ne correspond",
-  "The shelf holds at most 500 answers. Remove one first.": "Vous pouvez enregistrer au plus 500 réponses. Retirez-en une d’abord.",
+  "Saved answers are full. Remove one first.": "Il n’y a plus de place pour enregistrer des réponses. Retirez-en une d’abord.",
   "This answer is too long to save.": "Cette réponse est trop longue pour être enregistrée.",
   "This saved answer was removed": "Cette réponse enregistrée a été retirée"
 }

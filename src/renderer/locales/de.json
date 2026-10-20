@@ -2830,7 +2830,7 @@
   "Chat removed": "Chat entfernt",
   "Star an answer to keep it here.": "Markiere eine Antwort mit dem Stern, um sie hier aufzubewahren.",
   "No saved answers match": "Keine passenden gespeicherten Antworten",
-  "The shelf holds at most 500 answers. Remove one first.": "Es passen höchstens 500 Antworten in die gespeicherten Antworten. Entferne zuerst eine.",
+  "Saved answers are full. Remove one first.": "Die gespeicherten Antworten sind voll. Entferne zuerst eine.",
   "This answer is too long to save.": "Diese Antwort ist zu lang zum Speichern.",
   "This saved answer was removed": "Diese gespeicherte Antwort wurde entfernt"
 }

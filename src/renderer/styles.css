@@ -667,7 +667,7 @@ code {
 .saved-answer:hover, .saved-answer:focus-within { background: var(--hover); }
 .saved-answer > .search-result { flex: 1; min-width: 0; margin: 0; }
 .saved-answer > .search-result:hover, .saved-answer > .search-result:focus-visible { background: transparent; }
-.saved-answer > .search-result:disabled { cursor: default; }
+.saved-answer.is-expanded .search-snippet { display: block; white-space: pre-wrap; overflow: visible; }
 .saved-answer-meta { color: var(--faint); font-size: calc(11px * var(--text-scale, 1)); line-height: 16px; }
 .saved-answer.is-orphaned b { color: var(--soft); }
 .saved-answer-actions { display: flex; flex: none; gap: 2px; padding-inline-end: 6px; }

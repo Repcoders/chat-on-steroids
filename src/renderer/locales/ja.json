@@ -2785,7 +2785,7 @@
   "Chat removed": "チャットは削除されました",
   "Star an answer to keep it here.": "回答に星を付けると、ここに保存されます。",
   "No saved answers match": "一致する保存済みの回答はありません",
-  "The shelf holds at most 500 answers. Remove one first.": "保存できる回答は 500 件までです。先に 1 件削除してください。",
+  "Saved answers are full. Remove one first.": "保存できる回答の上限に達しました。先に 1 件削除してください。",
   "This answer is too long to save.": "この回答は長すぎて保存できません。",
   "This saved answer was removed": "この保存済みの回答は削除されました"
 }

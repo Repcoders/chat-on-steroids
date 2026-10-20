@@ -2785,7 +2785,7 @@
   "Chat removed": "Cuộc trò chuyện đã bị xóa",
   "Star an answer to keep it here.": "Gắn sao cho một câu trả lời để giữ nó ở đây.",
   "No saved answers match": "Không có câu trả lời đã lưu nào khớp",
-  "The shelf holds at most 500 answers. Remove one first.": "Chỉ lưu được tối đa 500 câu trả lời. Hãy xóa một câu trước.",
+  "Saved answers are full. Remove one first.": "Đã hết chỗ lưu câu trả lời. Hãy xóa một câu trước.",
   "This answer is too long to save.": "Câu trả lời này quá dài để lưu.",
   "This saved answer was removed": "Câu trả lời đã lưu này đã bị xóa"
 }

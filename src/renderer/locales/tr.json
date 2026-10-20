@@ -2830,7 +2830,7 @@
   "Chat removed": "Sohbet kaldırıldı",
   "Star an answer to keep it here.": "Bir yanıtı burada saklamak için yıldızla işaretleyin.",
   "No saved answers match": "Eşleşen kayıtlı yanıt yok",
-  "The shelf holds at most 500 answers. Remove one first.": "En fazla 500 yanıt kaydedilebilir. Önce birini kaldırın.",
+  "Saved answers are full. Remove one first.": "Kaydedilen yanıtlar için yer kalmadı. Önce birini kaldırın.",
   "This answer is too long to save.": "Bu yanıt kaydedilemeyecek kadar uzun.",
   "This saved answer was removed": "Bu kayıtlı yanıt kaldırıldı"
 }

@@ -2920,7 +2920,7 @@
   "Chat removed": "Чат удалён",
   "Star an answer to keep it here.": "Отметьте ответ звёздочкой, чтобы сохранить его здесь.",
   "No saved answers match": "Подходящих сохранённых ответов нет",
-  "The shelf holds at most 500 answers. Remove one first.": "Можно сохранить не больше 500 ответов. Сначала уберите один.",
+  "Saved answers are full. Remove one first.": "Сохранённых ответов слишком много. Сначала уберите один.",
   "This answer is too long to save.": "Этот ответ слишком длинный для сохранения.",
   "This saved answer was removed": "Этот сохранённый ответ убран"
 }
