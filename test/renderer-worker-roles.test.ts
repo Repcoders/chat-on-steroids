@@ -26,7 +26,7 @@ async function settings(roles: WorkerRole[]) {
   const rows = () => [...doc.querySelectorAll<HTMLElement>('#workerRoles .worker-role')];
   const selects = (row: HTMLElement) => [...row.querySelectorAll('select')];
   const withRoles = (next: WorkerRole[]) => ({ ...config, multiAgent: { ...config.multiAgent, roles: next } }) as unknown as Config;
-  return { ...worker, save, doc, rows, selects, withRoles };
+  return { ...worker, applyChatModels, config, save, doc, rows, selects, withRoles };
 }
 
 it('edits sub-agent roles from the observed catalog and saves only named, distinct rows', async () => {
@@ -89,6 +89,15 @@ it('offers the default sub-agent model\'s reasoning to a role that follows that 
   workerModel.dispatchEvent(new dom.window.Event('change'));
   expect([...effort!.options].filter(option => !option.disabled).map(option => option.value)).toEqual(['', 'pro']);
   expect(workerRolesValue()[0]).toEqual({ name: 'Scout', model: '', reasoning: 'high' });
+});
+
+// Review finding: a default sub-agent model that arrived from config left following roles on the old levels.
+it('repaints a following role when the default sub-agent model changes in config', async () => {
+  const { applyChatModels, config, rows, selects } = await settings([{ name: 'Scout', model: '', reasoning: '' }]);
+  const next = { ...config, multiAgent: { ...config.multiAgent, defaultModel: 'pro', defaultReasoning: 'pro' } } as unknown as Config;
+  applyChatModels(next, config);
+  const [, effort] = selects(rows()[0]!);
+  expect([...effort!.options].map(option => option.value)).toEqual(['', 'pro']);
 });
 
 // Review finding: clearing a saved role's name dropped it from the next save with nothing on screen.

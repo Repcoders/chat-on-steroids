@@ -211,6 +211,12 @@ function paintPair(modelId: string, effortId: string, modelValue?: string, effor
   if (allowEmpty || (automaticModel && !nextModel)) effortChoices.unshift({ id: '', label: empty });
   options(model, modelChoices, nextModel);
   options(effort, effortChoices, nextEffort);
+  // Role pairs that follow the default sub-agent model offer its efforts, however it was set.
+  if (modelId === 'workerModel') {
+    for (const [roleModel, roleEffort] of pairs) {
+      if (emptyLabels.has(roleModel) && !(document.getElementById(roleModel) as HTMLSelectElement | null)?.value) paintPair(roleModel, roleEffort, undefined, undefined, true);
+    }
+  }
 }
 
 /** The next shortcut action is a projection of the same select Send reads. */
@@ -604,8 +610,6 @@ function wirePair(modelId: string, effortId: string, allowEmpty: boolean): void 
       ? supported.includes(effort.value as ReasoningEffort) ? effort.value : ''
       : model.value ? supported.includes('high') ? 'high' : supported[0] ?? '' : '';
     paintPair(modelId, effortId, model.value, nextEffort, allowEmpty);
-    // Role pairs that follow the default sub-agent model offer its efforts.
-    if (modelId === 'workerModel') for (const [roleModel, roleEffort] of pairs) if (emptyLabels.has(roleModel)) paintPair(roleModel, roleEffort, undefined, undefined, true);
     paintStatus();
   });
   document.getElementById(effortId)?.addEventListener('change', () => {
