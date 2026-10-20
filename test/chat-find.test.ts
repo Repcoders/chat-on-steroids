@@ -21,6 +21,13 @@ it('marks a match as the chat shows it, across formatting and without accents', 
   expect(rangesIn(timeline, 'missing')).toEqual([]);
 });
 
+it("does not mark words in a finished turn's folded work, which is not on screen", async () => {
+  const { rangesIn } = await import('../src/renderer/chat-find.js');
+  const timeline = document.getElementById('timeline')!;
+  timeline.innerHTML = '<div class="ev is-folded"><div class="said">I will check the route.</div></div><div class="ev"><div class="said">The route pages now.</div></div>';
+  expect(rangesIn(timeline, 'the route').map(range => range.toString())).toEqual(['The route']);
+});
+
 it('marks the match it stepped to as the current one', async () => {
   // The current match was looked up by a row key of its own making that no timeline row has,
   // so it was never marked apart from the others (2.1.41 pass).

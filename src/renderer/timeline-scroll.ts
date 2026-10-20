@@ -15,7 +15,7 @@ export function preserveTimelineViewport(pane: HTMLElement, timeline: HTMLElemen
   const previousScrollContent = pane.scrollHeight - previousReserve;
   const edge = pane.getBoundingClientRect().top;
   const rows = () => [...timeline.querySelectorAll<HTMLElement>('[data-timeline-key]')]
-    .filter(row => !row.matches('.tool-group[open]'));
+    .filter(row => !row.matches('.tool-group[open], .work-log'));
   const anchors: Array<{ key: string | undefined; offset: number }> = [];
   if (!following) for (const row of rows()) {
     const rect = row.getBoundingClientRect();

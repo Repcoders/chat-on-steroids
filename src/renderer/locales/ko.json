@@ -585,7 +585,6 @@
   "Summary": "요약",
   "Summary (still writing)": "요약 (작성 중)",
   "Bootstrap sent into the new chat — {0} characters at {1}": "새 채팅에 시작 메시지 전송됨 — {0}자, {1}",
-  "{0} actions · {1}": "작업 {0}개 · {1}",
   "Dismiss recovery notice": "복구 알림 닫기",
   "{0} event{1}": "이벤트 {0}{1}",
   "showing a bounded page of {0}": "{0}개로 제한된 페이지 표시 중",

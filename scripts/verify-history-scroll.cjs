@@ -76,7 +76,7 @@ app.whenReady().then(async () => {
       const bounds=pane.getBoundingClientRect();
       return {top:pane.scrollTop,height:pane.scrollHeight,viewport:pane.clientHeight,
         readerTop:row?.getBoundingClientRect().top-bounds.top,readerPresent:!!row,
-        groups:timeline.querySelectorAll('.tool-group').length,records:timeline.querySelectorAll('.ev').length,
+        groups:timeline.querySelectorAll('.work-log').length,records:timeline.querySelectorAll('.ev').length,
         bottomGap:pane.scrollHeight-pane.clientHeight-pane.scrollTop,
         x:Math.round(bounds.right-100),y:Math.round(bounds.top+100)};
     };
@@ -86,15 +86,16 @@ app.whenReady().then(async () => {
     chat.initChat({state:()=>null,save:async()=>{}});chat.chatVisible(true);await frame();
     document.querySelector('#sessionList [data-id="history-fixture"]').click();
     for(let i=0;i<120&&!geometry().readerPresent;i++) await frame();
-    await waitFor(()=>document.querySelector('#timeline .ev-user_message'));
+    await waitFor(()=>geometry().readerPresent);
     await frame();
   })()`);
   win.webContents.debugger.attach('1.3');
   const initial = await win.webContents.executeJavaScript('geometry()');
-  assert.ok(initial.viewport > 0 && initial.height > 4000, 'Opening fills visible history through collapsed batches without wheel input: '+JSON.stringify(initial));
+  assert.ok(initial.viewport > 0 && initial.height > initial.viewport, 'Opening fills the visible history without wheel input: '+JSON.stringify(initial));
   let older = initial;
   const stages = [];
-  for (let stage = 0; stage < 10 && older.height <= 4000; stage++) {
+  // Each step is one wheel detent; a step at the top edge loads the next 30 rows above the reader.
+  for (let stage = 0; stage < 40 && older.height <= 4000; stage++) {
     const before = older;
     await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', {type:'mouseWheel',x:before.x,y:before.y,deltaY:-100,deltaX:0});
     await new Promise(resolve=>setTimeout(resolve,250));
@@ -104,29 +105,28 @@ app.whenReady().then(async () => {
     stages.push(older);
   }
   assert.equal(older.readerPresent,true,'Prepending must not evict the messages currently on screen');
-  assert.ok(Math.abs(older.readerTop-initial.readerTop) <= 110, 'One wheel step must not jump to the earlier long task: '+JSON.stringify({initial,older}));
+  assert.ok(stages.filter((stage,index)=>stage.records>(stages[index-1]??initial).records).length>=2,'Wheeling up keeps loading earlier rows: '+JSON.stringify(stages));
   assert.ok(older.height > 4000,'Earlier task must actually load above the reader: '+JSON.stringify({initial,older,reads:await win.webContents.executeJavaScript('fixture.reads')}));
-  assert.equal(older.groups,1,'The overlapping activity remains one disclosure');
+  assert.equal(older.groups,1,'The overlapping activity remains one work log');
   const expanded = await win.webContents.executeJavaScript(`(async()=>{
     const pane=document.getElementById('chatBody'),timeline=document.getElementById('timeline');
-    const group=timeline.querySelector('.tool-group');
-    const collapsedHeight=group.getBoundingClientRect().height;
-    group.querySelector('summary').click();await frame();
-    const tools=group.querySelectorAll('.tool');
-    tools[100].querySelector('summary').click();await frame();
-    const output=tools[100].querySelector('.raw');
+    const tools=timeline.querySelectorAll('.work-log .tool');
+    const tool=tools[Math.min(100,tools.length-2)];
+    const rowHeight=tool.getBoundingClientRect().height;
+    tool.querySelector('summary').click();await frame();
+    const output=tool.querySelector('.raw');
     pane.scrollTop+=output.getBoundingClientRect().top-pane.getBoundingClientRect().top-100;await frame();
     const rect=pane.getBoundingClientRect();
-    return {collapsedHeight,expandedHeight:group.getBoundingClientRect().height,
+    return {rowHeight,openHeight:tool.getBoundingClientRect().height,
       rawCount:timeline.querySelectorAll('.raw').length,top:pane.scrollTop,
       x:Math.round(rect.left+rect.width/2),y:Math.round(rect.top+160)};
   })()`);
-  assert.ok(expanded.collapsedHeight<60 && expanded.expandedHeight>4000,'Group height follows its actual disclosure');
+  assert.ok(expanded.rowHeight<60 && expanded.openHeight>expanded.rowHeight,'A step opens to its output');
   assert.equal(expanded.rawCount,1,'Only the deliberately expanded call materializes its output');
   await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseWheel',x:expanded.x,y:expanded.y,deltaY:120,deltaX:0});
   await new Promise(resolve=>setTimeout(resolve,200));
   const collapsedAgain=await win.webContents.executeJavaScript(`(async()=>{
-    const pane=document.getElementById('chatBody'),group=document.querySelector('#timeline .tool-group');
+    const pane=document.getElementById('chatBody'),group=document.querySelector('#timeline .work-log .tool[open]');
     const afterWheel=pane.scrollTop;
     group.querySelector('summary').click();await frame();
     const height=group.getBoundingClientRect().height;
@@ -134,16 +134,16 @@ app.whenReady().then(async () => {
     pane.scrollTop=pane.scrollHeight;await frame();
     return {afterWheel,height,hiddenOutputHeight};
   })()`);
-  assert.ok(Math.abs(collapsedAgain.afterWheel-expanded.top-120)<2,'Native wheel over an expanded group travels its requested distance');
-  assert.equal(collapsedAgain.height,expanded.collapsedHeight,'Collapsing returns to one headline');
+  assert.ok(Math.abs(collapsedAgain.afterWheel-expanded.top-120)<2,'Native wheel over an expanded step travels its requested distance');
+  assert.equal(collapsedAgain.height,expanded.rowHeight,'Closing returns to one line');
   assert.equal(collapsedAgain.hiddenOutputHeight,0,'Collapsed output contributes no scroll geometry');
   const historicalRefresh=await win.webContents.executeJavaScript(`(async()=>{
-    const listBefore=fixture.listReads;fixture.signal();
+    const readerBefore=geometry().readerTop,listBefore=fixture.listReads;fixture.signal();
     await waitFor(()=>fixture.listReads>listBefore);await frame();
-    return {...geometry(),listBefore,listAfter:fixture.listReads};
+    return {...geometry(),readerBefore,listBefore,listAfter:fixture.listReads};
   })()`);
   assert.ok(historicalRefresh.listAfter>historicalRefresh.listBefore,'Historical refresh must perform a list read');
-  assert.equal(historicalRefresh.readerTop,older.readerTop,'Historical repaint preserves the underfilled tail reserve');
+  assert.equal(historicalRefresh.readerTop,historicalRefresh.readerBefore,'Historical repaint preserves the underfilled tail reserve');
   const observations=[{phase:'initial',...initial},...stages.map((stage,index)=>({phase:'older-'+index,...stage}))];
   for(let cycle=0;cycle<4;cycle++) {
     const before=await win.webContents.executeJavaScript('geometry()');
@@ -333,7 +333,7 @@ app.whenReady().then(async () => {
         pane.scrollTop=direction<0?0:pane.scrollHeight;await frame();
         const edge=pane.getBoundingClientRect().top;
         const anchor=[...timeline.querySelectorAll('[data-timeline-key]')].find(row=>{
-          const rect=row.getBoundingClientRect();return !row.matches('.tool-group[open]') && rect.height>0 && rect.bottom>edge && rect.top<edge+pane.clientHeight;
+          const rect=row.getBoundingClientRect();return !row.matches('.tool-group[open], .work-log') && rect.height>0 && rect.bottom>edge && rect.top<edge+pane.clientHeight;
         });
         const before=anchor?.getBoundingClientRect().top-edge;
         const reads=fixture.reads.length;

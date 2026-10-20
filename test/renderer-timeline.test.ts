@@ -2785,19 +2785,17 @@ it('retains the open compaction disclosure and brief request while the summary s
   expect(card.open).toBe(false);
 });
 
-it('keeps a streaming message anchor and its following tool group across canonical revisions', async () => {
+it('keeps a streaming message anchor and its following work log across canonical revisions', async () => {
   const message: Extract<SessionEvent, { kind: 'assistant_message' }> = { seq: 1, origin: 1, time: T0, source: 'extension',
     kind: 'assistant_message', messageId: 'live-message', message: text('Working'), state: 'streaming', final: false };
   const { w, append } = await boot([message, toolCall(2, 'live-tool'), toolCall(3, 'next-tool')]);
   const timeline = w.document.getElementById('timeline')!;
   const anchor = timeline.querySelector<HTMLElement>('.ev-assistant_message')!.dataset.timelineKey;
-  const group = timeline.querySelector<HTMLDetailsElement>('.tool-group')!;
-  group.open = true;
-  group.dispatchEvent(new w.Event('toggle'));
+  const log = timeline.querySelector<HTMLElement>('.work-log')!;
   await append([{ ...message, seq: 4, message: text('Working on the next step') }]);
   expect(timeline.querySelector<HTMLElement>('.ev-assistant_message')!.dataset.timelineKey).toBe(anchor);
-  expect(timeline.querySelector('.tool-group')).toBe(group);
-  expect(group.open).toBe(true);
+  expect(timeline.querySelector('.work-log')).toBe(log);
+  expect(log.querySelectorAll('.ev-tool_call')).toHaveLength(2);
 });
 
 describe('an answer while ChatGPT writes it', () => {
@@ -3149,21 +3147,15 @@ it('keeps an unfolded tool row as the same open node while the chat keeps append
   // Not rebuilt: the very node the user unfolded, still unfolded.
   expect(after).toBe(before);
   expect(after.open).toBe(true);
-  const group = timeline.querySelector('details.tool-group') as HTMLDetailsElement;
-  expect(group.open).toBe(true);
-  group.open = false;
-  group.dispatchEvent(new w.Event('toggle'));
+  const log = timeline.querySelector<HTMLElement>('.work-log')!;
   const detached: Node[] = [];
   const observer = new w.MutationObserver(records => records.forEach(record => detached.push(...record.removedNodes)));
   observer.observe(timeline, { childList: true, subtree: true });
   await append([toolCall(5, 'call-4')]);
   observer.disconnect();
-  expect(detached.some(node => node === group || node === before || (node as Element).contains?.(before))).toBe(false);
-  expect(timeline.querySelector('details.tool-group')).toBe(group);
-  expect(group.open).toBe(false);
-  expect(group.querySelector('.activity-title')!.textContent).toBe('Read README.md');
-  expect(group.querySelector('.activity-count')!.textContent).toBe('4');
-  expect(group.querySelector('summary')!.title).toContain('4 actions');
+  expect(detached.some(node => node === log || node === before || (node as Element).contains?.(before))).toBe(false);
+  expect(timeline.querySelector('.work-log')).toBe(log);
+  expect(log.querySelectorAll('.ev-tool_call')).toHaveLength(4);
 });
 
 it('colors removed lines separately from added lines without changing other tool metrics', async () => {
@@ -3203,7 +3195,7 @@ it('colors removed lines separately from added lines without changing other tool
   expect(rows[1]!.querySelector('.edit-card .metric-removed')?.textContent).toBe('−7');
 });
 
-it('opens a round with the ChatGPT caption and keeps its mixed tool and agent activity in one latest-action disclosure', async () => {
+it('opens a round with the ChatGPT caption and keeps its mixed tool and agent activity in one work log', async () => {
   const { w, append } = await boot([
     { seq: 1, time: T0, source: 'extension', kind: 'progress', message: text('Checking the implementation') },
     toolCall(2, 'first'),
@@ -3211,12 +3203,10 @@ it('opens a round with the ChatGPT caption and keeps its mixed tool and agent ac
     toolCall(4, 'last')
   ]);
   const timeline = w.document.getElementById('timeline')!;
-  const group = timeline.querySelector<HTMLDetailsElement>('.tool-group')!;
-  expect(group.open).toBe(false);
+  const group = timeline.querySelector<HTMLElement>('.work-log')!;
   // The caption is what ChatGPT said before the step: it stands as the round's opening line.
   expect(timeline.children[0]!.className).toContain('ev-progress');
   expect(timeline.children[0]!.textContent).toContain('Checking the implementation');
-  expect(group.querySelector('.activity-title')!.textContent).toBe(group.querySelector('.ev-tool_call:last-of-type .tool > summary b')!.textContent);
   expect(group.querySelector('.agent-communication summary')!.textContent).toContain('Message from worker-2');
   expect(group.querySelector('.agent-avatar')).not.toBeNull();
   expect(group.querySelectorAll('.ev')).toHaveLength(3);
@@ -3224,7 +3214,7 @@ it('opens a round with the ChatGPT caption and keeps its mixed tool and agent ac
     { seq: 5, time: T0 + 5000, source: 'extension', kind: 'progress', message: text('Now validating') },
     toolCall(6, 'next'), toolCall(7, 'next-2')
   ]);
-  expect(timeline.querySelectorAll('.tool-group')).toHaveLength(2);
+  expect(timeline.querySelectorAll('.work-log')).toHaveLength(2);
   expect(timeline.children[0]!.className).toContain('ev-progress');
 });
 
@@ -3270,7 +3260,7 @@ describe('ChatGPT\'s approval card in the timeline', () => {
   });
 });
 
-it('never titles a tool group with the app\'s own recovery note', async () => {
+it('keeps the app\'s own recovery note out of the work log', async () => {
   // #882: after a run of reloads, every tool group read "Reloaded chat to recover an interrupted
   // response.", because the note in front of a group was taken for ChatGPT's phase caption.
   // Repair notes are shown in developer mode, where that reporter saw it.
@@ -3280,11 +3270,10 @@ it('never titles a tool group with the app\'s own recovery note', async () => {
     toolCall(2, 'first'), toolCall(3, 'last')
   ], true, [], [], { developerMode: true });
   const timeline = w.document.getElementById('timeline')!;
-  const group = timeline.querySelector<HTMLDetailsElement>('.tool-group')!;
-  const title = group.querySelector('.activity-title')!.textContent;
-  expect(title).not.toContain('Reloaded chat');
-  expect(title).toBe(group.querySelector('.ev-tool_call:last-of-type .tool > summary b')?.textContent ?? title);
-  // The note itself stays in the transcript, in front of the group.
+  const group = timeline.querySelector<HTMLElement>('.work-log')!;
+  expect(group.textContent).not.toContain('Reloaded chat');
+  expect(group.querySelectorAll('.ev-tool_call')).toHaveLength(2);
+  // The note itself stays in the transcript, in front of the log.
   expect(timeline.children[0]!.textContent).toContain('Reloaded chat to recover an interrupted response.');
 });
 
@@ -3356,16 +3345,169 @@ it("shows a created file's line count once when the outcome metric already state
   expect(row.querySelector('summary .metric')?.textContent).toBe('+39');
 });
 
-it('keeps an artifact action as the activity title rather than its tool tag', async () => {
-  const shell = toolCall(3, 'shell') as Extract<SessionEvent, { kind: 'tool_call' }>;
-  const { w } = await boot([toolCall(2, 'read'), { ...shell, call: {
-    ...shell.call, tool: 'exec_command', summary: { kind: 'run', tone: 'good', title: 'Ran build checks' },
-    changes: [{ path: 'src/app.ts', added: 2, removed: 1, approximate: true }]
-  } }]);
-  const group = w.document.querySelector('.tool-group')!;
-  expect(group.querySelector('.activity-title')!.textContent).toBe('Ran build checks');
-  expect(group.querySelector('.tool-tag')!.textContent).toBe('shell');
-  expect(group.querySelector('.tool-change-count')!.textContent).toContain('approx.');
+describe('the work log', () => {
+  type Call = Extract<SessionEvent, { kind: 'tool_call' }>;
+  const step = (seq: number, id: string, call: Partial<Call['call']>): SessionEvent => {
+    const base = toolCall(seq, id) as Call;
+    return { ...base, call: { ...base.call, ...call } };
+  };
+  const finished = (w: object) => {
+    (w as any).api.getSessionControls = (id: string) => Promise.resolve({ ok: true,
+      data: { sessionId: id, automation: 'off', activeTurnId: null, finishHeld: false, blocked: '', job: null } });
+  };
+
+  it('lists a round as one line per step, named by what it did, with no shell or diff tag', async () => {
+    const { w } = await boot([toolCall(1, 'read'),
+      step(2, 'edit', { tool: 'apply_patch', summary: { kind: 'edit', tone: 'good', title: 'Edited src/x.ts', metric: '+42 −9' },
+        changes: [{ path: 'src/x.ts', added: 42, removed: 9, approximate: false }] }),
+      step(3, 'test', { tool: 'exec_command', outcome: 'process_exit_nonzero', summary: { kind: 'run', tone: 'bad', title: 'Command failed npm test', metric: '✕ exit 1' } }),
+      step(4, 'typecheck', { tool: 'exec_command', summary: { kind: 'run', tone: 'good', title: 'Ran npm run typecheck', metric: '✓ 6.3s' } })]);
+    const timeline = w.document.getElementById('timeline')!;
+    // No disclosure titled after the round's last call: every step shows, in recorded order.
+    expect(timeline.querySelector('details.tool-group')).toBeNull();
+    const log = timeline.querySelector<HTMLElement>('.work-log')!;
+    expect([...log.querySelectorAll('.tool > summary')].map(head => [head.querySelector('b')!.textContent, head.querySelector('.metric')?.textContent ?? '']))
+      .toEqual([['Read README.md', ''], ['Edited src/x.ts', '+42 −9'], ['Ran npm test', 'exit 1'], ['Ran npm run typecheck', '6.3s']]);
+    expect(log.querySelector('.tool-tag')).toBeNull();
+    // The failed command still reads as failed, by its tone and its icon.
+    expect(log.querySelectorAll('.tool.tone-bad')).toHaveLength(1);
+    expect(log.querySelector('.tool.tone-bad .tool-ico')!.className).toContain('ph-warning-circle');
+    // A command reads in the code face after its verb.
+    expect([...log.querySelectorAll('.tool > summary b code')].map(code => code.textContent)).toEqual(['npm test', 'npm run typecheck']);
+  });
+
+  it("puts a step's detail in the right-hand column, and on the tooltip when its outcome is shown there", async () => {
+    const { w } = await boot([
+      step(1, 'range', { summary: { kind: 'read', tone: 'neutral', title: 'Read src/x.ts', detail: 'lines 1–140', metric: '140 lines' } }),
+      step(2, 'find', { tool: 'find', summary: { kind: 'search', tone: 'neutral', title: 'Searched "offset"', detail: '6 matches' } })]);
+    const heads = [...w.document.querySelectorAll<HTMLElement>('#timeline .work-log .tool > summary')];
+    // No inline detail beside the title: one value per line, at its right.
+    expect(heads.map(head => head.querySelector('em'))).toEqual([null, null]);
+    expect(heads.map(head => [head.lastElementChild!.className, head.lastElementChild!.textContent])).toEqual([['metric', '140 lines'], ['metric is-detail', '6 matches']]);
+    expect(heads[0]!.title).toBe('lines 1–140');
+  });
+
+  it("closes a finished round's log with ChatGPT's recap as its last line", async () => {
+    const { w, append } = await boot([toolCall(1, 'first'), toolCall(2, 'second'),
+      { seq: 3, time: T0 + 3000, source: 'extension', kind: 'page_tool', messageId: 'recap-1', label: 'Thought for 14s' }]);
+    finished(w);
+    await append([]);
+    const log = w.document.querySelector<HTMLElement>('#timeline .work-log')!;
+    expect([...log.children].map(line => line.matches('.round-recap') ? `recap: ${line.textContent}` : line.querySelector('b')?.textContent))
+      .toEqual(['Read README.md', 'Read README.md', 'recap: Thought for 14s']);
+  });
+
+  const turn = 'fold-turn';
+  const foldedTurn: SessionEvent[] = [
+    { seq: 1, time: T0, source: 'extension', kind: 'turn_start', turnId: turn },
+    { kind: 'user_message', seq: 2, origin: 2, time: T0 + 100, source: 'extension', turnId: turn, messageId: 'q', message: text('Add cursor pagination') },
+    { kind: 'assistant_message', seq: 3, time: T0 + 2_000, source: 'extension', turnId: turn, messageId: 'say', message: text('I will start with the route.'), final: false },
+    { ...toolCall(4, 'read-route'), turnId: turn } as SessionEvent,
+    { ...toolCall(5, 'read-query'), turnId: turn } as SessionEvent,
+    { kind: 'assistant_message', seq: 6, time: T0 + 105_000, source: 'extension', turnId: turn, messageId: 'answer', message: text('The route now pages with a cursor.'), final: true, state: 'final' },
+    { seq: 7, time: T0 + 105_500, source: 'extension', kind: 'turn_end', turnId: turn, outcome: 'completed' }
+  ];
+
+  it("folds a finished turn's work under its Worked line, and opens it by click or keyboard", async () => {
+    const { w, append } = await boot(foldedTurn);
+    finished(w);
+    await append([]);
+    const timeline = w.document.getElementById('timeline')!;
+    const line = timeline.querySelector<HTMLElement>('.turn-worked')!;
+    const shown = () => [...timeline.children].filter(row => !row.classList.contains('is-folded')).map(row =>
+      row.matches('.turn-worked') ? 'WORKED' : row.matches('.work-log') ? 'LOG' : row.textContent!.trim());
+    expect(line.textContent).toBe('Worked for 1m 45s');
+    expect(line.getAttribute('role')).toBe('button');
+    expect(line.tabIndex).toBe(0);
+    expect(line.getAttribute('aria-expanded')).toBe('false');
+    expect(shown()).toEqual([expect.stringContaining('Add cursor pagination'), 'WORKED', expect.stringContaining('The route now pages with a cursor.')]);
+    line.click();
+    expect(line.getAttribute('aria-expanded')).toBe('true');
+    expect(shown()).toEqual([expect.stringContaining('Add cursor pagination'), 'WORKED', expect.stringContaining('I will start with the route.'), 'LOG',
+      expect.stringContaining('The route now pages with a cursor.')]);
+    // The opened work hangs under its line; the answer does not.
+    expect([...timeline.querySelectorAll('.is-unfolded')].map(row => row.matches('.work-log') ? 'LOG' : row.textContent!.trim()))
+      .toEqual([expect.stringContaining('I will start with the route.'), 'LOG']);
+    // The reader's choice holds across a repaint.
+    await append([]);
+    expect(shown()).toHaveLength(5);
+    line.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(line.getAttribute('aria-expanded')).toBe('false');
+    expect(shown()).toHaveLength(3);
+    expect(timeline.querySelectorAll('.is-unfolded')).toHaveLength(0);
+    line.dispatchEvent(new w.KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+    expect(shown()).toHaveLength(5);
+  });
+
+  it("opens a folded turn when Find in chat steps to a sentence in its work", async () => {
+    const { w, append } = await boot(foldedTurn);
+    finished(w);
+    await append([]);
+    (w as any).api.findInChat = async () => ({ ok: true, data: [{ seq: 3, kind: 'assistant_message', messageId: 'say', position: 3 }] });
+    const line = w.document.querySelector<HTMLElement>('#timeline .turn-worked')!;
+    const sentence = [...w.document.querySelectorAll<HTMLElement>('#timeline .ev-assistant_message')].find(row => row.textContent!.includes('start with the route'))!;
+    expect(sentence.classList.contains('is-folded')).toBe(true);
+    const mac = /^Mac/.test(globalThis.navigator.platform);
+    w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'f', ctrlKey: !mac, metaKey: mac, bubbles: true, cancelable: true }));
+    const field = w.document.getElementById('chatFindField') as HTMLInputElement;
+    field.value = 'the route';
+    field.dispatchEvent(new w.Event('input', { bubbles: true }));
+    await vi.waitFor(() => expect(line.getAttribute('aria-expanded')).toBe('true'));
+    expect(sentence.classList.contains('is-folded')).toBe(false);
+  });
+
+  it('folds the work of a turn that just ended, though it was on screen', async () => {
+    const at = Date.now() - 60_000;
+    const { w, append } = await boot([
+      { seq: 1, time: at, source: 'extension', kind: 'turn_start', turnId: 'held-turn' },
+      { kind: 'user_message', seq: 2, origin: 2, time: at + 100, source: 'extension', turnId: 'held-turn', messageId: 'q', message: text('Add cursor pagination') },
+      { kind: 'assistant_message', seq: 3, time: at + 2_000, source: 'extension', turnId: 'held-turn', messageId: 'say', message: text('I will start with the route.'), final: false },
+      { ...toolCall(4, 'read-route'), time: at + 3_000, turnId: 'held-turn' } as SessionEvent,
+      { ...toolCall(5, 'read-query'), time: at + 4_000, turnId: 'held-turn' } as SessionEvent
+    ]);
+    const log = w.document.querySelector<HTMLElement>('#timeline .work-log')!;
+    expect(w.document.querySelector('#timeline .turn-status')?.textContent).toMatch(/^Working for /);
+    expect(log.classList.contains('is-folded')).toBe(false);
+    finished(w);
+    await append([
+      { kind: 'assistant_message', seq: 6, time: at + 50_000, source: 'extension', turnId: 'held-turn', messageId: 'answer', message: text('Done.'), final: true, state: 'final' },
+      { seq: 7, time: at + 50_500, source: 'extension', kind: 'turn_end', turnId: 'held-turn', outcome: 'completed' }
+    ]);
+    const line = w.document.querySelector<HTMLElement>('#timeline .turn-worked.is-foldable')!;
+    expect(line.getAttribute('aria-expanded')).toBe('false');
+    expect(log.classList.contains('is-folded')).toBe(true);
+  });
+
+  it('keeps work open that was on screen before history paged in its question', async () => {
+    const { w, append } = await boot(foldedTurn.filter(event => event.kind !== 'user_message'));
+    finished(w);
+    await append([]);
+    const log = w.document.querySelector<HTMLElement>('#timeline .work-log')!;
+    expect(w.document.querySelector('#timeline .turn-worked')).toBeNull();
+    await append([{ ...foldedTurn.find(event => event.kind === 'user_message')!, seq: 8, origin: 2 } as SessionEvent]);
+    const line = w.document.querySelector<HTMLElement>('#timeline .turn-worked.is-foldable')!;
+    expect(line.getAttribute('aria-expanded')).toBe('true');
+    expect(log.classList.contains('is-folded')).toBe(false);
+    // It still folds on request.
+    line.click();
+    expect(log.classList.contains('is-folded')).toBe(true);
+  });
+
+  it('leaves a Worked line plain when no work stands under it', async () => {
+    const { w, append } = await boot([
+      { seq: 1, time: T0, source: 'extension', kind: 'turn_start', turnId: 'plain' },
+      { kind: 'user_message', seq: 2, origin: 2, time: T0 + 100, source: 'extension', turnId: 'plain', messageId: 'q', message: text('Say hi') },
+      { kind: 'assistant_message', seq: 3, time: T0 + 5_000, source: 'extension', turnId: 'plain', messageId: 'r', message: text('Hi.'), final: true, state: 'final' },
+      { seq: 4, time: T0 + 5_500, source: 'extension', kind: 'turn_end', turnId: 'plain', outcome: 'completed' }
+    ]);
+    finished(w);
+    await append([]);
+    const line = w.document.querySelector<HTMLElement>('#timeline .turn-worked')!;
+    expect(line.textContent).toBe('Worked for 5s');
+    expect(line.classList.contains('is-foldable')).toBe(false);
+    expect(line.hasAttribute('role')).toBe(false);
+    expect(line.hasAttribute('tabindex')).toBe(false);
+  });
 });
 
 it('controls the selected session without submitting another user message', async () => {
@@ -5100,7 +5242,7 @@ it('keeps a revised long answer reachable in both directions and never uses its 
   geometryChanges.disconnect();
 });
 
-it('keeps reloaded interim messages above their tool groups through live results and repaint', async () => {
+it('keeps reloaded interim messages above their work logs through live results and repaint', async () => {
   const working = '11111111-1111-4111-8111-111111111111';
   const exchange = '22222222-2222-4222-8222-222222222222';
   const parent = '33333333-3333-4333-8333-333333333333';
@@ -5117,15 +5259,12 @@ it('keeps reloaded interim messages above their tool groups through live results
   ];
   const { w, append } = await boot(projectTimeline(rows, turns));
   const timeline = w.document.getElementById('timeline')!;
-  const reading = () => [...timeline.children].filter(row => row.matches('.ev-assistant_message, .tool-group'));
-  expect(reading().map(row => row.classList.contains('tool-group') ? 'TOOLS' : row.textContent))
+  const reading = () => [...timeline.children].filter(row => row.matches('.ev-assistant_message, .work-log'));
+  expect(reading().map(row => row.classList.contains('work-log') ? 'TOOLS' : row.textContent))
     .toEqual([expect.stringContaining('FIRST UPDATE'), 'TOOLS', expect.stringContaining('SECOND UPDATE'), 'TOOLS']);
-  const group = reading()[3] as HTMLDetailsElement;
-  group.open = true;
-  group.dispatchEvent(new w.Event('toggle'));
+  const group = reading()[3] as HTMLElement;
   await append(projectTimeline([{ ...toolCall(9, 'after-9'), turnId: 'working' }], turns, {}, rows));
   expect(reading()[3]).toBe(group);
-  expect(group.open).toBe(true);
   expect(group.querySelectorAll('.ev-tool_call')).toHaveLength(3);
   await append([]);
   expect(reading()[2]?.textContent).toContain('SECOND UPDATE');
@@ -5155,7 +5294,7 @@ it('keeps long surrounding prose while materializing large tool results only on 
   expect(timeline.textContent).toContain('Prose before the large tool');
 });
 
-it('retains the visible collapsed group beyond the normal resident target and still admits newer data', async () => {
+it('retains a visible work log beyond the normal resident target and still admits newer data', async () => {
   const rows = Array.from({ length: 400 }, (_, i) => toolCall(i + 1, `dense-${i}`));
   const { w, live, append } = await boot(rows);
   const api = (w as any).api;
@@ -5169,16 +5308,16 @@ it('retains the visible collapsed group beyond the normal resident target and st
   const timeline = w.document.getElementById('timeline')!;
   Object.defineProperties(pane, { clientHeight: { value: 400 }, scrollHeight: { value: 400 } });
   w.HTMLElement.prototype.getBoundingClientRect = function () {
-    return { top: 0, bottom: this.classList.contains('tool-group') ? 30 : 0,
-      height: this.classList.contains('tool-group') ? 30 : 0 } as DOMRect;
+    const shown = this.matches('.work-log, .ev-tool_call');
+    return { top: 0, bottom: shown ? 30 : 0, height: shown ? 30 : 0 } as DOMRect;
   };
-  const group = timeline.querySelector('.tool-group');
+  const group = timeline.querySelector('.work-log');
   // One deliberate movement keeps filling the edge through collapsed batches.
   // Await the actual read result, including its animation-frame yields.
   pane.scrollTop = 0; pane.dispatchEvent(new w.WheelEvent('wheel', { deltaY: -100 }));
   // 2.7 s here; the macOS x64 release runner stopped at 300–390 of 400 rows after 5 s (2026-10-15).
   await vi.waitFor(() => expect(timeline.querySelectorAll('.ev-tool_call')).toHaveLength(rows.length), { timeout: 20_000 });
-  expect(timeline.querySelector('.tool-group')).toBe(group);
+  expect(timeline.querySelector('.work-log')).toBe(group);
   expect(timeline.querySelectorAll('.raw')).toHaveLength(0);
   for (let i = 0; i < 14; i++) {
     pane.dispatchEvent(new w.WheelEvent('wheel', { deltaY: 100 })); await settle();
@@ -5186,7 +5325,7 @@ it('retains the visible collapsed group beyond the normal resident target and st
   await append([{ seq: 401, time: T0 + 401_000, source: 'extension', kind: 'user_message',
     messageId: 'dense-live', message: text('New data at the resident bound') }]);
   expect(timeline.textContent).toContain('New data at the resident bound');
-  expect(timeline.querySelector('.tool-group')).toBe(group);
+  expect(timeline.querySelector('.work-log')).toBe(group);
   expect(timeline.querySelectorAll('.ev').length).toBeLessThanOrEqual(rows.length + 1);
 });
 
@@ -5495,50 +5634,48 @@ it('anchors the worked line to your message when the page reports an empty turn 
   expect(lines[0]!.nextElementSibling?.textContent).toContain('quinto arquivo');
 });
 
-it('titles a finished round with the native step that ends it, by position and in any language', async () => {
-  // ChatGPT closes a round of work with a recap and titles the block with it. It is picked by where
-  // it sits, never by its wording: the step that ends the round, once prose follows. Spanish labels.
+it('closes a finished round with the native step that ends it, by position and in any language', async () => {
+  // ChatGPT closes a round of work with a recap. It is picked by where it sits, never by its
+  // wording: the step that ends the round, once prose follows. Spanish labels.
   const note = (seq: number, label: string): SessionEvent => ({ seq, time: T0 + seq * 1000, source: 'extension', kind: 'page_tool', messageId: `note-${seq}`, label });
   const prose: SessionEvent = { kind: 'assistant_message', seq: 5, time: T0 + 5000, source: 'extension', messageId: 'after-round', message: text('Listo.'), final: true, state: 'final' };
   const { w } = await boot([note(1, 'Planificando la comprobación'), toolCall(2, 'call-a'), toolCall(3, 'call-b'), note(4, 'Se ejecutó la comprobación exacta'), prose]);
-  const group = w.document.querySelector<HTMLDetailsElement>('#timeline details.tool-group')!;
-  expect(group.querySelector('.activity-title')!.textContent).toBe('Se ejecutó la comprobación exacta');
-  expect(group.querySelector('.activity-symbol .ph-check-circle')).not.toBeNull();
-  // The recap heads the group rather than repeating inside it; the calls and the earlier note stay,
+  const group = w.document.querySelector<HTMLElement>('#timeline .work-log')!;
+  // The recap is the log's last line, with the check; the calls and the earlier note stay before it,
   // and a step written before any call keeps the globe.
-  const inside = [...group.querySelectorAll<HTMLElement>('.tool-group-body .thinking-line')];
+  const recap = group.lastElementChild!;
+  expect(recap.matches('.round-recap')).toBe(true);
+  expect(recap.textContent).toBe('Se ejecutó la comprobación exacta');
+  expect(recap.querySelector('.ph-check-circle')).not.toBeNull();
+  const inside = [...group.querySelectorAll<HTMLElement>('.ev-page_tool .thinking-line')];
   expect(inside.map(line => line.textContent)).toEqual(['Planificando la comprobación']);
   expect(inside[0]!.querySelector('.ph-globe-hemisphere-west')).not.toBeNull();
-  expect(group.querySelectorAll('.tool-group-body .ev-tool_call')).toHaveLength(2);
+  expect(group.querySelectorAll('.ev-tool_call')).toHaveLength(2);
 });
 
-/** A page_tool event, and how a test reads the group title and the latest call's own title. */
+/** A page_tool event, and how a test reads a round's recap. */
 const nativeStep = (seq: number, label: string): SessionEvent => ({ seq, time: T0 + seq * 1000, source: 'extension', kind: 'page_tool', messageId: `note-${seq}`, label });
-const groupTitle = (document: Document) => document.querySelector('#timeline details.tool-group .activity-title')!.textContent;
-const latestCallTitle = (document: Document) => {
-  const tool = [...document.querySelectorAll<HTMLElement>('#timeline .ev-tool_call')].at(-1)!;
-  return tool.querySelector('.tool > summary b')?.textContent ?? tool.querySelector('.tool > summary span')?.textContent;
-};
+const roundRecap = (document: Document) => document.querySelector('#timeline .work-log > .round-recap')?.textContent ?? null;
 
-it('names a round still in progress after its latest real action, until prose ends it', async () => {
+it('keeps a step of a round still in progress as a step, until prose makes it the recap', async () => {
   // The turn still works and nothing follows the step: it is a note, whatever it says, not a recap.
   const { w, append } = await boot([toolCall(2, 'call-a'), toolCall(3, 'call-b'), nativeStep(4, 'Executed exact command check')]);
-  expect(latestCallTitle(w.document)).toBeTruthy();
-  expect(groupTitle(w.document)).toBe(latestCallTitle(w.document));
-  const pending = [...w.document.querySelectorAll<HTMLElement>('#timeline .tool-group-body .thinking-line')];
+  expect(roundRecap(w.document)).toBeNull();
+  const pending = [...w.document.querySelectorAll<HTMLElement>('#timeline .work-log .ev-page_tool .thinking-line')];
   expect(pending.map(line => line.textContent)).toEqual(['Executed exact command check']);
   expect(pending[0]!.querySelector('.ph-check-circle')).toBeNull();
-  // Once prose follows, the same step ends a finished round and titles it.
+  // Once prose follows, the same step ends a finished round and closes its log.
   await append([{ kind: 'assistant_message', seq: 5, time: T0 + 5000, source: 'extension', messageId: 'after-round', message: text('Done.'), final: true, state: 'final' }]);
-  expect(groupTitle(w.document)).toBe('Executed exact command check');
+  expect(roundRecap(w.document)).toBe('Executed exact command check');
+  expect(w.document.querySelectorAll('#timeline .work-log .ev-page_tool')).toHaveLength(0);
 });
 
-it('names a finished round that ends in a call after that call, and keeps the globe on a step before its calls', async () => {
+it('gives a finished round that ends in a call no recap, and keeps the globe on a step before its calls', async () => {
   const { w } = await boot([nativeStep(1, 'Searched 3 websites'), toolCall(2, 'call-a'), toolCall(3, 'call-b'),
     { kind: 'assistant_message', seq: 5, time: T0 + 5000, source: 'extension', messageId: 'after-search', message: text('Done.'), final: true, state: 'final' }]);
-  expect(latestCallTitle(w.document)).toBeTruthy();
-  expect(groupTitle(w.document)).toBe(latestCallTitle(w.document));
-  expect(w.document.querySelector('#timeline .tool-group-body .thinking-line .ph-globe-hemisphere-west')).not.toBeNull();
+  expect(roundRecap(w.document)).toBeNull();
+  expect(w.document.querySelector('#timeline .work-log')!.lastElementChild!.matches('.ev-tool_call')).toBe(true);
+  expect(w.document.querySelector('#timeline .work-log .thinking-line .ph-globe-hemisphere-west')).not.toBeNull();
 });
 
 it('offers a way back to the end of the chat that clears any reserved space', async () => {
@@ -5601,14 +5738,14 @@ it('opens round participants in the existing dock without moving the prime reade
   expect(indicators[0]!.type).toBe('button');
   expect(indicators[0]!.querySelectorAll('.ico')).toHaveLength(1);
   expect(indicators[0]!.querySelector('.agent-avatar')).toBeNull();
-  const firstRound = indicators[0]!.closest<HTMLDetailsElement>('.tool-group')!;
+  const firstRound = indicators[0]!.closest<HTMLElement>('.work-log')!;
   const input = w.document.getElementById('chatInput') as HTMLTextAreaElement;
   input.value = 'Keep the prime draft'; input.dispatchEvent(new w.Event('input'));
   const pane = w.document.getElementById('chatBody')!;
   Object.defineProperties(pane, { clientHeight: { value: 400 }, scrollHeight: { value: 2000 } });
   pane.scrollTop = 300;
   indicators[0]!.focus(); indicators[0]!.click(); await settle();
-  expect(firstRound.open).toBe(false);
+  expect(firstRound.isConnected).toBe(true);
   expect(api.getSession).not.toHaveBeenCalled();
   const highlighted = () => [...w.document.querySelectorAll<HTMLElement>('#workDockRight .is-round-worker')].map(row => row.dataset.workerSession);
   expect(highlighted()).toEqual(['worker-local-1', 'worker-local-2']);
@@ -6016,7 +6153,7 @@ it("shows a long turn's final answer when it arrives live, at the end of the tur
   expect(timeline.textContent).toContain('Done: 53 devices are back.');
   const rows = [...timeline.querySelectorAll('[data-timeline-key]')];
   const answerRow = rows.findIndex(row => row.textContent?.includes('Done: 53 devices are back.'));
-  const lastWork = rows.map((row, index) => row.matches('.tool-group, [data-timeline-key^="event:"][class*="tool"]') ? index : -1).reduce((a, b) => Math.max(a, b), -1);
+  const lastWork = rows.map((row, index) => row.matches('.work-log, [data-timeline-key^="event:"][class*="tool"]') ? index : -1).reduce((a, b) => Math.max(a, b), -1);
   expect(answerRow).toBeGreaterThan(lastWork);
 });
 

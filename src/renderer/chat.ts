@@ -4001,6 +4001,7 @@ async function revealChatLocation(id: string, location: SessionSearchLocation): 
   }
   if (!row) return;
   readTimeline();
+  unfoldTurnOf(row);
   row.scrollIntoView({ block: 'center' });
   row.classList.remove('is-search-hit');
   void row.offsetWidth;
@@ -4040,6 +4041,9 @@ function roundWorkers(ids: string[], button = el('button', 'activity-workers') a
 
 function forgetTimelineRows(): void {
   openTools.clear();
+  openTurns.clear();
+  decidedTurns.clear();
+  liveTurnAsked = null;
   rowCache.clear();
 }
 
@@ -4060,6 +4064,21 @@ function toolMetric(value: string, className = 'metric'): HTMLElement {
   return metric;
 }
 
+/**
+ * A step's line, named by what it did: a command that failed still ran, so it reads "Ran npm test"
+ * with its exit code on the right, in red, as every other failed step shows its outcome.
+ */
+function stepTitle(call: Extract<SessionEvent, { kind: 'tool_call' }>['call']): HTMLElement {
+  const failed = 'Command failed ';
+  const title = call.tool === 'exec_command' && call.summary.title.startsWith(failed) ? `Ran ${call.summary.title.slice(failed.length)}` : call.summary.title;
+  const line = el('b', '');
+  // A command reads as the command it was, in the code face, after the verb this app put before it.
+  const verb = call.tool === 'exec_command' ? /^(Ran|Started) (?=\S)/.exec(title)?.[0] : undefined;
+  if (verb) line.append(verb, el('code', 'step-command', title.slice(verb.length)));
+  else line.textContent = title;
+  return line;
+}
+
 function toolBody(event: Extract<SessionEvent, { kind: 'tool_call' }>, context?: { id: string; current: () => boolean }): HTMLElement {
   const { call } = event;
   const summary = toolCallSummary(call);
@@ -4074,11 +4093,13 @@ function toolBody(event: Extract<SessionEvent, { kind: 'tool_call' }>, context?:
   });
 
   const head = document.createElement('summary');
-  head.append(icon(KIND_ICON[call.summary.kind] ?? 'i-bolt', 'ico tool-ico'));
-  if (call.tool === 'exec_command' || call.tool === 'write_stdin') head.append(el('span', 'tool-tag is-shell', 'shell'));
-  else if (call.changes?.length || call.tool === 'apply_patch') head.append(el('span', 'tool-tag is-diff', 'diff'));
-  head.append(el('b', '', call.summary.title));
-  if (call.summary.detail) head.append(el('em', '', call.summary.detail));
+  // A failed step shows it in its icon; the kind icon stays for every other outcome.
+  head.append(icon(call.summary.tone === 'bad' ? 'i-warning-circle' : KIND_ICON[call.summary.kind] ?? 'i-bolt', 'ico tool-ico'));
+  head.append(stepTitle(call));
+  // One quiet value on the right per step: its outcome, else its detail. A detail the outcome
+  // replaces ("lines 1–140" beside "140 lines") stays on the line's tooltip.
+  if (call.summary.detail && !summary.metric) head.append(el('span', 'metric is-detail', call.summary.detail));
+  else if (call.summary.detail) head.title = call.summary.detail;
   if (call.changes?.length) {
     const added = call.changes.reduce((total, change) => total + change.added, 0);
     const removed = call.changes.reduce((total, change) => total + change.removed, 0);
@@ -4090,7 +4111,7 @@ function toolBody(event: Extract<SessionEvent, { kind: 'tool_call' }>, context?:
     const deltaMetric = /^~?(?:\+\d+)?\s*(?:[−-]\d+)?$/.test(summary.metric ?? '') && /\d/.test(summary.metric ?? '');
     if (!deltaMetric) head.append(count);
   }
-  if (summary.metric) head.append(toolMetric(summary.metric));
+  if (summary.metric) head.append(toolMetric(summary.metric.replace(/^[✓✕]\s*/, '')));
   const project = context ? null : selectedLocalProject();
   const sessionId = context ? null : selectedId;
   const reviewIndices = call.outcome === 'ok' ? (call.changes ?? []).flatMap((change, index) =>
@@ -5310,7 +5331,7 @@ function sayRow(part: Extract<RoundPart, { kind: 'say' }>, cache: Map<string, { 
   return row;
 }
 
-/** A round ChatGPT summed up without any activity of its own (a thinking step): its recap, done. */
+/** A round's recap, ChatGPT's own line for it, done: the last line of its log, or alone when the round had no activity of its own (a thinking step). */
 function recapLine(part: Extract<RoundPart, { kind: 'work' }>, scope: string | null, groups: Map<string, HTMLElement>): HTMLElement {
   const key = `recap:${scope}:${part.key}`;
   let line = groups.get(key);
@@ -5327,25 +5348,23 @@ function recapLine(part: Extract<RoundPart, { kind: 'work' }>, scope: string | n
   return line;
 }
 
+/** The rows a turn's work drew (its sentences and its steps), which its "Worked for" line folds once it is done. */
+const workRows = new WeakSet<HTMLElement>();
+
 /**
- * One round's activity as a disclosure: titled with ChatGPT's recap once the round is done, else
- * with its latest action. Keyed by the round, so arriving rows, a late recap and paging never
- * replace it; its open state is the reader's.
+ * One round's activity as a work log: one quiet line per step in recorded order, closed by
+ * ChatGPT's recap once the round is done. Nothing folds and nothing titles the round, so a round
+ * never reads as its last call; what runs now is the turn's live row after it. Keyed by the round,
+ * so arriving rows, a late recap and paging never replace it.
  */
-function roundGroup(part: Extract<RoundPart, { kind: 'work' }>, members: HTMLElement[], key: string,
+function workLog(part: Extract<RoundPart, { kind: 'work' }>, members: HTMLElement[], key: string, scope: string | null,
   groups: Map<string, HTMLElement>, workerBadges: boolean): HTMLElement {
-  let group = groups.get(key) as HTMLDetailsElement | undefined;
-  if (!group) {
-    group = document.createElement('details'); group.className = 'tool-group';
-    group.dataset.timelineKey = key;
-    const summary = document.createElement('summary');
-    summary.append(el('span', 'activity-symbol'), el('span', 'activity-title'), el('span', 'activity-count'), disclosureChevron('ico activity-chevron'));
-    group.append(summary, el('div', 'tool-group-body'));
-    const opened = group;
-    group.addEventListener('toggle', () => { if (opened.open) openTools.add(key); else openTools.delete(key); });
-    group.open = openTools.has(key) || members.some(row => row.querySelector('details[open]'));
-    groups.set(key, group);
-    enter(group);
+  let log = groups.get(key);
+  if (!log) {
+    log = el('div', 'work-log');
+    log.dataset.timelineKey = key;
+    groups.set(key, log);
+    enter(log);
   }
   // A native step after this app's calls in its round is about that work and is done, unless the
   // round is still running; one before any call (a web search between paragraphs) keeps the globe.
@@ -5354,42 +5373,21 @@ function roundGroup(part: Extract<RoundPart, { kind: 'work' }>, members: HTMLEle
     if (member.matches('.ev-page_tool')) markNativeStep(member, afterCall && (!part.live || member !== members.at(-1)));
     else afterCall = true;
   }
-  const latest = [...members].reverse().find(row => row.matches('.ev-tool_call, .ev-agent_message')) ?? members.at(-1);
-  const latestHead = latest?.querySelector('.tool > summary, .agent-communication > summary, .thinking-line');
-  const action = latestHead?.querySelector('b')?.textContent || latestHead?.querySelector('span:not(.agent-avatar)')?.textContent || t("Activity");
-  const label = part.recap ?? action;
-  const title = group.querySelector<HTMLElement>('.activity-title')!;
-  if (title.textContent !== label) {
-    // A recap taking over from the running action is the round closing: the new title fades in.
-    if (part.recap && group.classList.contains('is-live')) enter(title);
-    title.textContent = label;
-  }
-  group.classList.toggle('is-live', part.live);
-  group.classList.toggle('has-recap', !!part.recap);
-  const count = members.length;
-  group.querySelector('.activity-count')!.textContent = count > 1 ? String(count) : '';
-  ui(group.querySelector('summary')!, 'title', () => tn("{0} action · {1}", "{0} actions · {1}", count, [count, label]));
-  // A closed round wears the check; a running one, the icon of what it is doing.
-  const symbol = part.recap && !part.live ? null : latestHead?.querySelector('.ico, .agent-avatar');
-  const glyph = group.querySelector('.activity-symbol')!;
-  const wanted = symbol ? symbol.cloneNode(true) as Element : icon('i-check-circle', 'ico');
-  if (!glyph.firstElementChild || !glyph.firstElementChild.isEqualNode(wanted)) glyph.replaceChildren(wanted);
+  const lines = foldRoutineActivity(members);
+  if (part.recap) lines.push(recapLine(part, scope, groups));
   if (workerBadges) {
     const ids = [...new Set(members.flatMap(row => JSON.parse(row.dataset.workerSessions ?? '[]') as string[]))];
-    group.dataset.workerSessions = JSON.stringify(ids);
-    const links = group.querySelector<HTMLButtonElement>(':scope > summary > .activity-workers');
-    if (ids.length) {
-      const workers = roundWorkers(ids, links ?? undefined);
-      if (!links) group.querySelector('summary')!.insertBefore(workers, group.querySelector('.activity-chevron'));
-    } else links?.remove();
+    log.dataset.workerSessions = JSON.stringify(ids);
+    if (ids.length) lines.push(roundWorkers(ids, log.querySelector<HTMLButtonElement>(':scope > .activity-workers') ?? undefined));
   }
-  reconcileChildren(group.lastElementChild!, foldRoutineActivity(members));
-  return group;
+  log.classList.toggle('is-live', part.live);
+  reconcileChildren(log, lines);
+  return log;
 }
 
 /**
  * The painted rows arranged in rounds (timeline-rounds.ts). Rows outside a turn's work keep their
- * place; a round's sentences stand as prose and its activity folds under one title.
+ * place; a round's sentences stand as prose and its activity is a log of one line per step.
  */
 function renderRounds(rows: HTMLElement[], outlines: Readonly<Record<string, TurnTrace>>, working: boolean, liveTurn: string | null,
   scope: string | null, groups: Map<string, HTMLElement>, says: Map<string, { text: string; row: HTMLElement }>, workerBadges: boolean): HTMLElement[] {
@@ -5397,28 +5395,30 @@ function renderRounds(rows: HTMLElement[], outlines: Readonly<Record<string, Tur
   const byKey = new Map(rows.map((row, index) => [keyOf(row, index), row]));
   const parts = structureTimeline(rows.map((row, index) => ({ key: keyOf(row, index), event: rowEvents.get(row), tail: row === turnNow })), outlines, working, liveTurn);
   const out: HTMLElement[] = [], kept = new Set<string>();
+  const work = (row: HTMLElement) => { workRows.add(row); out.push(row); };
   for (const part of parts) {
     // A message read as a sentence before it was known to be the answer reads as the answer now.
-    if (part.kind === 'row') { const row = byKey.get(part.key)!; row.classList.remove('is-interim'); out.push(row); continue; }
+    if (part.kind === 'row') { const row = byKey.get(part.key)!; row.classList.remove('is-interim'); workRows.delete(row); out.push(row); continue; }
     if (part.kind === 'say') {
       const row = part.rowKey ? byKey.get(part.rowKey)! : sayRow(part, says);
       row.classList.add('is-interim');
       kept.add(part.key);
-      out.push(row);
+      work(row);
       continue;
     }
     const members = part.rows.map(key => byKey.get(key)).filter((row): row is HTMLElement => !!row);
-    if (!members.length && part.recap && !part.live) { kept.add(`recap:${scope}:${part.key}`); out.push(recapLine(part, scope, groups)); continue; }
+    if (part.recap) kept.add(`recap:${scope}:${part.key}`);
+    if (!members.length && part.recap && !part.live) { work(recapLine(part, scope, groups)); continue; }
     if (!members.length) continue;
-    // One action without a recap is that action: a title over it would only repeat it.
-    if (members.length === 1 && !part.recap) { markNativeStep(members[0]!, false); out.push(members[0]!); continue; }
-    // Paging can extend or trim the start of a round, which moves its key; the disclosure its rows
-    // already sit in stays the same node, so neither its open state nor the reader's place moves.
-    const previous = members.map(row => row.closest<HTMLElement>('.tool-group'))
-      .find(group => !!group?.dataset.timelineKey && groups.get(group.dataset.timelineKey) === group && !kept.has(group.dataset.timelineKey));
+    // One action without a recap is that action: a log around it would add nothing.
+    if (members.length === 1 && !part.recap) { markNativeStep(members[0]!, false); work(members[0]!); continue; }
+    // Paging can extend or trim the start of a round, which moves its key; the log its rows
+    // already sit in stays the same node, so the reader's place does not move.
+    const previous = members.map(row => row.closest<HTMLElement>('.work-log'))
+      .find(log => !!log?.dataset.timelineKey && groups.get(log.dataset.timelineKey) === log && !kept.has(log.dataset.timelineKey));
     const key = previous?.dataset.timelineKey ?? `group:${scope}:${part.key}`;
     kept.add(key);
-    out.push(roundGroup(part, members, key, groups, workerBadges));
+    work(workLog(part, members, key, scope, groups, workerBadges));
   }
   for (const key of groups.keys()) if (!kept.has(key)) groups.delete(key);
   for (const key of says.keys()) if (!kept.has(key)) says.delete(key);
@@ -5641,8 +5641,10 @@ function paintDetail(followBottom = historyBefore === null): void {
   appendRetiredInputs(Infinity);
   for (const key of rowCache.keys()) if (!keep.has(key)) rowCache.delete(key);
   placeTurnLines(timelineRows, workedSeconds);
-  reconcileChildren($('timeline'), groupImageRows(renderRounds(timelineRows, tracesFor === selectedId ? traces : {}, turnWorking,
-    turnWorking ? openTurnId(events) : null, selectedId, toolGroups, sayRows, true)));
+  const drawn = groupImageRows(renderRounds(timelineRows, tracesFor === selectedId ? traces : {}, turnWorking,
+    turnWorking ? openTurnId(events) : null, selectedId, toolGroups, sayRows, true));
+  foldWorkedTurns(drawn);
+  reconcileChildren($('timeline'), drawn);
   // Rounds that arrive after this paint enter with a fade; the chat as it opened does not.
   roundsEnter = timelineRows.length > 0;
   paintPendingInputs();
@@ -6172,10 +6174,90 @@ function exchangeDurations(list: readonly SessionEvent[]): Map<number, number> {
 }
 
 function workedLine(asked: number, seconds: number): HTMLElement {
-  const line = workedLines.get(String(asked)) ?? turnLine('turn-worked');
-  ui(line.firstElementChild as HTMLElement, 'textContent', () => t("{0} for {1}{2}s", [t("Worked"), seconds >= 60 ? `${t('{0}m', [Math.floor(seconds / 60)])} ` : '', seconds % 60]));
+  let line = workedLines.get(String(asked));
+  if (!line) {
+    const made = line = turnLine('turn-worked');
+    made.dataset.turn = String(asked);
+    made.prepend(disclosureChevron('turn-fold-chevron'));
+    const toggle = () => {
+      if (!made.classList.contains('is-foldable')) return;
+      if (openTurns.has(String(asked))) openTurns.delete(String(asked)); else openTurns.add(String(asked));
+      paintTurnFold(made);
+    };
+    made.addEventListener('click', toggle);
+    made.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      toggle();
+    });
+  }
+  ui(line.querySelector<HTMLElement>('.turn-worked-label')!, 'textContent', () => t("{0} for {1}{2}s", [t("Worked"), seconds >= 60 ? `${t('{0}m', [Math.floor(seconds / 60)])} ` : '', seconds % 60]));
   workedLines.set(String(asked), line);
   return line;
+}
+
+/** Finished turns whose work the reader opened, by the time of the message they answer. */
+const openTurns = new Set<string>();
+/** The work each finished turn's line folds, as the last paint laid it out. */
+const turnWork = new WeakMap<HTMLElement, HTMLElement[]>();
+/** Finished turns whose first fold state was decided, by the same key. */
+const decidedTurns = new Set<string>();
+/** The turn the timeline last drew as running, by the same key: its work folds once it ends. */
+let liveTurnAsked: string | null = null;
+
+/**
+ * A finished turn folds its work (its sentences and steps) under its "Worked for" line, so your
+ * question is followed by the answer. The line opens and closes it by click, Enter or Space, and
+ * stays open for that turn. The running turn never folds; a line with no work under it is plain.
+ * A turn that just ended folds; one whose line first appears above work already on screen (history
+ * paging in the question of a long turn being read) stays open, so the rows being read never vanish.
+ */
+function foldWorkedTurns(rows: readonly HTMLElement[]): void {
+  let line: HTMLElement | null = null;
+  let work: HTMLElement[] = [];
+  for (const row of [...rows, null]) {
+    if (!row || row.matches('.ev-user_message, .turn-worked')) {
+      if (line) {
+        const turn = line.dataset.turn ?? '';
+        if (!decidedTurns.has(turn)) {
+          decidedTurns.add(turn);
+          if (turn !== liveTurnAsked && work.some(shown => shown.isConnected && !shown.classList.contains('is-folded'))) openTurns.add(turn);
+        }
+        turnWork.set(line, work);
+        paintTurnFold(line);
+      }
+      line = row?.matches('.turn-worked:not(.turn-status)') ? row : null;
+      work = [];
+    } else if (line && workRows.has(row)) work.push(row);
+    else row.classList.remove('is-folded', 'is-unfolded');
+  }
+}
+
+function paintTurnFold(line: HTMLElement): void {
+  const work = turnWork.get(line) ?? [];
+  const open = openTurns.has(line.dataset.turn ?? '');
+  line.classList.toggle('is-foldable', work.length > 0);
+  line.classList.toggle('is-open', work.length > 0 && open);
+  if (work.length) {
+    line.setAttribute('role', 'button');
+    line.tabIndex = 0;
+    line.setAttribute('aria-expanded', String(open));
+  } else for (const name of ['role', 'tabindex', 'aria-expanded']) line.removeAttribute(name);
+  for (const row of work) {
+    row.classList.toggle('is-folded', !open);
+    row.classList.toggle('is-unfolded', open);
+  }
+}
+
+/** Opens the finished turn whose folded work holds a row, so a search can show it. */
+function unfoldTurnOf(row: HTMLElement): void {
+  const folded = row.closest<HTMLElement>('.is-folded');
+  if (!folded) return;
+  for (const line of workedLines.values()) {
+    if (!turnWork.get(line)?.includes(folded)) continue;
+    openTurns.add(line.dataset.turn ?? '');
+    paintTurnFold(line);
+  }
 }
 
 /**
@@ -6205,7 +6287,7 @@ function placeTurnLines(rows: HTMLElement[], workedSeconds: ReadonlyMap<number, 
     const latest = i === asks.length - 1;
     // An edit's earlier versions fold right under its question (#365); the turn's line follows them.
     const at = rows[index + 1]?.matches('.earlier-version') ? index + 2 : index + 1;
-    if (latest && live && (!pending || runningBefore)) { rows.splice(at, 0, turnStatusLine); rows.push(turnNow); continue; }
+    if (latest && live && (!pending || runningBefore)) { rows.splice(at, 0, turnStatusLine); rows.push(turnNow); liveTurnAsked = String(asked); continue; }
     const seconds = workedSeconds.get(asked);
     if (seconds === undefined || (latest && live)) continue;
     rows.splice(at, 0, workedLine(asked, seconds)); used.add(String(asked));

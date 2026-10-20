@@ -84,9 +84,9 @@ app.whenReady().then(async () => {
   assert.equal(await js(`workerReads.length`),0,'Round indicators never load worker transcripts');
   assert.deepEqual(await js(`[...document.querySelectorAll('#timeline .activity-workers')].map(b=>b.textContent)`),['2','1','2']);
   await js(`document.getElementById('chatInput').value='Keep the prime draft';document.getElementById('chatInput').dispatchEvent(new Event('input'));
-    document.querySelector('#timeline .tool-group').open=true;document.getElementById('chatBody').scrollTop=0`);
+    document.getElementById('chatBody').scrollTop=0`);
   await capture('after-timeline.png');
-  assert.equal(await js(`getComputedStyle(document.querySelector('#timeline .activity-workers')).display`),'none','Indicators appear only on collapsed rounds');
+  assert.equal(await js(`[...document.querySelectorAll('#timeline .activity-workers')].every(b=>b.parentElement.matches('.work-log')&&getComputedStyle(b).display!=='none')`),true,'Each indicator closes the work log of its round');
   win.show(); win.focus(); win.webContents.focus(); await pause(100);
   await js(`document.querySelectorAll('#timeline .activity-workers')[2].scrollIntoView({block:'nearest'});document.querySelectorAll('#timeline .activity-workers')[2].focus({preventScroll:true})`);
   await settle();
@@ -97,7 +97,7 @@ app.whenReady().then(async () => {
   await until(`document.querySelectorAll('#workDockRight .is-round-worker').length===2`);
   await settle();
   assert.equal(await js(`workerReads.length`),0,'Opening the highlighted overview is lazy');
-  assert.equal(await js(`document.querySelectorAll('#timeline .tool-group')[2].open`),false,'Indicator does not expand its round');
+  assert.equal(await js(`document.querySelectorAll('#timeline .work-log .tool[open]').length`),0,'Indicator opens no step of its round');
   assert.ok(Math.abs(await js(`document.getElementById('chatBody').scrollTop`)-readerTop)<=2,'Opening the dock keeps the reader: '+JSON.stringify({before:readerTop,after:await js(`document.getElementById('chatBody').scrollTop`)}));
   const [inspectionWidth, inspectionHeight] = win.getContentSize();
   win.setContentSize(inspectionWidth, inspectionHeight - 80); await settle();

@@ -790,7 +790,6 @@
   "Summary": "摘要",
   "Summary (still writing)": "摘要（仍在編寫）",
   "Bootstrap sent into the new chat — {0} characters at {1}": "啟動訊息已傳送到新聊天 — {0} 個字元，時間 {1}",
-  "{0} actions · {1}": "{0} 次操作 · {1}",
   "Back to latest": "返回最新內容",
   "Dismiss recovery notice": "關閉恢復通知",
   "{0} event{1}": "{0} 個事件{1}",

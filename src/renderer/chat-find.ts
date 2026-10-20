@@ -43,6 +43,8 @@ export function rangesIn(root: ParentNode, phrase: string): Range[] {
   const ranges: Range[] = [];
   if (!phrase) return ranges;
   for (const said of root.querySelectorAll('.said')) {
+    // A finished turn's folded work is not on screen: a hit there could not be shown.
+    if (said.closest('.is-folded')) continue;
     const walker = document.createTreeWalker(said, NodeFilter.SHOW_TEXT);
     let text = '';
     const at: Array<[Text, number]> = [];

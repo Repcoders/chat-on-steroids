@@ -2763,32 +2763,35 @@ input[readonly] {
    the turn's work and what it says. */
 .turn-worked { margin: 12px 0 8px; padding-bottom: 9px; border-bottom: 1px solid var(--line); color: var(--faint); font-size: calc(12.5px * var(--text-scale, 1)); font-weight: 500; letter-spacing: .01em; line-height: 18px; font-variant-numeric: tabular-nums; }
 .turn-worked[hidden] { display: none; }
-/* While the turn works, a light sheen passes through the words (not the rule under them). */
-.turn-status.is-working .turn-worked-label {
-  color: transparent;
-  background: linear-gradient(100deg, var(--faint) 38%, var(--ink) 50%, var(--faint) 62%) 0 0 / 260% 100%;
-  -webkit-background-clip: text; background-clip: text;
-  animation: turn-sheen 4.2s ease-in-out infinite;
-}
+/* A finished turn's line folds its work: a chevron before the words, no rule, the answer right under it. */
+.turn-fold-chevron { display: none; }
+.turn-worked.is-foldable { display: flex; align-items: center; gap: 6px; width: fit-content; margin-bottom: 4px; padding: 2px 6px 2px 2px; border-bottom: 0; border-radius: 6px; cursor: pointer; }
+.turn-worked.is-foldable .turn-fold-chevron { display: block; width: 12px; height: 12px; flex: none; opacity: .75; transition: transform 140ms ease; }
+.turn-worked.is-foldable.is-open .turn-fold-chevron { transform: rotate(90deg); }
+.turn-worked.is-foldable:hover { color: var(--soft); }
+.turn-worked.is-foldable:focus-visible { outline: none; background: var(--hover); box-shadow: inset 2px 0 var(--accent); }
+.is-folded { display: none; }
+/* Opened again, the turn's work hangs from a hairline under its line, apart from the answer. */
+#timeline > .is-unfolded { margin: 0 0 0 7px; padding-left: 14px; border-left: 1px solid var(--line); }
+#timeline > .work-log.is-unfolded { padding-block: 4px; }
+/* The live row after a turn's work is the one line that shimmers; the Working line above stays still. */
 @keyframes turn-sheen { from { background-position: 130% 0; } to { background-position: -130% 0; } }
 /* What the turn does right now: the last row of its work. A running step keeps the activity rows'
-   rhythm and wears the icon its finished row will, in the accent and breathing, its words
-   shimmering like the Working line and its own clock faint. Thinking is not a step, so it does not
-   look like one: ChatGPT's own sign, a white dot that breathes, beside heavier words and set apart
-   from the rows above. A new state fades in where the last one was; a long one truncates rather than wrapping. */
+   rhythm and wears the icon its finished row will, its words the one shimmer on screen and its own
+   clock in the rows' right-hand column. Thinking is not a step, so it does not look like one:
+   ChatGPT's own sign, a white dot that breathes, beside heavier words. A new state fades in where the last one was; a long one truncates rather than wrapping. */
 .turn-now[hidden] { display: none; }
-.turn-now-icon { flex: none; display: grid; place-items: center; width: 14px; height: 14px; color: var(--accent); animation: turn-now-breathe 1.6s ease-in-out infinite; }
+.turn-now-icon { flex: none; display: grid; place-items: center; width: 14px; height: 14px; color: var(--faint); }
 .turn-now-icon .ico { --ico: 14px; }
-.turn-now-body { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-/* Every state holds the same slot, set apart from the rows above, so a change of state never moves it. */
-.meta.is-progress.thinking-line.turn-now { margin-top: 14px; }
+.turn-now-body { display: flex; flex: 1; align-items: baseline; gap: 8px; min-width: 0; }
+/* Every state holds the same slot, in the rows' own rhythm, so a change of state never moves it. */
+.meta.is-progress.thinking-line.turn-now { margin-top: 2px; }
 .meta.is-progress.thinking-line.turn-now.is-thinking { gap: 10px; font-weight: 500; }
 .turn-now.is-thinking .turn-now-icon { width: 14px; height: 14px; animation: none; }
 .turn-now.is-thinking .turn-now-icon::before {
   content: ''; width: 12px; height: 12px; border-radius: 50%; background: var(--ink);
   animation: turn-now-dot 1.5s ease-in-out infinite;
 }
-@keyframes turn-now-breathe { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
 @keyframes turn-now-dot { 0%, 100% { transform: scale(.6); } 50% { transform: scale(1); } }
 .turn-now-text {
   min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
@@ -2797,13 +2800,12 @@ input[readonly] {
   -webkit-background-clip: text; background-clip: text;
   animation: turn-sheen 4.2s ease-in-out infinite;
 }
-.turn-now-time { flex: none; color: var(--faint); font-variant-numeric: tabular-nums; }
+.turn-now-time { flex: none; margin-left: auto; color: var(--faint); font-size: var(--activity-meta); font-variant-numeric: tabular-nums; }
 .turn-now-time:empty { display: none; }
 .turn-now.is-new { animation: turn-now-in 220ms ease-out; }
 @keyframes turn-now-in { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
-  .turn-status.is-working .turn-worked-label { animation: none; color: var(--soft); background: none; }
-  .turn-now.is-new, .turn-now-icon, .turn-now.is-thinking .turn-now-icon::before { animation: none; }
+  .turn-now.is-new, .turn-now.is-thinking .turn-now-icon::before { animation: none; }
   .turn-now-text { animation: none; color: var(--soft); background: none; }
 }
 /* The status now opens each turn in the timeline; the header shows it only in developer mode. */
@@ -3074,12 +3076,6 @@ input[readonly] {
 .tool > summary:focus-visible, .tool-group > summary:focus-visible, .routine-activity > summary:focus-visible {
   outline: none; background: var(--hover); box-shadow: inset 2px 0 var(--accent);
 }
-/* Commands and edits read as rows like every other call. A bordered capsule per command turned a
-   run of shell calls into a wall of boxes; the kind icon already says what the row is, so the
-   tag is a quiet label rather than a coloured chip. */
-.tool-tag { flex: 0 0 auto; display: inline-flex; align-items: center; height: 16px; padding: 0 5px; border-radius: 4px; background: color-mix(in srgb, var(--soft) 12%, transparent); color: var(--soft); font: 600 calc(10px * var(--text-scale, 1)) / 1 var(--mono); letter-spacing: .02em; }
-.tool-tag.is-shell { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
-.tool-tag.is-diff { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
 .tool-change-count { flex: 0 0 auto; color: var(--green); font: 600 calc(10px * var(--text-scale, 1)) var(--mono); }
 /* Let the hover surface breathe beyond the text column without moving its content. */
 .ev-tool_call .tool { margin-inline: -10px; }
@@ -3145,6 +3141,19 @@ input[readonly] {
 .tool-open-diff.is-unavailable { opacity: .45; cursor: default; }
 .tool-open-diff.is-unavailable:hover { background: transparent; color: var(--soft); }
 .tool-open-diff .ico { --ico: 14px; --glyph: 14px; }
+/* A step's line in the work log: what it did on the left, one muted value on the right (a range,
+   a count, +/- lines, an exit code, a time) in the text face with even digits, so every line keeps
+   one height and the values line up in one column. Only line counts keep the code face. A failed
+   step's icon and value are a softened red. The review button stays out of the line until it is
+   pointed at or reached by keyboard. */
+.tool > summary .metric { color: var(--faint); font-family: inherit; font-size: var(--activity-meta); font-variant-numeric: tabular-nums; }
+.tool > summary .metric :is(.metric-added, .metric-removed) { font-family: var(--mono); }
+.tool > summary .metric.is-detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; }
+.tool.tone-bad > summary .tool-ico { color: color-mix(in srgb, var(--red) 60%, transparent); }
+.tool.tone-bad > summary .metric { color: color-mix(in srgb, var(--red) 80%, transparent); }
+.tool > summary .step-command { font-family: var(--mono); font-size: .92em; font-weight: 400; }
+.tool > summary .tool-open-diff { display: none; }
+.tool > summary:is(:hover, :focus-within) .tool-open-diff, .tool[open] > summary .tool-open-diff { display: grid; }
 /* One Compact & Resume as one row: the name, then one sentence saying where it is or where
    it died, coloured like the tool rows — green landed, red will not, grey in flight. Reuses
    the tool row's open/closed surface so it reads as one more foldable thing in the timeline. */
@@ -3819,24 +3828,19 @@ nav button:hover, nav button.is-sel { background: var(--hover); color: var(--ink
 .msg .math-display { margin: 8px 0; overflow-x: auto; overflow-y: hidden; }
 .msg .math-inline.is-source, .msg .math-display.is-source { font-family: var(--mono); font-size: .92em; color: var(--soft); white-space: pre-wrap; }
 /* Rounds (timeline-rounds.ts). What the model says between steps is prose, as it is in ChatGPT: the
-   answer's own face and colour, close to the round it opens. Each round's activity folds under
-   ChatGPT's recap of it, a check once done; the open round names what it is doing. An expanded
-   round hangs its rows from a hairline, so a long turn reads as rounds rather than one list. */
+   answer's own face and colour, close to the round it opens. Each round's activity is a work log,
+   one quiet line per step, closed by ChatGPT's recap of it once done. */
 /* The same space above and below a round's sentence, so it sits evenly between the rounds around it. */
 .ev.is-interim { padding: 4px 0; }
 .ev.is-interim .said { padding: 0; }
 .ev.is-interim + .ev.is-interim { padding-top: 0; }
 /* The answer after a turn's last round keeps the same rhythm as its sentences. */
-:is(.tool-group, .round-recap, .ev-tool_call, .ev-page_tool, .ev-agent_message) + .ev-assistant_message:not(.is-interim) { padding-top: 4px; }
-:is(.tool-group, .round-recap, .ev-tool_call, .ev-page_tool, .ev-agent_message) + .ev-assistant_message:not(.is-interim) > .ev-body > .said { padding-top: 0; }
-.tool-group + .tool-group, .tool-group + .round-recap, .round-recap + .tool-group { margin-top: 0; }
-.tool-group.has-recap > summary { color: var(--soft); }
-.tool-group.has-recap > summary .activity-symbol .ico { color: var(--faint); }
-.tool-group.is-live > summary { color: var(--soft); }
-.tool-group > summary:hover, .tool-group.has-recap > summary:hover { color: var(--ink); }
-/* How many actions the round holds, in its pill. */
-.activity-count { flex: none; height: 17px; padding: 0 6px; border-radius: 6px; background: var(--hover); color: var(--faint); font-size: calc(11px * var(--text-scale, 1)); line-height: 17px; font-variant-numeric: tabular-nums; }
-.activity-count:empty { display: none; }
+:is(.work-log, .round-recap, .ev-tool_call, .ev-page_tool, .ev-agent_message) + .ev-assistant_message:not(.is-interim) { padding-top: 4px; }
+:is(.work-log, .round-recap, .ev-tool_call, .ev-page_tool, .ev-agent_message) + .ev-assistant_message:not(.is-interim) > .ev-body > .said { padding-top: 0; }
+.work-log { margin: 4px 0; color: var(--soft); }
+.work-log + .work-log, .work-log + .round-recap, .round-recap + .work-log { margin-top: 0; }
+.work-log > .ev { margin: 0; }
+.work-log > .activity-workers { margin: 2px 0 4px; }
 .tool-group[open] > .tool-group-body { margin: 2px 0 6px 7px; padding: 2px 0 0 13px; border-left: 1px solid var(--line); animation: round-open 160ms ease-out; }
 .round-recap { padding: 1px 0; }
 .round-recap .thinking-ico { color: var(--faint); }
@@ -4723,7 +4727,6 @@ select option::checkmark { order: 1; margin-inline-start: auto; color: var(--ink
 .activity-workers:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 10%, var(--hover)); }
 .activity-workers:focus-visible { outline: 2px solid var(--accent-edge); outline-offset: 1px; }
 /* An open round lists its workers' calls itself. */
-.tool-group[open] > summary > .activity-workers { display: none; }
 @media (prefers-reduced-motion: reduce) { .activity-workers { transition: none; } }
 
 /*

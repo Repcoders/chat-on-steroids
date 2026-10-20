@@ -4136,14 +4136,24 @@ The chat keeps the current input queue/plan visible alongside a
 paged transcript. Main owns durable mutation acknowledgements; renderer optimism is not a
 receipt. Native edit context menus respect the focused editable control and selection.
 The timeline retains each exact tool row. It folds five or more consecutive successful agent
-status checks or waits on the same process inside the existing activity disclosure, preserving
-each row on expansion; a failed call breaks the fold. Tool diff counts and shell/result
+status checks or waits on the same process inside the round's work log, preserving each row on
+expansion; a failed call breaks the fold. Tool diff counts and shell/result
 headers are projections of recorded data, not new execution or completion evidence.
 A turn's work reads in rounds, as ChatGPT draws it (`renderer/timeline-rounds.ts`, pure). A round
 is what the model said before a step, the step's activity (this app's calls, ChatGPT's own steps,
 agent messages) and the recap ChatGPT closes it with. The sentences stand as prose in the interim
-style; the activity folds under one disclosure titled with the recap and a check once the round is
-done, else with its latest action; a lone action without a recap stays its own row. The rounds come
+style; the activity is a work log (`.work-log`), one line per step in recorded order, ending with
+the recap and a check once the round is done; a lone action without a recap stays its own row. A
+step's line names what it did: a failed command reads "Ran <command>" with its exit code as the red
+metric, and metrics drop the ✓/✕ marks the tone already shows. Each line keeps one value on its
+right, its metric else its detail (a detail the metric replaces moves to the line's tooltip), and an
+edit's review button appears only on hover or keyboard focus. The live row after the work is the
+only line that shimmers. Once a turn has ended, its "Worked for" line folds the turn's work (its
+sentences, logs and lone steps; never the answer, errors or notes) and opens it by click, Enter or
+Space (`role="button"`, `aria-expanded`); the choice holds per turn until the chat is left. A turn
+that just ended folds; work already on screen when its line first appears (history paging in a long
+turn's question) stays open, hung from a hairline once opened. Find in chat skips folded work, and
+opening a search result inside it unfolds that turn. The rounds come
 from the turn's outline when one was recorded (`shared/turn-trace.ts`): its sentences, recaps and
 answer id in ChatGPT's order. Recorded calls are aligned with the outline's calls as the longest
 order-preserving match on tool name, preferring calls that started within 90 s of when the page
@@ -4154,7 +4164,7 @@ newest round once the outline has moved on, else its predecessor's round. Other 
 recorded before them; a recorded interim message the outline shows is used in its place, and a
 native step whose label equals an outlined recap is not repeated (late recaps were recorded after the
 answer). Without an outline, each interim message or ChatGPT caption opens a round and a native step
-ending a finished round titles it, by position. Disclosures are keyed by turn and round, reuse the
+ending a finished round closes it as its recap, by position. Logs are keyed by turn and round, reuse the
 node their rows already sit in when paging moves a round's start, and rounds drawn after a chat's
 first paint enter with a short fade (none under reduced motion).
 When the new revision of an answer and the one on screen are both drawn rich and laid out alike, the
