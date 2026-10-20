@@ -20,6 +20,7 @@ async function mount(options: { cos: boolean }) {
   const { initViewMenu } = await import('../src/renderer/view-menu.js');
   const menu = initViewMenu({
     search: () => calls.push('search'),
+    workLog: () => calls.push('work-log'),
     cosBrowser: () => options.cos,
     showCosBrowser: () => calls.push('cos-browser'),
     pets: { toggle: () => { pets = !pets; calls.push('pets'); }, visible: () => pets },
@@ -50,13 +51,14 @@ it('opens one menu with each action, its icon and its shortcut, the CoS browser 
   // Not the sidebar: its own toggle sits right beside the menu's button.
   expect(view.items()).toEqual([
     ['search', 'Search chats', 'Ctrl+K'],
+    ['work-log', 'Work log', null],
     ['pets', 'Show pets', null],
     ['zoom-in', 'Zoom in', 'Ctrl++'],
     ['zoom-out', 'Zoom out', 'Ctrl+−'],
     ['zoom-reset', 'Actual size', 'Ctrl+0']
   ]);
   // Every item draws its icon, and the groups are separated.
-  expect(view.open()!.querySelectorAll('.row-menu-item > .ico').length).toBe(5);
+  expect(view.open()!.querySelectorAll('.row-menu-item > .ico').length).toBe(6);
   expect(view.open()!.querySelectorAll('.row-menu-separator').length).toBe(2);
   // The same button closes it.
   view.button.click();
@@ -65,7 +67,7 @@ it('opens one menu with each action, its icon and its shortcut, the CoS browser 
 
   const cos = await mount({ cos: true });
   cos.button.click();
-  expect(cos.items().map(([action]) => action)).toEqual(['search', 'cos-browser', 'pets', 'zoom-in', 'zoom-out', 'zoom-reset']);
+  expect(cos.items().map(([action]) => action)).toEqual(['search', 'work-log', 'cos-browser', 'pets', 'zoom-in', 'zoom-out', 'zoom-reset']);
   expect(cos.item('cos-browser').querySelector('.row-menu-label')!.textContent).toBe('Show browser');
   cos.item('cos-browser').click();
   expect(cos.calls).toEqual(['cos-browser']);
@@ -78,8 +80,11 @@ it('says what the pets toggle will do, runs actions and closes; zoom steps keep 
   view.item('search').click();
   expect(view.open()).toBeNull();
   view.button.click();
+  view.item('work-log').click();
+  expect(view.open()).toBeNull();
+  view.button.click();
   view.item('pets').click();
-  expect(view.calls).toEqual(['search', 'pets']);
+  expect(view.calls).toEqual(['search', 'work-log', 'pets']);
   view.button.click();
   expect(view.item('pets').querySelector('.row-menu-label')!.textContent).toBe('Hide pets');
 
@@ -102,7 +107,7 @@ it('opens from the keyboard and gives focus back to its button on Escape', async
   expect(view.open()).not.toBeNull();
   expect((view.doc.activeElement as HTMLElement).dataset.rowAction).toBe('search');
   view.open()!.dispatchEvent(new view.doc.defaultView!.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-  expect((view.doc.activeElement as HTMLElement).dataset.rowAction).toBe('pets');
+  expect((view.doc.activeElement as HTMLElement).dataset.rowAction).toBe('work-log');
   view.open()!.dispatchEvent(new view.doc.defaultView!.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
   expect(view.open()).toBeNull();
   expect(view.doc.activeElement).toBe(view.button);

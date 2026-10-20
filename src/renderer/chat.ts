@@ -95,11 +95,13 @@ import { $, ago, clockTime, compactNumber, disclosureChevron, el, icon, run, set
 import { APPROVAL_ANSWERED_TEXT, APPROVAL_PROGRESS_PREFIX, APPROVAL_WAITING_TEXT, type ApprovalCardView } from '../shared/approval-wait.js';
 import { openRowMenu, rowMenuOpenFor, toggleRowMenu, type RowMenuItem, type RowMenuOptions } from './row-menu.js';
 import { createSearchPopup } from './search-popup.js';
+import { createWorkLog } from './work-log.js';
 import { primaryShortcut } from './shortcuts.js';
 import { initSshProjectDialog } from './ssh-project-dialog.js';
 
 const api = window.api;
 let chatSearch: ChatSearch | null = null;
+let workLog: ReturnType<typeof createWorkLog> | null = null;
 let chatFind: ReturnType<typeof initChatFind> | null = null;
 
 
@@ -1295,6 +1297,7 @@ async function loadSessions(detail: 'reread' | 'changed' = 'reread'): Promise<vo
   }
   paintSessions();
   chatSearch?.refresh();
+  workLog?.update();
   const row = selectedId === null ? undefined : sessions.find(entry => entry.id === selectedId);
   if (detail === 'reread' || selectedId === null || detailFor !== selectedId || changed.all || changed.ids.has(selectedId) ||
       row?.updatedAt !== detailStamp?.updatedAt || row?.events !== detailStamp?.events) await loadDetail();
@@ -1319,6 +1322,7 @@ async function loadMoreSessions(): Promise<void> {
     trustedChats = new Set(page.trusted ?? []);
     for (const entry of page.pressure) pressure.set(entry.id, entry);
     paintSessions();
+    workLog?.update();
   } finally {
     sessionPageLoading = false;
   }
@@ -7789,6 +7793,11 @@ export function openChatSearch(): void {
   chatSearch?.open();
 }
 
+/** Opens the work log: each loaded chat's last finished turn by day (the View menu). */
+export function openWorkLog(): void {
+  workLog?.open();
+}
+
 /**
  * Switches the session card's body.
  *
@@ -8419,6 +8428,16 @@ export function initChat(next: Deps): void {
     find: async (id, query) => (await run(api.findInChat(id, query))) ?? null,
     reveal: revealChatLocation,
     row: rowForLocation
+  });
+  workLog = createWorkLog({
+    chats: () => sessions,
+    project: summary => {
+      const id = projectGroup(summary.projectId);
+      const project = id ? projects.find(entry => entry.id === id) : undefined;
+      return project ? { id: project.id, name: project.name } : null;
+    },
+    title: shownSessionTitle,
+    open: id => { if (id !== selectedId) { pendingNewInput = null; selectSession(id); } }
   });
   chatSearch = initChatSearch({
     select: (id, match) => {

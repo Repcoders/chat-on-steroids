@@ -10,6 +10,8 @@ import { primaryShortcut } from './shortcuts.js';
 
 export interface ViewMenuActions {
   search(): void;
+  /** The work log: each chat's last finished turn, by day. */
+  workLog(): void;
   /** Whether the built-in CoS browser is the selected ChatGPT browser. */
   cosBrowser(): boolean;
   showCosBrowser(): void;
@@ -27,6 +29,7 @@ export function initViewMenu(actions: ViewMenuActions): { refresh(): void } {
   // its button lives in the sidebar, which may be hidden.
   const items = (): RowMenuItem[] => [
     { action: 'search', icon: 'i-search', shortcut: () => primaryShortcut('K'), label: () => t('Search chats'), run: actions.search },
+    { action: 'work-log', icon: 'i-steps', label: () => t('Work log'), run: actions.workLog },
     ...(actions.cosBrowser() ? [{
       action: 'cos-browser', icon: 'i-browser', separated: true,
       label: () => t('Show browser'), run: actions.showCosBrowser
