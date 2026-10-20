@@ -1,5 +1,5 @@
 import { closeRemoteSessions } from './remote/ssh.js';
-import { stopInputStartup } from './session/start-input.js';
+import { resumeScheduledInputs, stopInputStartup } from './session/start-input.js';
 import { browserExtensionRequired } from '../shared/types.js';
 import { requestSessionFinishGoal, setFinishNotifier } from './session/finish.js';
 /**
@@ -690,6 +690,8 @@ void app.whenReady().then(async () => {
     startControlApi().catch((error: Error) => logWarn(`control API did not start: ${error.message}`));
   }
   if (getConfig().ui.autoConnect) void connect();
+  // Send at…: a message scheduled before the app closed waits for its time again, or goes now.
+  void resumeScheduledInputs().catch((error: Error) => logWarn(`scheduled messages did not resume: ${error.message}`));
   void resumeUpdateRefresh().catch((error: Error) => logWarn(`update refresh did not resume: ${error.message}`));
 
   // Never awaited: an unreachable GitHub, a slow download or a broken release must not delay a

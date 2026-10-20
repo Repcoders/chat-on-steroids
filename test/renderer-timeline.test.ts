@@ -3501,8 +3501,42 @@ it('shows injection only for an exact active turn, never merely recent chat acti
   expect(options.hidden).toBe(false);
   (w as any).api.getSessionControls = (id: string) => Promise.resolve({ ok: true, data: { sessionId: id, automation: 'off', activeTurnId: null, finishHeld: false, blocked: '', job: null } });
   await append([toolCall(2, 'more-recent-call')]);
-  expect(options.hidden).toBe(true);
+  // The menu itself stays for Send at…; the delivery choices are gone with the turn.
+  expect(w.document.getElementById('deliveryModes')!.hidden).toBe(true);
   expect((w.document.getElementById('sendMode') as HTMLSelectElement).value).toBe('auto');
+});
+
+it('sends a typed text later from the send menu of an idle chat, and Stop leaves it waiting', async () => {
+  const { w, live, append } = await boot([]);
+  const api = (w as any).api;
+  api.getSessionControls = (id: string) => Promise.resolve({ ok: true, data: { sessionId: id, automation: 'off', activeTurnId: null, finishHeld: false, blocked: '', job: null } });
+  api.cancelInput = vi.fn(async () => ({ ok: true, data: true }));
+  await append([]);
+  const input = w.document.getElementById('chatInput') as HTMLTextAreaElement;
+  input.value = 'Continue with the next step'; input.dispatchEvent(new w.Event('input'));
+  await settle();
+  const later = w.document.getElementById('sendLaterAction') as HTMLButtonElement;
+  expect(w.document.getElementById('sendOptions')!.hidden).toBe(false);
+  expect(w.document.getElementById('deliveryModes')!.hidden).toBe(true);
+  expect(later.hidden).toBe(false);
+  later.click();
+  expect((w.document.getElementById('sendLaterDialog') as HTMLDialogElement).open).toBe(true);
+  const at = new Date(Date.now() + 2 * 3_600_000); at.setSeconds(0, 0);
+  const pad = (value: number) => String(value).padStart(2, '0');
+  (w.document.getElementById('sendLaterTime') as HTMLInputElement).value =
+    `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}T${pad(at.getHours())}:${pad(at.getMinutes())}`;
+  w.document.getElementById('sendLaterForm')!.dispatchEvent(new w.Event('submit', { cancelable: true }));
+  await settle();
+  expect(live.sent.at(-1)).toMatchObject({ text: 'Continue with the next step', mode: 'auto', dueAt: at.getTime() });
+  expect(input.value).toBe('');
+  input.dispatchEvent(new w.Event('input'));
+  await settle(20);
+  const row = w.document.querySelector(`.pending-message[data-input-id="${live.sent.at(-1)!.id}"]`)!;
+  expect(row.querySelector('.pending-message-status')!.textContent).toBe(`Scheduled ${at.toLocaleString('en')}`);
+  const send = w.document.getElementById('chatSend') as HTMLButtonElement;
+  expect(send.dataset.action).toBe('send');
+  expect(later.hidden).toBe(true);
+  expect(api.cancelInput).not.toHaveBeenCalled();
 });
 
 // A text for the running turn goes through ChatGPT's composer (#1231), so a running turn offers

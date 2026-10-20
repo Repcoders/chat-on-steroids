@@ -3708,7 +3708,7 @@ nav button:hover, nav button.is-sel { background: var(--hover); color: var(--ink
 .composer :is(#skillPicker, #contextMeterInfo, .send-options) { opacity: 0; transform: translateY(4px); transition: opacity 120ms ease-in, transform 120ms ease-in, display 120ms allow-discrete; }
 .composer #skillPicker { transform: translateY(5px); }
 .composer #skillPicker:not([hidden]), .composer .context-meter.pinned #contextMeterInfo,
-.composer .send-control:is(:hover, :focus-within) .send-options:not([hidden]) { opacity: 1; transform: none; transition: none; }
+.composer .send-control:is(:hover, :focus-within) #sendOptions:not([hidden]) { opacity: 1; transform: none; transition: none; }
 .composer #skillPicker[hidden], .composer .context-meter:not(.pinned) #contextMeterInfo { pointer-events: none; }
 @media (prefers-reduced-motion: reduce) {
   .composer .composer-menu::details-content, .composer .composer-menu > .composer-popover,
@@ -4076,6 +4076,8 @@ select option::checkmark { order: 1; margin-inline-start: auto; color: var(--ink
 .delivery-choices button { display: flex; align-items: center; justify-content: space-between; padding: 9px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); font: inherit; font-size: calc(13px * var(--text-scale, 1)); cursor: pointer; text-align: left; }
 .delivery-choices button:hover, .delivery-choices button:focus-visible { background: var(--hover); }
 .delivery-choices button[aria-checked='false'] .ico { visibility: hidden; }
+.delivery-modes { display: grid; gap: 2px; }
+.delivery-modes:not([hidden]):has(+ #sendLaterAction:not([hidden])) { padding-bottom: 3px; margin-bottom: 1px; border-bottom: 1px solid var(--edge); }
 .send-button.is-stop > .send-icon { display: none; }
 .send-button.is-stop::after { content: ''; width: 12px; height: 12px; border-radius: 2px; background: currentColor; }
 .agent-communication > summary { display: flex; gap: 8px; align-items: center; min-height: var(--activity-row); cursor: pointer; color: var(--soft); font-size: var(--activity-size); }

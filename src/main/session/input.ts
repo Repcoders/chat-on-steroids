@@ -432,6 +432,7 @@ async function load(): Promise<InputEntry[]> {
   const parsed = z.array(entrySchema).safeParse(raw ?? []);
   if (!parsed.success) throw new Error('The message outbox could not be read safely');
   entries = parsed.data;
+  wakeAtNextDue(entries);
   const legacyOpeningRepair = await migrateLegacyOpeningOwners(entries);
   // One failed/deleted project must not prevent unrelated accepted work loading.
   let openingRepair = legacyOpeningRepair;
@@ -645,9 +646,33 @@ async function commit(next: InputEntry[]): Promise<void> {
     throw error;
   }
   entries = next;
+  announce();
+  wakeAtNextDue(next);
+}
+function announce(): void {
   wakeBrowserWork();
   for (const listener of inputListeners) { try { listener(); } catch { /* observer only */ } }
   try { deliveryHooks?.changed(); } catch { /* a detached renderer does not undo a durable commit */ }
+}
+/** Node runs a longer timeout at once; a later due time is simply re-armed. */
+const MAX_WAKE_MS = 2 ** 31 - 1;
+let dueWake: ReturnType<typeof setTimeout> | undefined;
+/**
+ * Send at… (a future `dueAt`): nothing else happens when a scheduled message falls due, so the
+ * outbox announces that moment itself, exactly as a commit does, and every reader then sees it due.
+ */
+function wakeAtNextDue(rows: readonly InputEntry[]): void {
+  clearTimeout(dueWake);
+  dueWake = undefined;
+  const now = Date.now();
+  const next = Math.min(...rows.filter(row => row.state === 'queued' && row.dueAt > now).map(row => row.dueAt));
+  if (!Number.isFinite(next)) return;
+  dueWake = setTimeout(() => {
+    dueWake = undefined;
+    if (Date.now() >= next) announce();
+    wakeAtNextDue(entries ?? []);
+  }, Math.min(next - now, MAX_WAKE_MS));
+  dueWake.unref?.();
 }
 /** Reserve the attempt durably before crossing into Goal's control ledger. The failed
  * row is the crash tombstone: an ambiguous settings write is never replayed after a
@@ -695,7 +720,9 @@ function append(current: InputEntry[], entry: InputEntry, stackDirect = false): 
     if (positioned.length) entry = { ...entry, queueOrder: Math.max(...positioned.map(row => row.queueOrder!)) + 1 };
   }
   // Admission is per durable session. Native composer custody stays with each claim.
-  if (!stackDirect && entry.purpose !== 'decision' && !queuedFollowup(entry) && current.some(row => row.sessionId === entry.sessionId && row.purpose !== 'decision' &&
+  // A message scheduled for later waits beside the chat's next one; neither holds the other back.
+  const now = Date.now();
+  if (!stackDirect && entry.purpose !== 'decision' && !queuedFollowup(entry) && entry.dueAt <= now && current.some(row => row.sessionId === entry.sessionId && row.purpose !== 'decision' && row.dueAt <= now &&
       !(!entry.finishOwner && row.finishOwner && row.state === 'tool') &&
       (!queuedFollowup(row) || row.state === 'browser') && ['queued', 'browser', 'tool'].includes(row.state))) {
     throw new Error('One message is already awaiting delivery. Cancel it before sending another.');
@@ -943,7 +970,9 @@ export function enqueueInput(raw: InputArgs, finishOwner?: InputEntry['finishOwn
     }
     // Unattributed work can fence browser Send without making this chat a tool recipient.
     // Leave that input neutral until the existing serialized claim selects a safe transport.
-    const transportIntent = toolDelivery ? 'tool' as const : input.attachments?.length ? 'browser' as const : input.mode === 'auto' && !finishOwner
+    // A message scheduled for later (Send at…) takes its route when it falls due, not from this moment.
+    const scheduled = input.dueAt > Date.now();
+    const transportIntent = toolDelivery ? 'tool' as const : input.attachments?.length ? 'browser' as const : input.mode === 'auto' && !finishOwner && !scheduled
       ? policy?.canInject ? 'tool' as const : !policy || policy.browserAllowed || policy.directTurn ? 'browser' as const : undefined : undefined;
     const directTurn = !toolDelivery && input.mode === 'auto' && !finishOwner && input.dueAt <= Date.now() ? policy?.directTurn : null;
     const entry: InputEntry = { ...input, ...(queuedTurn ? { queuedTurn } : {}), ...(toolImages ? { toolImages } : {}), ...(directTurn ? { directTurn } : {}),
@@ -985,7 +1014,8 @@ export function enqueueInput(raw: InputArgs, finishOwner?: InputEntry['finishOwn
     }
     // User input supersedes only automatic work that has never been handed out.
     // Offered tool receipts retain their identity until a later request proves receipt.
-    const prioritized = !finishOwner ? current.map(row => row.sessionId === entry.sessionId &&
+    // A message scheduled for later replaces nothing: the turn keeps its own work until then.
+    const prioritized = !finishOwner && !scheduled ? current.map(row => row.sessionId === entry.sessionId &&
       ((row.finishOwner && row.state === 'queued') || (row.recovery && !terminal(row) && row.sendAuthorizedAt === undefined) ||
         (row.purpose === 'rotation' && !terminal(row) && row.sendAuthorizedAt === undefined))
       ? { ...row, state: 'cancelled' as const, error: 'Replaced by your new instruction before delivery.' } : row) : current;
@@ -1995,7 +2025,7 @@ export function offerToolInput(sessionId: string | null | undefined, conversatio
   });
 }
 
-export function resetInputForTests(): void { entries = null; chain = Promise.resolve(); offered.clear(); decisionWaiters.clear(); declinedRotations.clear(); }
+export function resetInputForTests(): void { entries = null; chain = Promise.resolve(); offered.clear(); decisionWaiters.clear(); declinedRotations.clear(); clearTimeout(dueWake); dueWake = undefined; }
 
 export async function pausedBrowserHelpers(): Promise<Array<{ id: string; sourceSessionId: string }>> {
   return (await listInputs()).filter(row => row.purpose === 'decision' && row.state === 'cancelled' && row.cancelledByUser === true && !row.conversationId && row.decisionSourceSessionId)

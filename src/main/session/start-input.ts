@@ -60,6 +60,33 @@ export async function cancelDesktopInput(id: string): Promise<boolean> {
   start?.abort(new Error('Input cancelled'));
   return await cancelInput(id) || !!start;
 }
+/**
+ * Send at…: a message scheduled for later brings the connection and browser up when it falls due,
+ * not hours before. Cancel and shutdown abort the same controller, which drops the wait.
+ */
+function startWhenDue(entry: InputEntry, controller: AbortController): void {
+  const wait = entry.dueAt - Date.now();
+  if (wait <= 0) { void startAcceptedInput(entry, controller).catch(() => undefined); return; }
+  // Node runs a longer timeout at once; a later due time is simply waited for again.
+  const timer = setTimeout(() => startWhenDue(entry, controller), Math.min(wait, 2 ** 31 - 1));
+  timer.unref?.();
+  controller.signal.addEventListener('abort', () => {
+    clearTimeout(timer);
+    if (starting.get(entry.id) === controller) starting.delete(entry.id);
+  }, { once: true });
+}
+/**
+ * At app start, a message sent later waits again for its time: the wait above lived in the process
+ * that scheduled it. One whose time passed while the app was closed starts now.
+ */
+export async function resumeScheduledInputs(): Promise<void> {
+  for (const entry of await listInputs()) {
+    if (stopped || starting.has(entry.id) || entry.state !== 'queued' || entry.purpose || entry.finishOwner || entry.recovery ||
+        entry.error || entry.dueAt <= entry.createdAt) continue;
+    const controller = new AbortController(); starting.set(entry.id, controller);
+    startWhenDue(entry, controller);
+  }
+}
 async function startAcceptedInput(entry: InputEntry, controller: AbortController): Promise<void> {
   try {
     await ready(controller.signal);
@@ -84,7 +111,7 @@ export async function sendDesktopInput(input: InputArgs): Promise<InputEntry> {
       starting.delete(input.id); return entry;
     }
     // Return after durable admission, not after connection startup or native delivery.
-    void startAcceptedInput(entry, controller).catch(() => undefined);
+    startWhenDue(entry, controller);
     return entry;
   } catch (error) {
     if (starting.get(input.id) === controller) starting.delete(input.id);

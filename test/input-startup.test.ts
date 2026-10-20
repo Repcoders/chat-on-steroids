@@ -7,7 +7,7 @@ vi.mock('../src/main/bridge.js', () => ({ bridgeStatus: async () => ports.browse
 vi.mock('../src/main/browser.js', () => ({ openInPreferredBrowser: ports.open, isPreferredBrowserRunning: async () => ports.running }));
 vi.mock('../src/main/config.js', () => ({ getConfig: () => ({ ui: { backgroundChats: ports.backgroundChats } }) }));
 vi.mock('../src/main/session/input.js', () => ({ enqueueInput: ports.enqueue, cancelInput: ports.cancel, noteInputStartupError: ports.note, listInputs: async () => ports.rows }));
-import { sendDesktopInput, cancelDesktopInput, retryQueuedInputBrowser, resetInputStartupForTests, stopInputStartup } from '../src/main/session/start-input.js';
+import { sendDesktopInput, cancelDesktopInput, retryQueuedInputBrowser, resetInputStartupForTests, stopInputStartup, resumeScheduledInputs } from '../src/main/session/start-input.js';
 const request: InputArgs = { id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', sessionId: null, text: 'Please start', mode: 'auto', dueAt: 0, model: null, reasoningEffort: null };
 beforeEach(() => {
   vi.resetAllMocks(); resetInputStartupForTests();
@@ -153,4 +153,42 @@ it.each(['cancel', 'shutdown'])('revokes explicit retry before readiness on %s',
   expect(await retry).toBeNull();
   expect(ports.open).toHaveBeenCalledTimes(1);
   if (action === 'shutdown') await expect(sendDesktopInput({ ...request, id: 'bbbbbbbb-cccc-4ddd-8eee-ffffffffffff' })).rejects.toThrow('shutting down');
+});
+it.each(['falls due', 'is cancelled first'])('brings the connection and browser up for a message sent later only when it falls due (%s)', async outcome => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+  try {
+    const dueAt = Date.now() + 3_600_000;
+    expect(await sendDesktopInput({ ...request, sessionId: 'session-existing', dueAt })).toMatchObject({ state: 'queued', dueAt });
+    await vi.advanceTimersByTimeAsync(3_599_000);
+    expect(ports.connect).not.toHaveBeenCalled();
+    expect(ports.open).not.toHaveBeenCalled();
+    if (outcome === 'is cancelled first') expect(await cancelDesktopInput(request.id)).toBe(true);
+    await vi.advanceTimersByTimeAsync(1_000);
+  } finally { vi.useRealTimers(); }
+  if (outcome === 'is cancelled first') {
+    await Promise.resolve();
+    expect(ports.connect).not.toHaveBeenCalled();
+    expect(ports.open).not.toHaveBeenCalled();
+    return;
+  }
+  await vi.waitFor(() => expect(ports.open).toHaveBeenCalledWith('https://chatgpt.com/c/exact-conversation'));
+  expect(ports.connect).toHaveBeenCalledTimes(1);
+});
+it.each(['passed while the app was closed', 'is still ahead'])('brings a message sent later up again at app start when its time %s', async when => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+  try {
+    const createdAt = Date.now() - 7_200_000;
+    const dueAt = when === 'is still ahead' ? Date.now() + 600_000 : Date.now() - 60_000;
+    const scheduled: InputEntry = { ...request, sessionId: 'session-existing', dueAt, state: 'queued', owner: null, createdAt, conversationId: 'exact-conversation' };
+    const ordinary: InputEntry = { ...scheduled, id: 'bbbbbbbb-cccc-4ddd-8eee-ffffffffffff', dueAt: createdAt };
+    ports.rows.push(scheduled, ordinary);
+    await resumeScheduledInputs();
+    if (when === 'is still ahead') {
+      await vi.advanceTimersByTimeAsync(599_000);
+      expect(ports.open).not.toHaveBeenCalled();
+    }
+    await vi.advanceTimersByTimeAsync(1_000);
+  } finally { vi.useRealTimers(); }
+  await vi.waitFor(() => expect(ports.open).toHaveBeenCalledWith('https://chatgpt.com/c/exact-conversation'));
+  expect(ports.open).toHaveBeenCalledTimes(1);
 });
