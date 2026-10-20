@@ -2295,7 +2295,7 @@ function questionActions(event: Extract<SessionEvent, { kind: 'user_message' }>,
 /** Opens the chat a branch came from, at the exact reply it was branched from. */
 async function openBranchSource(sessionId: string, messageId: string): Promise<void> {
   selectSession(sessionId);
-  readingReturn = null;
+  readingReturn = null; newSince = null;
   const selection = selectionGeneration;
   const location = await run(api.locateMessage(sessionId, messageId));
   if (!location || selection !== selectionGeneration || selectedId !== sessionId) return;
@@ -3968,7 +3968,7 @@ function jumpToLatest(): void {
  */
 async function revealSearchMatch(id: string, query: string): Promise<void> {
   // The match decides where the chat opens, not where its reader last left it.
-  readingReturn = null;
+  readingReturn = null; newSince = null;
   const selection = selectionGeneration;
   const location = await run(api.locateSearchMatch(id, query));
   if (!location || selection !== selectionGeneration || selectedId !== id) return;
@@ -4047,6 +4047,8 @@ const MAX_READING_POSITIONS = 50;
 let readingReturn: { session: string; selection: number; saved: ReadingPosition } | null = null;
 /** Where "New since you read" goes in the open chat: above its first message from this cursor on. */
 let newSince: { session: string; from: number } | null = null;
+/** The chat whose reading position is still being restored: leaving it meanwhile keeps its note. */
+let restoringReading: { session: string; selection: number } | null = null;
 const newSinceDivider = el('div', 'new-since-read');
 
 /** A message row, outside any collapsed activity: what a reading position and the divider name. */
@@ -4059,7 +4061,8 @@ function messageRowEvent(row: HTMLElement): Extract<SessionEvent, { kind: 'user_
 function rememberReading(): void {
   const id = selectedId;
   // Another view of the pane (Agents & automation) hides the rows: the last note stays.
-  if (id === null || detailFor !== id || detailCursor === null || !timelineShown()) return;
+  if (id === null || detailFor !== id || detailCursor === null || !timelineShown() ||
+    (restoringReading?.session === id && restoringReading.selection === selectionGeneration)) return;
   readingPositions.delete(id);
   // Only the reader's own scrolling (or a search result) leaves the end, as for Follow new output.
   if (readerAtEnd || (!onHistoryPage() && distanceFromTail() <= JUMP_DISTANCE)) return;
@@ -4080,7 +4083,9 @@ function rememberReading(): void {
 /** Opens a chat on the message its reader left it at, loading older pages up to it. A message
  * that is gone (an edit replaced it, or it is no longer recorded) opens the chat at its end. */
 async function returnToReading(id: string, saved: ReadingPosition): Promise<void> {
-  const row = await loadChatLocation(id, saved.location);
+  const restoring = restoringReading = { session: id, selection: selectionGeneration };
+  let row: HTMLElement | null | undefined;
+  try { row = await loadChatLocation(id, saved.location); } finally { if (restoringReading === restoring) restoringReading = null; }
   if (row === undefined) return;
   if (row === null) {
     readingPositions.delete(id);
