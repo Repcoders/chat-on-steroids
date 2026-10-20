@@ -1346,6 +1346,42 @@ describe('root namespace invariants', () => {
     }
   });
 
+  it('contains a rollback whose state rebuild fails too, and keeps the original error', async () => {
+    const { tmpdir } = await import('node:os');
+    const updater = await import('../src/main/update.js');
+    await saveConfig({ ...defaultConfig(), roots: [] });
+    const demoFolders = async () => (await fs.readdir(tmpdir())).filter(name => name.startsWith('cos-demo-'));
+    const before = new Set(await demoFolders());
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => { unhandled.push(reason); };
+    process.on('unhandledRejection', onUnhandled);
+    // The window goes away once the root is approved, and the state rebuild for the rollback fails too.
+    let rebuild: ReturnType<typeof vi.spyOn> | undefined;
+    currentWindow = {
+      setBackgroundColor: vi.fn(), setTitleBarOverlay: vi.fn(), isDestroyed: () => false,
+      webContents: { send: vi.fn((channel: string) => {
+        if (channel !== 'state:changed') return;
+        rebuild = vi.spyOn(updater, 'updateStatus').mockImplementation(() => { throw new Error('update state unreadable'); });
+        throw new Error('window went away');
+      }) }
+    };
+    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({ response: 1 } as never);
+    try {
+      const reply = await handlers.get('roots:demo')!(null, undefined) as any;
+      expect(reply.ok).toBe(false);
+      expect(reply.error).toMatch(/window went away/);
+      expect(getConfig().roots).toEqual([]);
+      expect((await demoFolders()).filter(name => !before.has(name))).toEqual([]);
+      // Wait for the rollback's rebuild to fail, then one turn for any rejection to surface.
+      await vi.waitFor(() => expect(rebuild?.mock.calls.length).toBeGreaterThan(0));
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+      rebuild?.mockRestore();
+    }
+  });
+
   it('refuses a live rename into the reserved /skills namespace', async () => {
     const base = defaultConfig();
     await saveConfig({

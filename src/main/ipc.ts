@@ -2091,10 +2091,11 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
   let statePushGeneration = 0;
   const pushState = (): void => {
     const generation = ++statePushGeneration;
+    // Nothing awaits this, so a failed rebuild (a rollback's, say) is logged here, not left unhandled.
     void buildState().then((state) => {
       if (generation !== statePushGeneration) return;
       push('state:changed', state);
-    });
+    }).catch(error => logWarn(`state push failed: ${error instanceof Error ? error.message : String(error)}`));
   };
   onStatusChange(pushState);
   onRecordingStorageFullChange(pushState);
