@@ -2133,6 +2133,51 @@ it('reorders whole project groups without changing chat selection, ownership or 
   expect(live.sent).toEqual([]);
 });
 
+it('sorts the project tree by activity or name from its Sort menu and finds the hand order intact on Manual', async () => {
+  const projects: LocalProject[] = [
+    { id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', name: 'Zeta', path: '/zeta', createdAt: 1 },
+    { id: 'bbbbbbbb-cccc-4ddd-8eee-ffffffffffff', name: 'Alpha', path: '/alpha', createdAt: 2 }
+  ];
+  const chats = [['chat-c', 'Gamma', 3], ['chat-a', 'Alpha chat', 2], ['chat-b', 'Beta', 1]].map(([id, title, minute]) => ({
+    ...summary([]), id: id as string, title: title as string, conversationId: `conversation-${id}`, projectId: projects[0]!.id, updatedAt: T0 + (minute as number) * 60_000
+  }));
+  const { w } = await boot([], false, [], projects, { sessions: chats });
+  const doc = w.document;
+  const projectIds = () => [...doc.querySelectorAll<HTMLElement>('.project-group')].map(group => group.dataset.projectId);
+  const rows = () => [...doc.querySelectorAll<HTMLElement>(`[data-project-id="${projects[0]!.id}"] .sess`)];
+  const chatIds = () => rows().map(row => row.dataset.id);
+  const sortBy = async (action: string) => {
+    (doc.getElementById('sidebarSort') as HTMLButtonElement).click(); await settle();
+    doc.querySelector<HTMLButtonElement>(`[data-row-action="${action}"]`)!.click(); await settle();
+  };
+  const moveDown = (id: string) => {
+    rows().forEach(row => { row.getClientRects = () => [{}] as unknown as DOMRectList; });
+    const handle = rows().find(row => row.dataset.id === id)!.querySelector<HTMLElement>('.sess-top')!;
+    handle.focus(); handle.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true, cancelable: true }));
+  };
+  doc.querySelector<HTMLElement>(`[data-project-id="${projects[0]!.id}"] summary`)!.click();
+  moveDown('chat-c');
+  expect(chatIds()).toEqual(['chat-a', 'chat-c', 'chat-b']);
+  const hand = w.localStorage.getItem('chat-on-steroids.sidebar-order');
+  await sortBy('sort-recent');
+  expect(chatIds()).toEqual(['chat-c', 'chat-a', 'chat-b']);
+  expect(projectIds()).toEqual(projects.map(project => project.id));
+  expect(doc.querySelector('.project-heading')!.hasAttribute('aria-keyshortcuts')).toBe(false);
+  // Sorted, the rows cannot be moved by hand.
+  moveDown('chat-c');
+  expect(chatIds()).toEqual(['chat-c', 'chat-a', 'chat-b']);
+  await sortBy('sort-name');
+  expect(chatIds()).toEqual(['chat-a', 'chat-b', 'chat-c']);
+  expect(projectIds()).toEqual([projects[1]!.id, projects[0]!.id]);
+  (doc.getElementById('sidebarSort') as HTMLButtonElement).click(); await settle();
+  expect(doc.querySelector('[data-row-action="sort-name"]')!.getAttribute('aria-checked')).toBe('true');
+  doc.querySelector<HTMLButtonElement>('[data-row-action="sort-manual"]')!.click(); await settle();
+  expect(chatIds()).toEqual(['chat-a', 'chat-c', 'chat-b']);
+  expect(projectIds()).toEqual(projects.map(project => project.id));
+  expect(w.localStorage.getItem('chat-on-steroids.sidebar-order')).toBe(hand);
+  expect(w.localStorage.getItem('chat-on-steroids.sidebar-sort')).toBe('manual');
+});
+
 it('keeps working state per chat and marks only completed background chats as unseen until opened', async () => {
   const startedAt = Date.now();
   const chats: SessionSummary[] = [

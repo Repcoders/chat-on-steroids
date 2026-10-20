@@ -5,11 +5,12 @@ import { createSidebarOrder } from '../src/renderer/sidebar-order.js';
 let dom: JSDOM;
 afterEach(() => dom?.window.close());
 
-function fixture(saved?: string) {
+function fixture(saved?: string, sort?: string) {
   dom = new JSDOM('<div class="scroll"><div id="list"></div></div>', { url: 'https://local.test', pretendToBeVisual: true });
   const w = dom.window;
   Object.assign(globalThis, { window: w, document: w.document });
   if (saved) w.localStorage.setItem('chat-on-steroids.sidebar-order', saved);
+  if (sort) w.localStorage.setItem('chat-on-steroids.sidebar-sort', sort);
   const list = w.document.getElementById('list')!;
   list.setPointerCapture = vi.fn(); list.hasPointerCapture = () => false;
   let entries = ['a', 'b', 'c', 'd', 'e', 'f'].map((id, index) => ({ id, scope: index < 3 ? 'project' : '' }));
@@ -91,4 +92,31 @@ it('supports keyboard movement, preserves focus and tolerates corrupt preference
   f.row('b').dispatchEvent(new f.w.KeyboardEvent('keydown', { key: 'ArrowUp', altKey: true, bubbles: true, cancelable: true }));
   expect(f.ids('project')).toEqual(['b', 'a', 'c']);
   expect(f.w.document.activeElement).toBe(f.row('b'));
+});
+
+it('sorts by recent activity or name without rewriting the hand order, and drags only in Manual', () => {
+  const f = fixture(); f.drag('a', 500);
+  const rows = ['a', 'b', 'c'].map(id => ({ id, scope: 'project' }));
+  const active: Record<string, number> = { a: 3, b: 1, c: 1 };
+  const names: Record<string, string> = { a: 'chat 10', b: 'Chat 9', c: 'beta' };
+  const sorted = () => f.order.ordered('project', rows, { recent: row => active[row.id]!, name: row => names[row.id]! }).map(row => row.id);
+  expect(sorted()).toEqual(['b', 'c', 'a']);
+  const hand = f.saved();
+  f.order.setMode('recent');
+  // Equal activity keeps the hand order.
+  expect(sorted()).toEqual(['a', 'b', 'c']);
+  expect(f.list.classList.contains('is-auto-sorted')).toBe(true);
+  f.drag('c', -100);
+  f.row('c').dispatchEvent(new f.w.KeyboardEvent('keydown', { key: 'ArrowUp', altKey: true, bubbles: true }));
+  expect(f.saved()).toBe(hand);
+  f.order.setMode('name');
+  expect(sorted()).toEqual(['c', 'b', 'a']);
+  f.w.close();
+  const reloaded = fixture(hand, 'name');
+  expect(reloaded.order.mode).toBe('name');
+  reloaded.order.setMode('manual');
+  expect(reloaded.list.classList.contains('is-auto-sorted')).toBe(false);
+  expect(reloaded.ids('project')).toEqual(['b', 'c', 'a']);
+  reloaded.drag('a', -100);
+  expect(reloaded.ids('project')).toEqual(['a', 'b', 'c']);
 });

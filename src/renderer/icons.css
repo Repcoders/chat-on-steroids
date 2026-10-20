@@ -97,6 +97,7 @@
 .ph.ph-robot::before { content: '\e762'; }
 .ph.ph-sidebar-simple::before { content: '\ec24'; }
 .ph.ph-sliders-horizontal::before { content: '\e434'; }
+.ph.ph-sort-ascending::before { content: '\e444'; }
 .ph.ph-sparkle::before { content: '\e6a2'; }
 .ph.ph-star::before { content: '\e46a'; }
 .ph.ph-sign-in::before { content: '\e428'; }
