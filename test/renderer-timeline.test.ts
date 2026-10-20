@@ -6499,6 +6499,97 @@ describe('edit and resubmit (#365)', () => {
     expect(said(w)).toEqual([expect.stringContaining('Ask a third time'), 'earlier:Earlier versions · 4 messages', expect.stringContaining('Answer three')]);
   });
 
+  const openFold = async (w: Window & typeof globalThis) => {
+    const fold = w.document.querySelector<HTMLDetailsElement>('#timeline > .earlier-version')!;
+    fold.open = true; fold.dispatchEvent(new w.Event('toggle')); await settle();
+    return fold;
+  };
+  const marked = (side: Element, tag: 'del' | 'ins') => [...side.querySelectorAll(tag)].map(node => node.textContent);
+
+  it('compares the answer to the replaced question with the answer to the edit, word by word', async () => {
+    const events = [q(1, 'q-1', 'Why does sign-in fail?', 't1'), a(2, 'a-1', 'The login check reads the wrong field.', 't1'), end(3, 't1'),
+      q(4, 'q-1b', 'Why does sign-in fail for new accounts?', 't2', { replaces: 'q-1' }), a(5, 'a-2', 'The login check reads the email field.', 't2'), end(6, 't2')];
+    const { w } = await boot(events, true);
+    const fold = await openFold(w as any);
+    const toggle = fold.querySelector<HTMLButtonElement>('.answer-compare-toggle')!;
+    expect(toggle.textContent).toBe('Compare answers');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(fold.querySelector<HTMLElement>('.answer-compare-panel')!.hidden).toBe(true);
+    toggle.click(); await settle();
+    expect(toggle.textContent).toBe('Hide comparison');
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    const [before, after] = [...fold.querySelectorAll('.answer-compare-side')];
+    expect(before!.querySelector('.answer-compare-label')!.textContent).toBe('Earlier answer');
+    expect(after!.querySelector('.answer-compare-label')!.textContent).toBe('New answer');
+    expect(before!.querySelector('.answer-compare-text')!.textContent).toBe('The login check reads the wrong field.');
+    expect(after!.querySelector('.answer-compare-text')!.textContent).toBe('The login check reads the email field.');
+    expect(marked(before!, 'del')).toEqual(['wrong']);
+    expect(marked(after!, 'ins')).toEqual(['email']);
+    // The fold's own messages stay readable under the comparison.
+    expect([...fold.querySelectorAll('.tool-group-body > .ev .said')].map(node => node.textContent!.trim())).toEqual([
+      expect.stringContaining('Why does sign-in fail?'), expect.stringContaining('The login check reads the wrong field.')]);
+  });
+
+  it('compares with the version an edit replaced directly when a question was edited twice', async () => {
+    const events = [q(1, 'q-1', 'Ask', 't1'), a(2, 'a-1', 'Answer one', 't1'), end(3, 't1'),
+      q(4, 'q-1b', 'Ask again', 't2', { replaces: 'q-1' }), a(5, 'a-2', 'Answer two', 't2'), end(6, 't2'),
+      q(7, 'q-1c', 'Ask a third time', 't3', { replaces: 'q-1b' }), a(8, 'a-3', 'Answer three', 't3'), end(9, 't3')];
+    const { w } = await boot(events, true);
+    const fold = await openFold(w as any);
+    fold.querySelector<HTMLButtonElement>('.answer-compare-toggle')!.click(); await settle();
+    const [before, after] = [...fold.querySelectorAll('.answer-compare-side')];
+    expect(marked(before!, 'del')).toEqual(['two']);
+    expect(marked(after!, 'ins')).toEqual(['three']);
+  });
+
+  it('offers Compare only once the edit has a finished answer', async () => {
+    const events = [q(1, 'q-1', 'Ask', 't1'), a(2, 'a-1', 'Answer one', 't1'), end(3, 't1'), q(4, 'q-1b', 'Ask again', 't2', { replaces: 'q-1' })];
+    const { w, append } = await boot(events, true);
+    let fold = await openFold(w as any);
+    expect(fold.querySelector('.answer-compare-toggle')).toBeNull();
+    await append([{ ...a(5, 'a-2', 'Answer', 't2'), final: false, state: 'streaming' } as SessionEvent]);
+    fold = w.document.querySelector<HTMLDetailsElement>('#timeline > .earlier-version')!;
+    expect(fold.querySelector('.answer-compare-toggle')).toBeNull();
+    await append([a(6, 'a-2', 'Answer two', 't2'), end(7, 't2')]);
+    fold = w.document.querySelector<HTMLDetailsElement>('#timeline > .earlier-version')!;
+    expect(fold.open).toBe(true);
+    fold.querySelector<HTMLButtonElement>('.answer-compare-toggle')!.click(); await settle();
+    expect(marked(fold.querySelector('.answer-compare-side.is-after')!, 'ins')).toEqual(['two']);
+  });
+
+  it('says so when the edit got the same answer', async () => {
+    const events = [q(1, 'q-1', 'Ask', 't1'), a(2, 'a-1', 'Same answer', 't1'), end(3, 't1'),
+      q(4, 'q-1b', 'Ask again', 't2', { replaces: 'q-1' }), a(5, 'a-2', 'Same answer', 't2'), end(6, 't2')];
+    const { w } = await boot(events, true);
+    const fold = await openFold(w as any);
+    fold.querySelector<HTMLButtonElement>('.answer-compare-toggle')!.click(); await settle();
+    expect(fold.querySelector('.answer-compare-side')).toBeNull();
+    expect(fold.querySelector('.answer-compare-panel')!.textContent).toBe('The two answers are the same.');
+  });
+
+  it('offers no Compare when an answer was stored cut short', async () => {
+    const cut = { ...a(2, 'a-1', 'Same start', 't1'), message: { text: 'Same start', truncated: true, chars: 90_000 } } as SessionEvent;
+    const events = [q(1, 'q-1', 'Ask', 't1'), cut, end(3, 't1'),
+      q(4, 'q-1b', 'Ask again', 't2', { replaces: 'q-1' }), a(5, 'a-2', 'Same start', 't2'), end(6, 't2')];
+    const { w } = await boot(events, true);
+    const fold = await openFold(w as any);
+    expect(fold.querySelector('.ev-assistant_message')).not.toBeNull();
+    expect(fold.querySelector('.answer-compare-toggle')).toBeNull();
+  });
+
+  it('redraws an open comparison when the new answer is revised, whatever its length', async () => {
+    const tail = ' and the rest of this answer stays exactly the same, word for word, to the very end.';
+    const events = [q(1, 'q-1', 'Ask', 't1'), a(2, 'a-1', 'Alpha' + tail, 't1'), end(3, 't1'),
+      q(4, 'q-1b', 'Ask again', 't2', { replaces: 'q-1' }), a(5, 'a-2', 'Betas' + tail, 't2'), end(6, 't2')];
+    const { w, append } = await boot(events, true);
+    let fold = await openFold(w as any);
+    fold.querySelector<HTMLButtonElement>('.answer-compare-toggle')!.click(); await settle();
+    expect(marked(fold.querySelector('.answer-compare-side.is-after')!, 'ins')).toEqual(['Betas']);
+    await append([a(7, 'a-2', 'Gamma' + tail, 't2')]);
+    fold = w.document.querySelector<HTMLDetailsElement>('#timeline > .earlier-version')!;
+    expect(marked(fold.querySelector('.answer-compare-side.is-after')!, 'ins')).toEqual(['Gamma']);
+  });
+
   const chat = '6ad337fe-47a4-83ed-a21f-c2e24d5829a4';
   const Q1 = '6ad3a59b-0001-83eb-8bc4-8c84e68dd911', Q2 = '6ad3a59b-0002-83eb-8bc4-8c84e68dd911';
   const A1 = '6ad3a59b-00a1-83eb-8bc4-8c84e68dd911', A2 = '6ad3a59b-00a2-83eb-8bc4-8c84e68dd911';

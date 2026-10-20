@@ -3805,6 +3805,19 @@ nav button:hover, nav button.is-sel { background: var(--hover); color: var(--ink
    it reads as a side branch: indented on a guide line, like routine activity, and a little quieter. */
 .earlier-version > .tool-group-body { padding: 4px 0 4px 18px; margin-left: 7px; border-left: 1px solid var(--line); }
 .earlier-version > .tool-group-body > .ev { opacity: .82; }
+/* Compare answers: the replaced answer beside the new one, side by side, stacked when narrow. */
+.answer-compare { margin: 0 0 6px; container-type: inline-size; }
+.answer-compare-toggle { color: var(--soft); }
+.answer-compare-toggle:hover { color: var(--ink); }
+.answer-compare-panel:not([hidden]) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-top: 6px; }
+.answer-compare-panel > .meta { grid-column: 1 / -1; margin: 0; }
+@container (max-width: 520px) { .answer-compare-panel:not([hidden]) { grid-template-columns: minmax(0, 1fr); } }
+.answer-compare-side { min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-sm); }
+.answer-compare-label { margin-bottom: 4px; color: var(--faint); font-size: calc(11.5px * var(--text-scale, 1)); }
+.answer-compare-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: calc(13px * var(--text-scale, 1)); line-height: 1.55; }
+.diff-word { border-radius: 3px; color: inherit; text-decoration: none; }
+.diff-word.is-removed { background: color-mix(in srgb, var(--red) 18%, transparent); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--red) 60%, transparent); }
+.diff-word.is-added { background: color-mix(in srgb, var(--green) 18%, transparent); }
 /* Edit under one of your questions, right-aligned with its bubble and quiet until the row is hovered. */
 .question-actions { display: flex; justify-content: flex-end; gap: 2px; margin: 4px -6px 0 0; opacity: 0; transition: opacity 120ms ease; }
 .ev-user_message:hover .question-actions, .question-actions:focus-within { opacity: 1; }
