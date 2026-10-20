@@ -480,13 +480,30 @@ async function writableContext(projectId: string): Promise<RepositoryContext> {
   return context;
 }
 
-async function gitWrite(context: RepositoryContext, args: string[]): Promise<void> {
+async function gitWrite(context: RepositoryContext, args: string[]): Promise<Buffer> {
   // Hooks and the signing program are files in the repository an agent can write, so a click in
   // Review runs neither: hooks resolve under the null device, where none can exist.
   // Literal pathspecs: a file named `*.ts` stages that file, not every TypeScript file.
   const result = await runGit(context.projectReal, ['-c', `core.hooksPath=${os.devNull}`, '-c', 'commit.gpgSign=false',
     '--literal-pathspecs', ...args], 64 * 1024);
   if (result.code !== 0) throw new Error(result.stderr || 'Git could not complete this change');
+  return result.stdout;
+}
+
+async function gitOid(context: RepositoryContext, args: string[]): Promise<string> {
+  const oid = decode(await gitWrite(context, args)).trim();
+  if (!/^[0-9a-f]{40,64}$/.test(oid)) throw new Error('Git returned an invalid object id');
+  return oid;
+}
+
+/** `git commit -m`'s whitespace cleanup: no trailing spaces, no leading, trailing or doubled blank lines. */
+function cleanCommitMessage(message: string): string {
+  const lines: string[] = [];
+  for (const line of message.split(/\r?\n/).map(entry => entry.trimEnd())) {
+    if (line || (lines.length && lines.at(-1))) lines.push(line);
+  }
+  while (lines.length && !lines.at(-1)) lines.pop();
+  return lines.join('\n');
 }
 
 /** Stages or unstages one changed file of the Working tree, as Review currently shows it. */
@@ -511,15 +528,30 @@ export async function setProjectGitStaged(projectId: string, relativePath: strin
  */
 export async function commitProjectGit(projectId: string, message: string, expectedPaths: string[]): Promise<ProjectGitCommit> {
   const context = await writableContext(projectId);
-  if (!message.trim()) throw new Error('Write a commit message first');
-  // From the top level, so the paths are the whole index's even with `diff.relative` configured.
-  const indexed = await runGit(context.root, ['diff', '--cached', '--name-status', '-z', '--no-renames', '--no-ext-diff']);
-  if (indexed.code !== 0) throw new Error(indexed.stderr || 'Git could not read the staged files');
-  const parts = splitZero(indexed.stdout);
+  const text = cleanCommitMessage(message);
+  if (!text) throw new Error('Write a commit message first');
+  // `git commit` would also conclude these; Review only makes ordinary commits.
+  for (const marker of ['MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD', 'rebase-merge', 'rebase-apply']) {
+    if (await fs.lstat(path.join(context.gitDir, marker)).then(() => true, () => false)) {
+      throw new Error('Finish the merge, rebase or cherry-pick from a terminal first');
+    }
+  }
+  // The index is read once, into a tree. Everything below checks and commits that tree, so a file
+  // another process stages meanwhile stays staged and out of this commit.
+  const tree = await gitOid(context, ['write-tree']).catch((error: Error) => {
+    throw /unmerged|not merged/i.test(error.message) ? new Error('Resolve the conflicts before committing') : error;
+  });
+  const head = await runGit(context.projectReal, ['rev-parse', '--verify', '--quiet', 'HEAD^{commit}'], 128);
+  const parent = head.code === 0 ? decode(head.stdout).trim() : null;
+  if (parent !== null && !/^[0-9a-f]{40,64}$/.test(parent)) throw new Error('Git returned an invalid HEAD');
+  // Repository-relative paths (`diff.relative` does not apply to diff-tree or ls-tree).
+  const listed = parent
+    ? await runGit(context.root, ['diff-tree', '-r', '--name-only', '-z', '--no-renames', '--no-ext-diff', parent, tree])
+    : await runGit(context.root, ['ls-tree', '-r', '--name-only', '-z', tree]);
+  if (listed.code !== 0) throw new Error(listed.stderr || 'Git could not read the staged files');
   const staged = new Set<string>();
-  for (let index = 0; index + 1 < parts.length; index += 2) {
-    if (parts[index] === 'U') throw new Error('Resolve the conflicts before committing');
-    const relative = projectRelative(parts[index + 1]!, context.prefix);
+  for (const entry of splitZero(listed.stdout)) {
+    const relative = projectRelative(entry, context.prefix);
     if (!relative) throw new Error('Files outside this project are staged. Commit them from a terminal.');
     staged.add(relative);
   }
@@ -528,10 +560,9 @@ export async function commitProjectGit(projectId: string, message: string, expec
   if (expected.size !== staged.size || [...staged].some(entry => !expected.has(entry))) {
     throw new Error('The staged files changed. Check them again before committing.');
   }
-  await gitWrite(context, ['commit', '--quiet', '-m', message]);
-  const head = await runGit(context.projectReal, ['rev-parse', '--verify', '--quiet', 'HEAD'], 128);
-  const oid = head.code === 0 ? decode(head.stdout).trim() : '';
-  if (!/^[0-9a-f]{40,64}$/.test(oid)) throw new Error('Git returned an invalid HEAD');
+  const oid = await gitOid(context, ['commit-tree', tree, ...(parent ? ['-p', parent] : []), '-m', text]);
+  // Moves the checked-out branch only from the parent checked above; a commit made elsewhere meanwhile wins.
+  await gitWrite(context, ['update-ref', '-m', `commit: ${text.split('\n')[0]}`, 'HEAD', oid, parent ?? '0'.repeat(tree.length)]);
   return { projectId, oid };
 }
 

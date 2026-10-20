@@ -4551,13 +4551,16 @@ re-resolves the approved project/root and Git metadata before reading status or 
 inspection strips inherited Git repository/index redirects and uses optional-lock-free bounded
 subprocesses. In the Working tree view each change except a conflict has a stage checkbox
 (`projectGit:stage`, `git add --all` or `git reset`/`git rm --cached` before the first commit, with
-literal pathspecs), and a commit box commits the index (`projectGit:commit`, `git commit -m`).
-Both writes pin `core.hooksPath` to the null device and turn commit signing off: hooks and
-`gpg.program` are repository files an agent can write, so a click never runs them. Main rereads Git before each write: a file must still be a
-current change, and a commit is refused unless the index holds exactly the paths the renderer showed
-as staged, nothing outside the Local Project and no conflict. `ProjectGitChange.staged` (`all` or
-`partial`, from the index column of `git status`) is the checkbox state; `ProjectGitSnapshot.readOnly`
-turns the controls off in Read-only mode, and main refuses both writes there too. There is no
+literal pathspecs), and a commit box commits the index (`projectGit:commit`). Both writes pin
+`core.hooksPath` to the null device and turn commit signing off: hooks and `gpg.program` are
+repository files an agent can write, so a click never runs them. Main rereads Git before each
+write: a file must still be a current change. A commit reads the index once with `write-tree`,
+checks that tree (exactly the paths the renderer showed as staged, nothing outside the Local
+Project, no conflict, no merge/rebase/cherry-pick in progress), then makes it with `commit-tree`
+and moves HEAD with `update-ref` from the checked parent, so a file staged meanwhile is not
+committed. `ProjectGitChange.staged` (`all` or `partial`, from the index column of `git status`)
+is the checkbox state; `ProjectGitSnapshot.readOnly` turns the controls off in Read-only mode, and
+main refuses both writes there too. There is no
 checkout, reset of the working tree, fetch or push authority. Review projects `M/A/D/R/U`, plus `C` for every unmerged index state
 (`DD/AU/UD/UA/DU/AA/UU`) so an unfinished merge is never shown as an ordinary edit; a conflicted
 file missing from the worktree diffs as empty. It also projects ancestor-folder markers and

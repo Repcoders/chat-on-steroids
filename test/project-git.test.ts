@@ -308,6 +308,7 @@ it('shows merge conflicts as conflicts, with a readable diff for every kind of c
   const snapshot = await readProjectGitSnapshot(id);
   const byPath = Object.fromEntries(snapshot.changes.map(change => [change.path, change.status]));
   expect(byPath).toMatchObject({ 'both.txt': 'C', 'added.txt': 'C', 'ours-deletes.txt': 'C', 'theirs-deletes.txt': 'C' });
+  await expect(commitProjectGit(id, 'Merge', ['clean.txt'])).rejects.toThrow('Finish the merge');
   const both = await readProjectGitDiff(id, 'both.txt', undefined, snapshot.revision);
   expect(both).toMatchObject({ status: 'C', baseText: 'main\n' });
   expect(both.currentText).toContain('<<<<<<<');
