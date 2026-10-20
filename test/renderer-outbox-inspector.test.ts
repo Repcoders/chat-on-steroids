@@ -153,7 +153,7 @@ it('names a chat the sidebar has not loaded after reading it, and reads it again
 });
 
 /** The production chat renderer with one recent chat on the first sidebar page and an older one beyond it. */
-async function mountChat(inputs: InputEntry[]) {
+async function mountChat(inputs: InputEntry[], held: string[] = []) {
   dom = new JSDOM(await fs.readFile(path.join(process.cwd(), 'src', 'renderer', 'index.html'), 'utf8'), { url: 'https://local.test/', pretendToBeVisual: true });
   const w = dom.window;
   for (const name of ['window', 'document', 'HTMLElement', 'Element', 'Node', 'DocumentFragment', 'HTMLInputElement', 'HTMLSelectElement',
@@ -171,8 +171,14 @@ async function mountChat(inputs: InputEntry[]) {
   const api: any = new Proxy({
     // The first page holds only the recent chat; the older one lies on a page not read yet.
     listSessions: () => { state.lists++; return ok({ sessions: [recent], activeId: null, pressure: [], total: 2, nextCursor: { updatedAt: recent.updatedAt, id: recent.id }, blocked: [] }); },
-    listInputs: () => ok(inputs),
-    getSession: (id: string) => ok({ summary: [recent, older].find(entry => entry.id === id), events: [], total: 0, nextFrom: 0 }),
+    listInputs: () => ok([...inputs]),
+    cancelInput: (id: string) => {
+      const index = inputs.findIndex(entry => entry.id === id);
+      if (index >= 0) inputs.splice(index, 1);
+      return ok(index >= 0);
+    },
+    // A held chat's detail never arrives, as while a slow read is still on its way.
+    getSession: (id: string) => held.includes(id) ? new Promise(() => {}) : ok({ summary: [recent, older].find(entry => entry.id === id), events: [], total: 0, nextFrom: 0 }),
     turnTraces: () => ok({}),
     getSwarm: () => ok({ running: false, runId: null, agents: [], maxWorkers: 2, pendingReports: 0 }),
     onSessionChanged: (listener: () => void) => { state.changed = listener; return () => undefined; },
@@ -216,4 +222,18 @@ it("lists only the notices a chat queue shows with a Dismiss, by the chat queue'
   await vi.waitFor(() => expect(w.document.querySelector('.outbox-row')).not.toBeNull());
   await new Promise(resolve => setTimeout(resolve, 50));
   expect([...w.document.querySelectorAll('.outbox-row .outbox-text')].map(node => node.textContent)).toEqual(['Failed with a notice']);
+});
+
+it('repaints the Outbox after a cancel while the open chat is still loading', async () => {
+  const inputs = [row({ text: 'First queued', sessionId: RECENT }), row({ text: 'Second queued', sessionId: RECENT })];
+  const { w, openOutbox } = await mountChat(inputs, [RECENT]);
+  w.document.querySelector<HTMLElement>(`#sessionList [data-id="${RECENT}"]`)!.click();
+  await vi.waitFor(() => expect(w.document.getElementById('chatTitle')!.textContent).toBe('Placeholder recent chat'));
+  expect(w.document.getElementById('inputQueue')!.hasAttribute('inert')).toBe(true);
+  openOutbox();
+  const texts = () => [...w.document.querySelectorAll('.outbox-row .outbox-text')].map(node => node.textContent);
+  await vi.waitFor(() => expect(texts()).toEqual(['First queued', 'Second queued']));
+  w.document.querySelector<HTMLButtonElement>('.outbox-row .outbox-action')!.click();
+  await vi.waitFor(() => expect(inputs).toHaveLength(1));
+  await vi.waitFor(() => expect(texts()).toEqual(['Second queued']));
 });
