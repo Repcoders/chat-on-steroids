@@ -38,7 +38,10 @@ export function createProjectGitBadges(
         for (const id of batch) {
           const reply = replies.find(entry => entry.projectId === id);
           if (!reply || !wanted.has(id)) continue;
-          if (JSON.stringify(summaries.get(id)) !== JSON.stringify(reply)) different = true;
+          const previous = summaries.get(id);
+          // Git could not be read this time (a lock, a slow disk): the last badge stays, as after a failed request.
+          if (reply.state === 'unavailable' && previous?.state === 'ready') continue;
+          if (JSON.stringify(previous) !== JSON.stringify(reply)) different = true;
           summaries.set(id, reply);
         }
       }

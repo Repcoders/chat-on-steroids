@@ -105,6 +105,20 @@ it('treats an answer that is not a list as a failed read', async () => {
   expect(badges.badge('a')?.textContent).toBe('main');
 });
 
+it('keeps the last badge when Git cannot be read this time', async () => {
+  let state: ProjectGitSummary['state'] = 'ready';
+  const { badges, advance } = fixture(ids => ids.map(id => state === 'ready' ? ready(id) : { projectId: id, state, changes: 0, truncated: false }));
+  badges.want(['a']); await settle();
+  state = 'unavailable';
+  advance(60_000); badges.want(['a', 'b']); await settle();
+  expect(badges.badge('a')?.textContent).toBe('main');
+  expect(badges.badge('b')).toBeNull();
+  // A folder that is no longer a repository loses its badge.
+  state = 'not-repository';
+  advance(60_000); badges.want(['a', 'b']); await settle();
+  expect(badges.badge('a')).toBeNull();
+});
+
 it('forgets a project the sidebar no longer shows', async () => {
   const { badges, reads } = fixture();
   badges.want(['a']); await settle();

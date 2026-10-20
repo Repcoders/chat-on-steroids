@@ -4570,7 +4570,8 @@ takes at most 32 LocalProject ids, runs one `git status --porcelain=v2 --branch`
 three at a time, and never fetches. The renderer keeps one request in flight, reads a heading
 when it is first painted, again after 60 seconds, on window focus or expand after 5 seconds, and
 at once when the open project's Review watch reports a change; it repaints only when a summary
-changed. A non-repository, unreadable or server project shows no badge.
+changed. A non-repository, unreadable or server project shows no badge; a read that fails
+after a badge was shown keeps that badge until the next read.
 
 An exact successful `apply_patch` may also retain a bounded immutable before/after review asset
 beside the session record. That historical review belongs to the recorded tool call, not to HEAD or
