@@ -86,7 +86,7 @@ let asking = false;
 
 /**
  * Asks with the summary, then switches. A second pick while the question is open is ignored, and a
- * profile removed meanwhile switches nothing.
+ * profile removed or saved over meanwhile switches nothing: only the values the question showed apply.
  */
 export async function chooseWorkspaceProfile(
   id: string,
@@ -96,10 +96,17 @@ export async function chooseWorkspaceProfile(
   if (asking || !profile) return false;
   asking = true;
   try {
+    const asked = profile.settings;
     if ((await ask(workspaceProfileQuestion(profile, getConfig().ui))).response !== 0) return false;
-    const before = getConfig().ui;
-    const next = await updateConfig(config => switchWorkspaceProfile(config, id));
-    if (before.keepAwake !== next.ui.keepAwake || before.keepScreenAwake !== next.ui.keepScreenAwake) refreshKeepAwake();
+    await updateConfig(config => {
+      const latest = config.workspaceProfiles?.find(candidate => candidate.id === id)?.settings;
+      if (!latest || latest.turnNotifications !== asked.turnNotifications || latest.keepAwake !== asked.keepAwake ||
+          latest.backgroundPlacement !== asked.backgroundPlacement) throw new Error('Workspace profile changed');
+      return switchWorkspaceProfile(config, id);
+    }, (next, previous) => {
+      // The committed pair, not a read before the queue: a Settings save may commit in between.
+      if (previous.ui.keepAwake !== next.ui.keepAwake || previous.ui.keepScreenAwake !== next.ui.keepScreenAwake) refreshKeepAwake();
+    });
     logInfo('workspace profile switched');
     workspaceProfilesChanged();
     return true;

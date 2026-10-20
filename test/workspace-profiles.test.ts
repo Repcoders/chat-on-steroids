@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { defaultConfig, getConfig, initConfigPath, loadConfig, saveConfig } from '../src/main/config.js';
+import { defaultConfig, getConfig, initConfigPath, loadConfig, saveConfig, updateConfig } from '../src/main/config.js';
 import {
   chooseWorkspaceProfile, onWorkspaceProfilesChange, removeWorkspaceProfile, saveWorkspaceProfile, switchWorkspaceProfile,
   workspaceProfileMenu, workspaceProfileQuestion
@@ -9,6 +9,9 @@ import {
 import type { Config } from '../src/shared/types.js';
 import type { WorkspaceProfile } from '../src/shared/workspace-profiles.js';
 import { makeTempDir, removeTempDir } from './helpers.js';
+
+const keepAwake = vi.hoisted(() => ({ refresh: vi.fn() }));
+vi.mock('../src/main/keep-awake.js', async original => ({ ...(await original<object>()), refreshKeepAwake: keepAwake.refresh }));
 
 let dir: string;
 beforeAll(async () => { dir = await makeTempDir('clf-workspace-profiles-'); initConfigPath(dir); });
@@ -157,5 +160,36 @@ describe('the tray', () => {
     expect(await first).toBe(false);
     expect(getConfig().ui).toMatchObject({ turnNotifications: true, keepAwake: false, backgroundPlacement: 'group' });
     expect(await chooseWorkspaceProfile('p-missing', async () => ({ response: 0 }))).toBe(false);
+  });
+
+  it('switches nothing when the profile was saved over while the question was open', async () => {
+    let answer: (value: { response: number }) => void = () => undefined;
+    const switching = chooseWorkspaceProfile(overnight.id, () => new Promise(resolve => { answer = resolve; }));
+    // Saved again from Settings under the same name: same id, other settings than the question showed.
+    const resaved = { ...getConfig(), ui: { ...getConfig().ui, turnNotifications: true, keepAwake: false, keepScreenAwake: false, backgroundPlacement: 'group' as const } };
+    await saveConfig(saveWorkspaceProfile(resaved, 'Overnight'));
+    answer({ response: 0 });
+    expect(await switching).toBe(false);
+    expect(getConfig().ui).toMatchObject({ turnNotifications: true, keepAwake: false, backgroundPlacement: 'group' });
+  });
+
+  it('refreshes keep-awake from what was committed, also after a Settings save that went first', async () => {
+    keepAwake.refresh.mockClear();
+    // Keep-awake is off and Review keeps it off, but a Settings save turning it on is already queued.
+    let release = (): void => undefined;
+    const settingsSave = updateConfig(async config => {
+      await new Promise<void>(resolve => { release = resolve; });
+      return { ...config, ui: { ...config.ui, keepAwake: true } };
+    });
+    const switching = chooseWorkspaceProfile(review.id, async () => ({ response: 0 }));
+    await new Promise(resolve => setTimeout(resolve, 20));
+    release();
+    await settingsSave;
+    expect(await switching).toBe(true);
+    expect(getConfig().ui.keepAwake).toBe(false);
+    expect(keepAwake.refresh).toHaveBeenCalledTimes(1);
+    keepAwake.refresh.mockClear();
+    expect(await chooseWorkspaceProfile(review.id, async () => ({ response: 0 }))).toBe(true);
+    expect(keepAwake.refresh).not.toHaveBeenCalled();
   });
 });

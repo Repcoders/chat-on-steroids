@@ -358,7 +358,8 @@ Workspace profiles (`shared/workspace-profiles.ts`, `main/workspace-profiles.ts`
 profiles: they never touch the tunnel, keys or permissions. A tray pick asks first, then switches in one
 `updateConfig` commit onto the latest config, refreshes keep-awake when it changed and pushes
 `state:changed`, so an open Settings page shows the new values. A second pick while the question is
-open is ignored; a profile removed meanwhile switches nothing.
+open is ignored; a profile removed or saved over meanwhile switches nothing, and keep-awake is refreshed
+from the committed previous and next config, not from a read taken before the queue.
 
 Renderer settings save `{base, patch}`. Main performs a field-wise three-way merge so an unchanged
 form field cannot undo a newer browser-side setting. Renderer saves also serialize snapshots
