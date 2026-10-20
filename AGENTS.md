@@ -4482,7 +4482,9 @@ only to its project's chats, and the main window sends to every other chat. `ses
 checks the sending `webContents` and refuses the rest; the renderer replaces the composer with a
 note (and a Show its window button in the main window) for a chat it may not send to. Removing
 the project from the sidebar closes its window; closing the main window closes them all, so quitting is
-unchanged. Dialogs, zoom and the workspace terminal still belong to the main window.
+unchanged. Replies that belong to one request go to the page that sent it: a plan's
+`task:progress` and the Files panel's watch events. Dialogs, zoom and the workspace terminal still
+belong to the main window.
 
 ### Project Files workspace
 
@@ -4506,7 +4508,9 @@ With no tabs, the right dock shows only launcher shortcuts; its tab bar and `+` 
 The `+` popover must receive real pointer input above any active tool header.
 The bottom dock has no generic shortcut screen or second tool tab strip; Terminal owns its own
 tabs and `+` menu there. Both `+` controls follow the last tab, not the far edge of the bar.
-Project Files watches only the visible project's expanded directories. An `fs.watch` error
+Project Files watches only the visible project's expanded directories, with one watch set per
+page: the main window and each project window watch their own project, and `projectFiles:changed`
+/ `projectGit:changed` go only to the page whose `projectFiles:watch` set them up. An `fs.watch` error
 retires its exact handle and pending debounce timer, then emits `ProjectFilesChanged` with
 `watchLost: true`; the renderer clears its cached watch signature and re-admits the visible
 directories through the normal project sandbox. Ordinary changes remain debounced, and

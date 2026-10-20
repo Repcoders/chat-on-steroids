@@ -57,7 +57,7 @@ import { confirmedPluginSchemas, pluginRefreshPublications, pluginRefreshStatuse
  * key but can never read it back.
  */
 
-import { app, BrowserWindow, clipboard, desktopCapturer, dialog, ipcMain, nativeTheme, shell, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, clipboard, desktopCapturer, dialog, ipcMain, nativeTheme, shell, type IpcMainInvokeEvent, type WebContents } from 'electron';
 import { repairMacOSPermissions, resetMacOSPermissions } from './computer/macos-grants.js';
 import { z } from 'zod';
 import {
@@ -646,22 +646,33 @@ export function registerIpc(
   // A session row remains visible until its delete IPC resolves. Fence Trust while deletion is
   // in flight so a second click cannot recreate permission after the row's durable revoke.
   const deletingSessionIds = new Set<string>();
-  let watchedWindow: BrowserWindow | null = null;
-  const projectFileWatches = new ProjectFileWatchSet(event => {
-    const target = getWindow();
-    if (!target || target !== watchedWindow || target.isDestroyed() || target.webContents.isDestroyed()) return;
-    target.webContents.send('projectFiles:changed', event);
-  });
-  const projectGitWatches = new ProjectGitWatchSet(event => {
-    const target = getWindow();
-    if (!target || target !== watchedWindow || target.isDestroyed() || target.webContents.isDestroyed()) return;
-    target.webContents.send('projectGit:changed', event);
-  });
-  let projectWatchRequest = 0;
-  const closeProjectWatches = (): void => {
-    projectWatchRequest++;
-    projectFileWatches.close();
-    projectGitWatches.close();
+  /**
+   * The Files panel's live watches, one set per page: the main window and each project window watch
+   * their own project, and each page hears only its own changes. A page's set ends when it reloads
+   * or closes.
+   */
+  type ProjectWatches = { files: ProjectFileWatchSet; git: ProjectGitWatchSet; request: number };
+  const projectWatches = new Map<WebContents, ProjectWatches>();
+  const closeProjectWatches = (watches: ProjectWatches): void => {
+    watches.request++;
+    watches.files.close();
+    watches.git.close();
+  };
+  const projectWatchesFor = (target: WebContents): ProjectWatches => {
+    const existing = projectWatches.get(target);
+    if (existing) return existing;
+    const deliver = (channel: string) => (event: unknown): void => {
+      if (projectWatches.get(target) === watches && !target.isDestroyed()) target.send(channel, event);
+    };
+    const watches: ProjectWatches = {
+      files: new ProjectFileWatchSet(deliver('projectFiles:changed')),
+      git: new ProjectGitWatchSet(deliver('projectGit:changed')),
+      request: 0
+    };
+    projectWatches.set(target, watches);
+    target.once('destroyed', () => { closeProjectWatches(watches); projectWatches.delete(target); });
+    target.on('did-start-loading', () => closeProjectWatches(watches));
+    return watches;
   };
   handle('setup:profile', async payload => {
     const request = z.discriminatedUnion('action', [
@@ -1036,7 +1047,7 @@ export function registerIpc(
       };
     });
     forgetWorkspaceRoot(name);
-    projectFileWatches.close();
+    for (const watches of projectWatches.values()) watches.files.close();
     logInfo(`removed folder /${name}`);
     return buildState();
   });
@@ -1066,25 +1077,18 @@ export function registerIpc(
     const { projectId, directory } = z.object({ projectId: projectFileId, directory: projectRelativePath.default('') }).strict().parse(payload);
     return listProjectDirectory(projectId, directory);
   });
-  handle('projectFiles:watch', async payload => {
+  handle('projectFiles:watch', async (payload, event) => {
     const { projectId, directories } = z.object({ projectId: projectFileId.nullable(), directories: z.array(projectRelativePath).max(128) }).strict().parse(payload);
-    const target = getWindow();
-    if (!target || target.isDestroyed()) { closeProjectWatches(); return false; }
-    if (target !== watchedWindow) {
-      closeProjectWatches();
-      watchedWindow = target;
-      target.webContents.once('destroyed', () => {
-        if (watchedWindow === target) { watchedWindow = null; closeProjectWatches(); }
-      });
-      target.webContents.on('did-start-loading', () => {
-        if (watchedWindow === target) closeProjectWatches();
-      });
-    }
-    const request = ++projectWatchRequest;
-    await projectFileWatches.sync(projectId, projectId ? directories : []);
-    if (request !== projectWatchRequest || watchedWindow !== target) return false;
-    await projectGitWatches.sync(projectId);
-    return request === projectWatchRequest && watchedWindow === target;
+    // The page that asked: the main window's or a project window's Files panel.
+    const target = event?.sender ?? getWindow()?.webContents ?? null;
+    if (!target || target.isDestroyed()) return false;
+    const watches = projectWatchesFor(target);
+    const current = (request: number) => request === watches.request && projectWatches.get(target) === watches;
+    const request = ++watches.request;
+    await watches.files.sync(projectId, projectId ? directories : []);
+    if (!current(request)) return false;
+    await watches.git.sync(projectId);
+    return current(request);
   });
   handle('projectGit:snapshot', async payload => {
     const { projectId, baseRef } = z.object({ projectId: projectFileId,
@@ -1478,11 +1482,12 @@ export function registerIpc(
     return resumeFromSavedSummary(input.id, input.handoffId);
   });
   handle('sessions:cancelCompaction', async (payload) => cancelSessionCompaction(sessionIdArg.parse(payload).id));
-  handle('sessions:plan', async (payload) => {
+  handle('sessions:plan', async (payload, event) => {
     const { text, backend, requestId } = z.object({ text: z.string().trim().min(1).max(MAX_TASK_REQUEST_CHARS), backend: z.enum(['api', 'chatgpt']), requestId: z.string().uuid().optional() }).parse(payload);
+    // Progress goes to the window whose composer asked for the plan.
+    const target = event?.sender ?? getWindow()?.webContents ?? null;
     const publish = (progress: import('../shared/task-progress.js').TaskProgressUpdate) => {
-      const target = getWindow();
-      if (requestId && target && !target.isDestroyed()) target.webContents.send('task:progress', { requestId, ...progress });
+      if (requestId && target && !target.isDestroyed()) target.send('task:progress', { requestId, ...progress });
     };
     return runTaskRequest(requestId ?? randomUUID(), JSON.stringify(['plan', text, backend]), signal => draftTaskPlan(text, backend, publish, signal), publish);
   });

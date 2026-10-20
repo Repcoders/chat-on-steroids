@@ -593,6 +593,45 @@ it('does not install a stale Git watch after a newer Files project watch', async
   }
 });
 
+it('keeps each window\'s Files watch and plan progress with the page that asked', async () => {
+  // Project windows: the main window and a project window each watch their own project and hear
+  // only their own changes; a plan's progress goes back to the composer that asked for it.
+  const { ProjectFileWatchSet } = await import('../src/main/project-file-watcher.js');
+  const { ProjectGitWatchSet } = await import('../src/main/project-git.js');
+  const page = () => Object.assign(new EventEmitter(), { send: vi.fn(), isDestroyed: () => false });
+  const main = page(), own = page();
+  currentWindow = { setBackgroundColor: vi.fn(), setTitleBarOverlay: vi.fn(), isDestroyed: () => false, webContents: main } as any;
+  const mainProject = '33333333-3333-4333-8333-333333333333', ownProject = '44444444-4444-4444-8444-444444444444';
+  // A watch reports one change as soon as it is set up, through the set's own delivery.
+  const fileSync = vi.spyOn(ProjectFileWatchSet.prototype, 'sync').mockImplementation(async function (this: any, projectId) {
+    if (projectId) this.changed({ projectId, directory: '' });
+  });
+  const fileClose = vi.spyOn(ProjectFileWatchSet.prototype, 'close');
+  const gitSync = vi.spyOn(ProjectGitWatchSet.prototype, 'sync').mockResolvedValue();
+  try {
+    const watch = (sender: unknown, projectId: string | null) => handlers.get('projectFiles:watch')!(sender, { projectId, directories: [''] });
+    expect(await watch({ sender: main }, mainProject)).toMatchObject({ ok: true, data: true });
+    expect(await watch({ sender: own }, ownProject)).toMatchObject({ ok: true, data: true });
+    const changes = (contents: { send: ReturnType<typeof vi.fn> }) => contents.send.mock.calls.filter(([channel]) => channel === 'projectFiles:changed').map(([, event]) => event.projectId);
+    expect(changes(main)).toEqual([mainProject]);
+    expect(changes(own)).toEqual([ownProject]);
+    // Closing one window's watch leaves the other's in place.
+    fileClose.mockClear();
+    expect(await watch({ sender: own }, null)).toMatchObject({ ok: true, data: true });
+    expect(fileClose).not.toHaveBeenCalled();
+    own.emit('destroyed');
+    expect(fileClose).toHaveBeenCalledOnce();
+  } finally {
+    fileSync.mockRestore();
+    fileClose.mockRestore();
+    gitSync.mockRestore();
+  }
+  const requestId = '55555555-5555-4555-8555-555555555555';
+  await handlers.get('sessions:plan')!({ sender: own }, { text: 'Plan the release', backend: 'api', requestId });
+  expect(own.send).toHaveBeenCalledWith('task:progress', expect.objectContaining({ requestId, phase: 'preparing' }));
+  expect(main.send.mock.calls.some(([channel]) => channel === 'task:progress')).toBe(false);
+});
+
 /** The whole settings object the renderer sends, with the parts a test cares about set. */
 function settings(over: { record: boolean; multiAgent: boolean }) {
   const base = defaultConfig();
