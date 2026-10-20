@@ -516,10 +516,21 @@ export async function setProjectGitStaged(projectId: string, relativePath: strin
   if (change.status === 'C') throw new Error('Resolve this conflict before staging it');
   // A rename is only reported once the index holds it, so only unstaging has its old path to restore.
   const paths = [change.path, ...(change.previousPath ? [change.previousPath] : [])];
-  if (staged) await gitWrite(context, ['add', '--all', '--', change.path]);
+  if (staged) {
+    // `git add` runs the clean filter .gitattributes picks, a command from .git/config; both are
+    // files an agent can write, and Git has no switch to skip filters while staging.
+    const attribute = await runGit(context.projectReal, ['check-attr', '-z', 'filter', '--', change.path], 64 * 1024);
+    if (attribute.code !== 0) throw new Error(attribute.stderr || 'Git could not read the file attributes');
+    const driver = splitZero(attribute.stdout)[2];
+    if (driver && !['unspecified', 'unset', 'set'].includes(driver)) {
+      throw new Error('This file goes through a Git filter, which Review does not run. Stage it from a terminal.');
+    }
+    await gitWrite(context, ['add', '--all', '--', change.path]);
+  }
   else if (await headExists(context)) await gitWrite(context, ['reset', '--quiet', '--', ...paths]);
   // Before the first commit there is no HEAD to reset to; unstaging removes the index entry.
-  else await gitWrite(context, ['rm', '--cached', '--quiet', '--ignore-unmatch', '--', ...paths]);
+  // --force skips rm's comparison with the working file, which could run a filter too.
+  else await gitWrite(context, ['rm', '--cached', '--force', '--quiet', '--ignore-unmatch', '--', ...paths]);
 }
 
 /**

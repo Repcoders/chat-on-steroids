@@ -440,3 +440,21 @@ it('commits from Review without running repository hooks or a configured signing
   expect(await headFiles(root)).toEqual(['Add file', '', 'added.ts']);
   await expect(fs.readFile(marker, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
 });
+
+it('refuses to stage a file that goes through a Git filter instead of running the filter', async () => {
+  const { root, id } = await committedProject();
+  // A clean filter is a command named in .git/config and chosen by .gitattributes: both files an agent can write.
+  const marker = path.join(directory, 'filtered.txt');
+  const filter = path.join(directory, 'filter.sh');
+  await fs.writeFile(filter, `#!/bin/sh\necho ran >> '${marker.split(path.sep).join('/')}'\ncat\n`, { mode: 0o755 });
+  await git(root, 'config', 'filter.demo.clean', `sh '${filter.split(path.sep).join('/')}'`);
+  await fs.writeFile(path.join(root, '.gitattributes'), '*.dat filter=demo\n');
+  await fs.writeFile(path.join(root, 'data.dat'), 'payload\n');
+
+  await expect(setProjectGitStaged(id, 'data.dat', true)).rejects.toThrow('Git filter');
+  await expect(fs.readFile(marker, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+  expect((await readProjectGitSnapshot(id)).changes.find(change => change.path === 'data.dat')).toMatchObject({ status: 'U' });
+  // A file the filter does not apply to still stages.
+  await setProjectGitStaged(id, '.gitattributes', true);
+  expect((await readProjectGitSnapshot(id)).changes.find(change => change.path === '.gitattributes')).toMatchObject({ staged: 'all' });
+});

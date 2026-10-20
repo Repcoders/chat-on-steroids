@@ -4553,8 +4553,9 @@ subprocesses. In the Working tree view each change except a conflict has a stage
 (`projectGit:stage`, `git add --all` or `git reset`/`git rm --cached` before the first commit, with
 literal pathspecs), and a commit box commits the index (`projectGit:commit`). Both writes pin
 `core.hooksPath` to the null device and turn commit signing off: hooks and `gpg.program` are
-repository files an agent can write, so a click never runs them. Main rereads Git before each
-write: a file must still be a current change. A commit reads the index once with `write-tree`,
+repository files an agent can write, so a click never runs them. For the same reason a file whose
+`filter` attribute names a driver is not staged (Git cannot stage it without running the clean
+filter). Main rereads Git before each write: a file must still be a current change. A commit reads the index once with `write-tree`,
 checks that tree (exactly the paths the renderer showed as staged, nothing outside the Local
 Project, no conflict, no merge/rebase/cherry-pick in progress), then makes it with `commit-tree`
 and moves HEAD with `update-ref` from the checked parent, so a file staged meanwhile is not
