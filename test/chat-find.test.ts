@@ -89,6 +89,7 @@ it("brings a call's mark into view once its opened row shows it", async () => {
     reveal: async () => { setTimeout(() => row.querySelector('details')!.insertAdjacentHTML('beforeend',
       '<div class="raw"><div class="tool-output"><p class="pre">error: PLACEHOLDER_WIDGET</p></div></div>'), 20); }
   });
+  document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'f', metaKey: true, bubbles: true }));
   document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'f', ctrlKey: true, bubbles: true }));
   const field = document.getElementById('chatFindField') as HTMLInputElement;
   field.value = 'placeholder_widget';
