@@ -3,6 +3,7 @@ import type { ProjectDirectoryListing, ProjectFileEntry } from '../shared/projec
 import { el, icon } from './dom.js';
 import { t, ui } from './i18n.js';
 import { skillDirectives } from '../shared/skill-invocation.js';
+import { nextTemplateField, type PromptTemplate } from './prompt-templates.js';
 
 type Completion = { start: number; end: number; query: string; kind: 'command' | 'skill' | 'file'; directory?: string };
 
@@ -76,6 +77,9 @@ type Options = {
   command?: (name: string) => void;
   commandAvailable?: (name: string) => boolean;
   deferCommand?: (name: string) => boolean;
+  /** Saved prompt templates, offered in their own section, and how one is removed there. */
+  templates?: () => readonly PromptTemplate[];
+  removeTemplate?: (name: string) => void;
 };
 
 /** Marks a textarea projection that consumed a composer control, not authored text. */
@@ -105,6 +109,7 @@ export const APP_COMMANDS = [
   { command: 'status', name: 'Status', description: 'Show how full this chat is.', glyph: 'i-pulse' },
   { command: 'review', name: 'Review', description: 'Ask for a review of the uncommitted changes.', glyph: 'i-git-diff' },
   { command: 'init', name: 'Init', description: 'Ask for an AGENTS.md that describes this project.', glyph: 'i-file-text' },
+  { command: 'template', name: 'Save template', description: 'Save this draft as a template; each {{name}} in it is a field to fill in.', glyph: 'i-star' },
   { command: 'usage', name: 'Usage', description: 'Open usage and token statistics.', glyph: 'i-chart' },
   { command: 'plugins', name: 'Plugins', description: 'Open the plugins and their status.', glyph: 'i-plug' },
   { command: 'pet', name: 'Pet', description: 'Open the pets.', glyph: 'i-paw' },
@@ -122,10 +127,11 @@ export function initSkills(options: Options) {
   let epoch = 0, surfaceOwner = '', loadedKey: string | null = null, loading = false, error = '', composing = false;
   type CommandChoice = { command: string; name: string; description: string; glyph: string };
   type FileChoice = { file: ProjectFileEntry };
+  type TemplateChoice = { template: PromptTemplate };
   type IndexedFile = { entry: ProjectFileEntry; normalizedName: string };
   let library: SkillLibrary | null = null, files: ProjectDirectoryListing | null = null;
   let indexedFiles: IndexedFile[] = [];
-  let choices: Array<LibrarySkill | CommandChoice | FileChoice> = [], selected = 0, painted = '';
+  let choices: Array<LibrarySkill | CommandChoice | FileChoice | TemplateChoice> = [], selected = 0, painted = '';
   // This is only the current textarea projection. The existing draft map holds the
   // complete authored command block across navigation, failures and retries.
   let displayedPrefix = '', prefixOwner = options.owner();
@@ -183,6 +189,17 @@ export function initSkills(options: Options) {
       : new view.Event('input', { bubbles: true }));
   };
   const choose = (skill: typeof choices[number]): void => {
+    if ('template' in skill) {
+      const range = fragment();
+      if (!current() || !range || range.kind === 'file' || painted !== selectionKey() || composing) { close(); return; }
+      const { text } = skill.template;
+      close();
+      project((prefixOwner === options.owner() ? displayedPrefix : '') + input.value.slice(0, range.start) + text + input.value.slice(range.end), 'authored', range.start + text.length);
+      // The first field of the inserted text is selected, so typing fills it in.
+      const field = nextTemplateField(input.value, range.start, range.start);
+      if (field && field.end <= input.selectionEnd) input.setSelectionRange(field.start, field.end);
+      input.focus(); return;
+    }
     if ('file' in skill) {
       const range = fragment(), projectId = options.scope().projectId;
       const key = `files:${projectId ?? ''}:${range?.directory ?? ''}`;
@@ -240,10 +257,11 @@ export function initSkills(options: Options) {
     const query = range?.query ?? '';
     const commands = range.kind === 'command' && options.command ? APP_COMMANDS.filter(row => (row.command.includes(query) || t(row.name).toLocaleLowerCase().includes(query)) &&
       (options.commandAvailable?.(row.command) ?? true)) : [];
+    const templates = range.kind !== 'file' ? (options.templates?.() ?? []).filter(row => row.name.toLocaleLowerCase().includes(query)).slice(0, 64).map(template => ({ template })) : [];
     const matchingSkills = range.kind !== 'file' && !(loading && !library) ? filtered(query).slice(0, 64) : [];
     const matchingFiles = range.kind === 'file' && files !== null && files.projectId === options.scope().projectId && files.directory === (range.directory ?? '')
       ? filteredFiles(query).slice(0, 64).map(file => ({ file })) : [];
-    choices = [...commands, ...matchingSkills, ...matchingFiles];
+    choices = [...commands, ...templates, ...matchingSkills, ...matchingFiles];
     selected = Math.min(selected, Math.max(0, choices.length - 1)); painted = selectionKey();
     const exact = range.kind !== 'file' && query && !loading && !commands.some(row => row.command === query)
       ? library?.skills.find(skill => skill.id.toLocaleLowerCase() === query)
@@ -261,12 +279,30 @@ export function initSkills(options: Options) {
     };
     host.replaceChildren(); host.hidden = false;
     input.setAttribute('aria-expanded', 'true'); input.setAttribute('aria-controls', host.id);
+    const section = (choice: typeof choices[number]): string => 'command' in choice ? 'command' : 'template' in choice ? 'template' : 'file' in choice ? 'file' : 'skill';
     for (const [index, skill] of choices.entries()) {
-      const command = 'command' in skill, file = 'file' in skill;
-      if (index === 0 || index === commands.length && !command && !file || index === commands.length + matchingSkills.length && file)
-        host.append(el('div', 'slash-menu-section-title', () => t(command ? 'Commands' : file ? 'Files' : 'Skills')));
+      if (index === 0 || section(skill) !== section(choices[index - 1]!)) {
+        const kind = section(skill);
+        host.append(el('div', 'slash-menu-section-title', () => kind === 'template' ? t('Templates') : t(kind === 'command' ? 'Commands' : kind === 'file' ? 'Files' : 'Skills')));
+      }
       const row = control('', 'skill-choice skill-autocomplete-option slash-menu-option');
       row.replaceChildren(); row.id = `skill-option-${index}`; row.setAttribute('role', 'option'); row.setAttribute('aria-selected', String(index === selected));
+      row.addEventListener('pointerdown', event => event.preventDefault()); row.addEventListener('click', () => chooseCurrent(skill));
+      if ('template' in skill) {
+        const { name, text } = skill.template;
+        row.dataset.templateName = name; row.title = name;
+        const copy = el('span', 'slash-menu-copy');
+        // The name is the first line; the rest of the text follows it on the row.
+        copy.append(el('strong', '', name), el('small', '', text.replace(/^\s*[^\n]*\n?/, '').replace(/\s+/g, ' ').trim()));
+        const remove = control('', 'slash-menu-remove'); remove.replaceChildren(icon('i-x')); remove.tabIndex = -1;
+        ui(remove, 'aria-label', () => t('Remove {0}', [name]));
+        remove.addEventListener('pointerdown', event => event.preventDefault());
+        remove.addEventListener('click', event => { event.stopPropagation(); removeTemplate(name); });
+        const line = el('div', 'slash-menu-template'); line.setAttribute('role', 'none');
+        row.append(icon('i-file', 'ico slash-menu-icon'), copy); line.append(row, remove); host.append(line);
+        continue;
+      }
+      const command = 'command' in skill, file = 'file' in skill;
       if (file) row.dataset.filePath = skill.file.path;
       else if (!command) row.dataset.skillId = skill.id;
       row.title = command ? `/${skill.command}` : file ? `@${skill.file.path}` : skill.path;
@@ -275,7 +311,7 @@ export function initSkills(options: Options) {
         el('small', '', command ? t(skill.description) : file ? skill.file.path : skill.shortDescription ?? skill.description));
       row.append(icon(command ? skill.glyph : file ? skill.file.kind === 'directory' ? 'i-folder' : 'i-file-text' : 'i-skill', 'ico slash-menu-icon'), copy,
         el('span', 'slash-menu-meta', () => command ? '' : file ? t('Project') : scopeLabel(skill)));
-      row.addEventListener('pointerdown', event => event.preventDefault()); row.addEventListener('click', () => chooseCurrent(skill)); host.append(row);
+      host.append(row);
     }
     const message = stateMessage(range, query);
     if (message) {
@@ -284,6 +320,11 @@ export function initSkills(options: Options) {
     }
     if (choices.length) { input.setAttribute('aria-activedescendant', `skill-option-${selected}`); host.querySelector(`#skill-option-${selected}`)?.scrollIntoView?.({ block: 'nearest' }); }
     else input.removeAttribute('aria-activedescendant');
+  };
+  /** Removes a template from the open menu, which stays open on the same choice index. */
+  const removeTemplate = (name: string): void => {
+    options.removeTemplate?.(name);
+    if (!host.hidden) paintInline();
   };
   const load = async (): Promise<void> => {
     const request = ++epoch, owner = options.owner(), scope = options.scope(), range = fragment();
@@ -363,6 +404,11 @@ export function initSkills(options: Options) {
     if (host.hidden || !current() || composing || event.isComposing) return false;
     if (!fragment() || painted !== selectionKey()) { hideInline(); return false; }
     if (event.key === 'Escape') { hideInline(); event.preventDefault(); return true; }
+    // Shift+Delete removes the highlighted template, as it removes a browser's suggestion.
+    const highlighted = choices[selected];
+    if (event.key === 'Delete' && event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && highlighted && 'template' in highlighted) {
+      removeTemplate(highlighted.template.name); event.preventDefault(); return true;
+    }
     if (!choices.length || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return false;
     const range = fragment();
     if (range?.kind === 'file' && loadedKey !== `files:${options.scope().projectId ?? ''}:${range.directory ?? ''}`) {

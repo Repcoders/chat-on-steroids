@@ -2429,6 +2429,12 @@ input[readonly] {
 .slash-menu-copy strong { flex: none; max-width: 42%; overflow: hidden; font-size: calc(13px * var(--text-scale, 1)); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .slash-menu-copy small, .slash-menu-meta { overflow: hidden; color: var(--faint); font-size: calc(12px * var(--text-scale, 1)); text-overflow: ellipsis; white-space: nowrap; }
 .slash-menu-meta { flex: none; max-width: 24%; }
+.slash-menu-template { position: relative; display: flex; align-items: center; }
+.slash-menu-template .slash-menu-option { padding-right: 34px; }
+.slash-menu-remove { position: absolute; right: 8px; display: grid; place-items: center; width: 20px; height: 20px; padding: 4px; border: 0; border-radius: 50%; background: transparent; color: var(--faint); cursor: pointer; opacity: 0; }
+.slash-menu-template:hover .slash-menu-remove, .slash-menu-template:has([aria-selected='true']) .slash-menu-remove { opacity: 1; }
+.slash-menu-remove:hover { background: var(--line); color: var(--ink); }
+.slash-menu-remove .ico { --ico: 12px; --glyph: 12px; }
 
 @media (max-width: 520px) {
   .skill-row { flex-wrap: wrap; }

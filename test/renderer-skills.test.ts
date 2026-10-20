@@ -4,6 +4,7 @@ import { invokedSkills } from '../src/shared/skill-invocation.js';
 import { skillCompletion } from '../src/renderer/skills.js';
 import type { LibrarySkill, SkillLibrary } from '../src/shared/skills.js';
 import type { ProjectDirectoryListing } from '../src/shared/project-files.js';
+import type { PromptTemplate } from '../src/renderer/prompt-templates.js';
 
 let dom: JSDOM;
 beforeEach(() => {
@@ -16,7 +17,7 @@ beforeEach(() => {
 afterEach(() => dom.window.close());
 const skill: LibrarySkill = { id: 'review', name: 'Review', description: 'Check changes', path: '/skills/review/SKILL.md', managed: true, scope: 'managed', source: 'managed', allowImplicitInvocation: true };
 const library = (skills = [skill]): SkillLibrary => ({ skills, errors: [], roots: [], includeInstructions: true });
-async function fixture(skills: LibrarySkill[] = [skill], withCommands = false) {
+async function fixture(skills: LibrarySkill[] = [skill], withCommands = false, templates?: PromptTemplate[]) {
   const { initSkills } = await import('../src/renderer/skills.js');
   const input = document.getElementById('input') as HTMLTextAreaElement;
   const button = document.getElementById('skills')!;
@@ -36,7 +37,8 @@ async function fixture(skills: LibrarySkill[] = [skill], withCommands = false) {
   const command = vi.fn();
   const picker = initSkills({ input, host, selectedHost: document.getElementById('selected')!, owner: () => owner,
     openButton: button, addButton: document.getElementById('add')!, ...(withCommands ? { command: (name: string) => command(name) } : {}),
-    scope: () => ({ sessionId: key(), projectId }), draft: () => drafts.get(key()), saveDraft: text => drafts.set(key(), text), list, listFiles });
+    scope: () => ({ sessionId: key(), projectId }), draft: () => drafts.get(key()), saveDraft: text => drafts.set(key(), text), list, listFiles,
+    ...(templates ? { templates: () => templates, removeTemplate: (name: string) => { templates.splice(templates.findIndex(row => row.name === name), 1); } } : {}) });
   const type = (value: string) => { input.value = value; input.setSelectionRange(value.length, value.length); input.dispatchEvent(new Event('input')); };
   const press = (value: string) => picker.keydown(new dom.window.KeyboardEvent('keydown', { key: value, cancelable: true }));
   const replace = (value: string) => { drafts.set(key(), value); input.value = value; picker.restore(); };
@@ -359,4 +361,41 @@ it('finds an app command by the name the menu shows in the interface language', 
   expect(f.command).toHaveBeenCalledWith('rename');
   f.type('/rena'); await settle();
   expect([...f.host.querySelectorAll<HTMLElement>('.slash-menu-option')].map(row => row.title)).toEqual(['/rename']);
+});
+
+it('lists saved templates in their own section and inserts one with its first field selected', async () => {
+  const templates = [{ name: 'Bug report', text: 'Bug report for {{area}}\nSteps: {{steps}}' }, { name: 'Release notes', text: 'Release notes' }];
+  const f = await fixture([skill], true, templates);
+  f.type('/'); await settle();
+  expect([...f.host.querySelectorAll('.slash-menu-section-title')].map(title => title.textContent)).toEqual(['Commands', 'Templates', 'Skills']);
+  f.type('/bug'); await settle();
+  expect([...f.host.querySelectorAll<HTMLElement>('[data-template-name]')].map(row => row.dataset.templateName)).toEqual(['Bug report']);
+  expect(f.host.querySelector('[data-template-name="Bug report"] small')!.textContent).toBe('Steps: {{steps}}');
+  f.key('Enter');
+  expect(f.input.value).toBe('Bug report for {{area}}\nSteps: {{steps}}');
+  expect(f.input.value.slice(f.input.selectionStart, f.input.selectionEnd)).toBe('{{area}}');
+  expect(f.command).not.toHaveBeenCalled();
+  expect(f.host.hidden).toBe(true);
+  // Inline, the template replaces only the slash token and keeps the text around it.
+  f.input.value = 'Before /rel after'; f.input.setSelectionRange(11, 11); f.input.dispatchEvent(new Event('input')); await settle();
+  (f.host.querySelector('[data-template-name="Release notes"]') as HTMLButtonElement).click();
+  expect(f.input.value).toBe('Before Release notes after');
+  expect(f.input.selectionStart).toBe('Before Release notes'.length);
+});
+
+it('removes a template from the menu with its x or with Shift+Delete', async () => {
+  const templates = [{ name: 'One', text: 'One {{a}}' }, { name: 'Two', text: 'Two {{b}}' }];
+  const f = await fixture([skill], false, templates);
+  f.type('/'); await settle();
+  (f.host.querySelector('[data-template-name="One"]')!.parentElement!.querySelector('.slash-menu-remove') as HTMLButtonElement).click();
+  expect(templates.map(row => row.name)).toEqual(['Two']);
+  expect(f.host.hidden).toBe(false);
+  expect(f.host.querySelector('[data-template-name="One"]')).toBeNull();
+  const remove = new dom.window.KeyboardEvent('keydown', { key: 'Delete', shiftKey: true, cancelable: true });
+  expect(f.picker.keydown(remove)).toBe(true);
+  expect(remove.defaultPrevented).toBe(true);
+  expect(templates).toEqual([]);
+  expect(f.input.value).toBe('/');
+  // On a Skill row, Shift+Delete is the textarea's own again.
+  expect(f.picker.keydown(new dom.window.KeyboardEvent('keydown', { key: 'Delete', shiftKey: true, cancelable: true }))).toBe(false);
 });

@@ -24,6 +24,7 @@ import { shownSessionTitle } from './session-title.js';
 import { preserveTimelineViewport, ROUNDING_PX } from './timeline-scroll.js';
 import { createSidebarOrder, SIDEBAR_PROJECT_SCOPE } from './sidebar-order.js';
 import { createSidebarPins, pinnedSortScope } from './sidebar-pins.js';
+import { createPromptTemplates, nextTemplateField } from './prompt-templates.js';
 import { createSidebarCompletionState } from './sidebar-completion.js';
 import { toolResultText } from './tool-result.js';
 import { renderEditCards } from './tool-artifacts.js';
@@ -303,6 +304,7 @@ const PROJECT_TASK_PAGE_SIZE = 5;
 const PROJECT_TASK_PAGE_INCREMENT = 8;
 let sidebarOrder: ReturnType<typeof createSidebarOrder> | undefined;
 let sidebarPins: ReturnType<typeof createSidebarPins> | undefined;
+let promptTemplates: ReturnType<typeof createPromptTemplates> | undefined;
 /** Only a person's own recorded chats can be pinned; workers live inside their task's row. */
 const pinnable = (entry: SessionSummary): boolean => !!entry.conversationId && entry.origin?.kind !== 'worker';
 const pinnedChat = (entry: SessionSummary): boolean => pinnable(entry) && sidebarPins?.has(entry.id) === true;
@@ -1071,12 +1073,16 @@ async function sendTypedCommand(controlAction: boolean): Promise<void> {
   const typed = /^\s*\/([a-z][a-z-]*)(?=\s|$)/i.exec(input.value);
   const name = typed?.[1]!.toLowerCase();
   const known = name && APP_COMMANDS.some(row => row.command === name) && (!CHAT_COMMANDS.has(name) || openChatSummary() !== null);
+  const submitted = input.value, owner = draftKey();
   const library = known ? await run(api.skillLibrary({ sessionId: selectedId, projectId: selectedLocalProject()?.id ?? selectedProjectId })) : null;
-  if (!typed || !known || !library || library.skills.some(skill => skill.id === name)) {
+  // A typed /template is never sent: when the Skill list cannot be read, the draft is saved as asked.
+  if (!typed || !known || (!library && name !== 'template') || library?.skills.some(skill => skill.id === name)) {
     if (taskPlans.has(draftKey())) { if (!$('createPlan').dataset.busy) void createTaskPlan(deps.state()?.config.ui.planBackend ?? 'chatgpt'); }
     else void sendComposer(undefined, undefined, undefined, controlAction);
     return;
   }
+  // The draft changed while the Skill list loaded, or an earlier Enter already took the command out.
+  if (input.value !== submitted || draftKey() !== owner) return;
   const rest = input.value.slice(typed[0].length).replace(/^\s+/, '');
   input.value = rest;
   input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1121,6 +1127,15 @@ function runSlashCommand(name: string): void {
   else if (name === 'status') afterClick(() => { const meter = $('contextMeterButton'); if (meter.getAttribute('aria-expanded') !== 'true') meter.click(); });
   else if (name === 'review') prefillComposer(t('Review the uncommitted changes in this project. Look for bugs, regressions and missing tests, and list what you find by severity with the file and line. Do not change any files.'));
   else if (name === 'init') prefillComposer(t('Create an AGENTS.md for this project. Read the project first, then describe how it is built, tested and run, how it is laid out, and the conventions a coding agent should follow. Keep it short and accurate.'));
+  else if (name === 'template') {
+    // What is left in the composer once the command is taken out of it; it stays there.
+    const result = promptTemplates?.save($<HTMLTextAreaElement>('chatInput').value);
+    if (result && 'saved' in result) {
+      toast(result.stored ? t('Template “{0}” saved. Type / to insert it.', [result.saved.name])
+        : t('Template “{0}” saved for this window only: the app could not store it.', [result.saved.name]));
+    }
+    else toast(result?.error === 'long' ? t('This draft is too long for a template.') : t('Type the template first, then save it with /template.'));
+  }
   else if (name === 'usage') openSettingsTab('usage');
   else if (name === 'feedback') openSettingsTab('activity');
   else if (name === 'plugins') $('sidebarPlugins').click();
@@ -7933,6 +7948,7 @@ function selectNewChat(projectId: string | null = null, branch: typeof newChatBr
 export function initChat(next: Deps): void {
   sidebarCompletion = createSidebarCompletionState();
   sidebarPins = createSidebarPins();
+  promptTemplates = createPromptTemplates();
   sidebarOrder = createSidebarOrder($('sessionList'), () => [
     ...projectSortEntries(),
     ...sessions.filter(entry => (entry.conversationId || entry.origin?.kind === 'desktop') && entry.origin?.kind !== 'worker')
@@ -8199,6 +8215,8 @@ export function initChat(next: Deps): void {
     scope: () => ({ sessionId: selectedId, projectId: selectedLocalProject()?.id ?? selectedProjectId }),
     draft: () => inputDrafts.get(draftKey()), saveDraft: text => inputDrafts.set(draftKey(), text),
     list: scope => api.skillLibrary(scope), command: runComposerCommand,
+    templates: () => promptTemplates?.list() ?? [],
+    removeTemplate: name => { if (promptTemplates?.remove(name) === false) toast(t('Template “{0}” removed for this window only: the app could not store it.', [name])); },
     commandAvailable: name => !CHAT_COMMANDS.has(name) || openChatSummary() !== null,
     listFiles: async (projectId, directory) => {
       const result = await api.listProjectFiles(projectId, directory);
@@ -8308,6 +8326,13 @@ export function initChat(next: Deps): void {
     // closed by this very key because the caret left its fragment.
     const menuShown = !!skillPicker?.open();
     if (skillPicker?.keydown(event) || (!menuShown && recallPrompt(event))) return;
+    // Tab and Shift+Tab select the next and previous {{field}} of a template; past the last one
+    // they move focus as before, so the composer never keeps the keyboard.
+    if (event.key === 'Tab' && !event.isComposing && !event.ctrlKey && !event.altKey && !event.metaKey) {
+      const input = $<HTMLTextAreaElement>('chatInput');
+      const field = nextTemplateField(input.value, input.selectionStart, input.selectionEnd, event.shiftKey);
+      if (field) { event.preventDefault(); input.setSelectionRange(field.start, field.end); return; }
+    }
     // Codex's "Enter key behavior": Enter sends, or only Cmd/Ctrl+Enter does and Enter adds a line.
     const enterSends = deps.state()?.config.ui.enterSends !== false || event.metaKey || event.ctrlKey;
     if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && enterSends) { event.preventDefault(); if (currentPreparedPlan() || authoredComposerText().trim() || imageDrafts.get(draftKey())?.length) $<HTMLFormElement>('composer').requestSubmit(); }

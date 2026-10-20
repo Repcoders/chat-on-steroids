@@ -6242,6 +6242,63 @@ it('starts a review request with /review and keeps what was typed after it', asy
   expect(input.value).toMatch(/^Review the uncommitted changes in this project/);
 });
 
+it('saves a draft as a template with /template, inserts it from the menu and steps through its fields with Tab', async () => {
+  const app = await boot([]);
+  (app.w as any).api.skillLibrary = async () => ({ ok: true, data: { skills: [], roots: [], errors: [], includeInstructions: true } });
+  const input = app.w.document.getElementById('chatInput') as HTMLTextAreaElement;
+  input.value = '/template Weekly update for {{team}}\nShipped: {{shipped}}';
+  app.w.document.getElementById('composer')!.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true }));
+  await settle(); await settle();
+  expect(app.live.sent).toHaveLength(0);
+  expect(app.w.document.body.textContent).toContain('Template “Weekly update for {{team}}” saved. Type / to insert it.');
+  input.value = '/week'; input.setSelectionRange(5, 5); input.dispatchEvent(new app.w.Event('input', { bubbles: true }));
+  await settle();
+  app.w.document.querySelector<HTMLElement>('#skillPicker [data-template-name="Weekly update for {{team}}"]')!.click(); await settle();
+  expect(input.value).toBe('Weekly update for {{team}}\nShipped: {{shipped}}');
+  expect(input.value.slice(input.selectionStart, input.selectionEnd)).toBe('{{team}}');
+  input.setRangeText('Platform', input.selectionStart, input.selectionEnd, 'end');
+  input.dispatchEvent(new app.w.Event('input', { bubbles: true }));
+  const tab = (shiftKey = false) => {
+    const event = new app.w.KeyboardEvent('keydown', { key: 'Tab', shiftKey, bubbles: true, cancelable: true });
+    input.dispatchEvent(event); return event.defaultPrevented;
+  };
+  expect(tab()).toBe(true);
+  expect(input.value.slice(input.selectionStart, input.selectionEnd)).toBe('{{shipped}}');
+  // Past the last field, Tab and Shift+Tab move focus as before.
+  expect(tab()).toBe(false);
+  expect(tab(true)).toBe(false);
+  expect(app.live.sent).toHaveLength(0);
+});
+
+it('saves a typed /template instead of sending it when the Skill list cannot be read', async () => {
+  const app = await boot([]);
+  (app.w as any).api.skillLibrary = async () => ({ ok: false, error: 'The Skills folder is unavailable.' });
+  const input = app.w.document.getElementById('chatInput') as HTMLTextAreaElement;
+  input.value = '/template Private draft for {{client}}';
+  app.w.document.getElementById('composer')!.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true }));
+  await settle(); await settle();
+  expect(app.live.sent).toHaveLength(0);
+  expect(app.w.document.body.textContent).toContain('Template “Private draft for {{client}}” saved.');
+});
+
+it('saves a typed /template once when it is submitted again while the Skill list loads', async () => {
+  const app = await boot([]);
+  const answers: Array<(value: unknown) => void> = [];
+  (app.w as any).api.skillLibrary = () => new Promise(resolve => { answers.push(resolve); });
+  const input = app.w.document.getElementById('chatInput') as HTMLTextAreaElement;
+  input.value = '/template Weekly update for {{team}}';
+  const submit = () => app.w.document.getElementById('composer')!.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true }));
+  submit(); submit();
+  await settle();
+  expect(answers).toHaveLength(2);
+  for (const answer of answers) answer({ ok: true, data: { skills: [], roots: [], errors: [], includeInstructions: true } });
+  await settle(); await settle();
+  expect(app.live.sent).toHaveLength(0);
+  expect(input.value).toBe('Weekly update for {{team}}');
+  const stored = JSON.parse(app.w.localStorage.getItem('chat-on-steroids.prompt-templates') ?? '[]');
+  expect(stored.map((row: { text: string }) => row.text)).toEqual(['Weekly update for {{team}}']);
+});
+
 it('opens New chat, Usage, Plugins, Pets and the diagnostics report from their commands', async () => {
   const { w, row } = await slash('usage');
   row!.click(); await settle();
