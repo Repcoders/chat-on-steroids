@@ -662,6 +662,17 @@ code {
   .is-search-hit .said.is-user > .user-message-text { animation: none; box-shadow: 0 0 0 2px var(--accent-edge); }
 }
 .search-status { padding: 8px 10px; color: var(--faint); font-size: calc(12px * var(--text-scale, 1)); }
+.sources-copy { flex: none; padding: 5px 10px; font-size: calc(12px * var(--text-scale, 1)); }
+.source-row { display: flex; flex-direction: column; gap: 3px; padding: 9px 10px; border-radius: 8px; }
+.source-row:hover { background: var(--hover); }
+.source-title { align-self: flex-start; max-width: 100%; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; text-align: start; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(14px * var(--text-scale, 1)); line-height: 22px; }
+.source-title:hover, .source-title:focus-visible { text-decoration: underline; outline: none; }
+.source-meta, .source-cited-label { color: var(--faint); font-size: calc(12px * var(--text-scale, 1)); }
+.source-cited { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 2px; }
+.source-answer { max-width: 260px; padding: 1px 8px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--soft); font: inherit; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(12px * var(--text-scale, 1)); line-height: 18px; }
+.source-answer:hover, .source-answer:focus-visible { background: var(--hover); color: var(--ink); outline: none; }
 .sidebar-sessions h2 { font-size: calc(10px * var(--text-scale, 1)); padding: 10px 8px; }
 .sidebar-sessions .foot { border: 0; padding: 12px 8px; font-size: calc(10px * var(--text-scale, 1)); }
 .sidebar-bottom { border-top: 1px solid var(--line); padding-top: 10px; display: flex; align-items: center; gap: 4px; }

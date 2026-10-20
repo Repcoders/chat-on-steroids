@@ -1311,6 +1311,26 @@ export interface SessionSearchReply {
   /** More chats match than `results` holds. */
   limited?: true;
 }
+/** One page a chat's answers cite (`sessions:sources`), with every answer that cites it. */
+export interface SessionSource {
+  url: string;
+  title: string;
+  source?: string;
+  date?: number;
+  snippet?: string;
+  /**
+   * The citing answers in the order they were said: each one's number among the chat's answers,
+   * the question it answered (empty before any question), and where it is.
+   */
+  citedBy: Array<{ answer: number; question: string; location: SessionSearchLocation }>;
+  /** Citing answers beyond the first 20, counted only. */
+  moreAnswers?: number;
+}
+export interface SessionSourcesReply {
+  sources: SessionSource[];
+  /** More pages are cited than the 500 `sources` holds. */
+  limited?: true;
+}
 
 /**
  * Stored title of the chat that collects tool calls no chat could be named for. It doubles as the

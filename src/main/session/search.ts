@@ -10,7 +10,7 @@
  */
 import { promises as fs } from 'node:fs';
 import { setImmediate as yieldToEvents } from 'node:timers/promises';
-import type { SessionSearchLocation, SessionSearchReply, SessionSearchResult, SessionSummary } from '../../shared/session.js';
+import type { SessionSearchLocation, SessionSearchReply, SessionSearchResult, SessionSource, SessionSourcesReply, SessionSummary } from '../../shared/session.js';
 import { positionOf } from '../../shared/chronology.js';
 import { transcriptEntries } from '../../shared/markdown-export.js';
 import { indexedSessions, readEvents, readOverflowText, sessionSearchIndexPath } from './store.js';
@@ -243,6 +243,75 @@ export async function findInSession(id: string, query: string): Promise<SessionS
     if (found.length >= MAX_FIND_RESULTS) break;
   }
   return found;
+}
+
+/** Most pages one chat's Sources list holds; each answer adds at most 32 × 8. */
+const MAX_CHAT_SOURCES = 500;
+/** Citing answers listed per page; the rest are counted. */
+const MAX_CITING_ANSWERS = 20;
+const QUESTION_CHARS = 120;
+
+/** The same page however it was linked: tracking parameters and the fragment do not count. */
+function sourceKey(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.hash = '';
+    for (const name of [...parsed.searchParams.keys()]) if (/^utm_/i.test(name)) parsed.searchParams.delete(name);
+    return parsed.href;
+  } catch { return url; }
+}
+
+/**
+ * Sources: every page the chat's answers cite, from the references recorded on each answer,
+ * once per page in the order first cited, with each answer that cites it and the question it
+ * answered. Read from the whole recording, so an answer far above the loaded page counts too.
+ */
+export async function sourcesInSession(id: string): Promise<SessionSourcesReply> {
+  const events = await readEvents(id, { kinds: ['user_message', 'assistant_message'] });
+  // Looked up once: per cited answer, a scan of the recording made one request answers × events.
+  const bySeq = new Map(events.map(event => [event.seq, event]));
+  const firstPosition = new Map<string, number>();
+  for (const event of events) {
+    if (event.kind !== 'assistant_message' || !event.messageId) continue;
+    const at = positionOf(event);
+    if (at < (firstPosition.get(event.messageId) ?? Number.POSITIVE_INFINITY)) firstPosition.set(event.messageId, at);
+  }
+  const sources = new Map<string, SessionSource>();
+  const lastCited = new Map<SessionSource, number>();
+  let question = '', answer = 0, limited = false;
+  for (const entry of transcriptEntries(events)) {
+    if (entry.role === 'user') {
+      question = entry.stored.text.replace(/\s+/g, ' ').trim().slice(0, QUESTION_CHARS);
+      continue;
+    }
+    answer++;
+    const event = bySeq.get(entry.seq);
+    if (event?.kind !== 'assistant_message' || !event.references?.length) continue;
+    const messageId = event.messageId ?? null;
+    const position = Math.min(positionOf(event), messageId === null ? Number.POSITIVE_INFINITY : firstPosition.get(messageId) ?? Number.POSITIVE_INFINITY);
+    const location: SessionSearchLocation = { seq: event.seq, kind: 'assistant_message', messageId, position };
+    for (const reference of [...event.references].sort((a, b) => a.index - b.index)) {
+      for (const { url, title, source, date, snippet } of reference.sources) {
+        const key = sourceKey(url);
+        let known = sources.get(key);
+        if (!known) {
+          if (sources.size >= MAX_CHAT_SOURCES) { limited = true; continue; }
+          known = { url, title, citedBy: [] };
+          sources.set(key, known);
+        }
+        // A later citation fills in what the first one did not carry.
+        if (source && !known.source) known.source = source;
+        if (date && !known.date) known.date = date;
+        if (snippet && !known.snippet) known.snippet = snippet;
+        if (known.title === known.url && title !== url) known.title = title;
+        if (lastCited.get(known) === event.seq) continue;
+        lastCited.set(known, event.seq);
+        if (known.citedBy.length < MAX_CITING_ANSWERS) known.citedBy.push({ answer, question, location });
+        else known.moreAnswers = (known.moreAnswers ?? 0) + 1;
+      }
+    }
+  }
+  return { sources: [...sources.values()], ...(limited ? { limited: true as const } : {}) };
 }
 
 /**
