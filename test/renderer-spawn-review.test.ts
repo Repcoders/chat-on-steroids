@@ -86,6 +86,45 @@ it('cannot start an empty batch, and Start none or Escape answers with none', as
   expect($<HTMLDialogElement>('spawnReviewDialog').open).toBe(false);
 });
 
+// Found by review: a refused answer used to close the sheet while the prime's call kept waiting.
+it('keeps the sheet open with the reason when the app refuses the answer', async () => {
+  const sheet = await mount();
+  sheet.answerSpawnReview.mockResolvedValueOnce({ ok: false, error: 'The answer names a worker that is not in this spawn.' } as never);
+  sheet.show(request);
+  $('spawnReviewForm').dispatchEvent(new dom.window.Event('submit', { cancelable: true }));
+  await settle();
+  expect($<HTMLDialogElement>('spawnReviewDialog').open).toBe(true);
+  expect($('spawnReviewError').hidden).toBe(false);
+  expect($('spawnReviewError').textContent).toBe('The answer names a worker that is not in this spawn.');
+  expect($<HTMLButtonElement>('spawnReviewSubmit').disabled).toBe(false);
+  $('spawnReviewForm').dispatchEvent(new dom.window.Event('submit', { cancelable: true }));
+  await settle();
+  expect(sheet.answerSpawnReview).toHaveBeenCalledTimes(2);
+  expect($<HTMLDialogElement>('spawnReviewDialog').open).toBe(false);
+});
+
+// Found by review: a request can reach a page that finished loading after its deadline.
+it('never shows a batch whose deadline passed, and closes itself at the deadline', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+  try {
+    const sheet = await mount();
+    sheet.show({ ...request, expiresAt: Date.now() - 1 });
+    expect($<HTMLDialogElement>('spawnReviewDialog').open).toBe(false);
+    sheet.show({ ...request, id: '00000000-0000-4000-8000-000000000002', expiresAt: Date.now() + 5_000 });
+    expect($<HTMLDialogElement>('spawnReviewDialog').open).toBe(true);
+    vi.advanceTimersByTime(5_000);
+    expect($<HTMLDialogElement>('spawnReviewDialog').open).toBe(false);
+    expect(sheet.answerSpawnReview).not.toHaveBeenCalled();
+  } finally { vi.useRealTimers(); }
+});
+
+// Found by review: dimming the whole dropped worker dimmed its Keep button too.
+it("dims a dropped worker's fields but not the button that keeps it", () => {
+  const css = readFileSync('src/renderer/styles.css', 'utf8');
+  expect(css).not.toMatch(/\.spawn-review-worker\.dropped\s*\{[^}]*opacity/);
+  expect(css).toMatch(/\.spawn-review-worker\.dropped :is\([^)]*\.plugin-field[^)]*\)\s*\{[^}]*opacity/);
+});
+
 it('shows a second batch after the first, and drops one the app closed for time', async () => {
   const sheet = await mount();
   const second = { ...request, id: '00000000-0000-4000-8000-000000000002', workers: request.workers.slice(0, 2) };

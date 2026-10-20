@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 
 import { defaultConfig, getConfig, initConfigPath, saveConfig } from '../src/main/config.js';
+import * as agents from '../src/main/agents.js';
 import { onSwarmPersistNow, resetAgentsForTests, snapshotSwarm } from '../src/main/agents.js';
 import { emptyEvidence, runInCallContext, type CallContext } from '../src/main/mcp/call-context.js';
 import { createRegistrar, type ToolContext, type ToolResult } from '../src/main/mcp/kernel.js';
@@ -106,6 +107,18 @@ it('spawns nothing and holds no slot when the person starts none', async () => {
   const response = await spawn(three);
   expect(response.isError).toBe(true);
   expect(response.content[0]).toMatchObject({ text: expect.stringContaining('SPAWN_DECLINED') });
+  expect(workerTasks()).toEqual([]);
+});
+
+it('checks again after the wait that a retired worker still has its checkout owner', async () => {
+  // Found by review: the person can take two minutes, and the owner can be lost in that time.
+  const required = vi.spyOn(agents, 'managedWorkerIsolationRequired').mockReturnValueOnce(false).mockReturnValue(true);
+  vi.spyOn(agents, 'managedWorkerAllocationIdentity').mockReturnValue(null);
+  answering(request => request.workers.map((worker, index) => ({ index, task: worker.task, model: '', reasoningEffort: '' })));
+  const response = await spawn(three);
+  expect(required).toHaveBeenCalledTimes(2);
+  expect(response.isError).toBe(true);
+  expect(response.content[0]).toMatchObject({ text: expect.stringContaining('WORKTREE_OWNER_UNAVAILABLE') });
   expect(workerTasks()).toEqual([]);
 });
 

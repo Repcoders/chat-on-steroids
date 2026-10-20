@@ -24,6 +24,7 @@ export function initSpawnReview(
   const queue: SpawnReviewRequest[] = [];
   let rows: Array<{ dropped: boolean; task: HTMLTextAreaElement; model: HTMLSelectElement; effort: HTMLSelectElement; drop: HTMLButtonElement }> = [];
   let busy = false;
+  let expiry: ReturnType<typeof setTimeout> | undefined;
 
   const isOpen = () => dialog.open || dialog.hasAttribute('open');
   const fillEfforts = (select: HTMLSelectElement, model: string, value: string) => {
@@ -45,9 +46,16 @@ export function initSpawnReview(
     cancel.disabled = busy;
   };
 
+  const error = $('spawnReviewError');
+  const showError = (message: string | null) => { error.hidden = !message; error.textContent = message ?? ''; };
   const show = () => {
+    // A request can reach a window that was still loading after it expired; it started nothing.
+    while (queue[0] && queue[0].expiresAt <= Date.now()) queue.shift();
     const request = queue[0];
     if (!request) return;
+    // The sheet closes itself at the deadline, even if the app's close never reaches this page.
+    expiry = setTimeout(() => { if (queue[0] === request) next(); }, request.expiresAt - Date.now());
+    showError(null);
     const by = new Date(request.expiresAt).toLocaleTimeString(currentLanguage(), { hour: 'numeric', minute: '2-digit' });
     deadline.textContent = t("If you don't answer by {0}, none of them starts.", [by]);
     contextBox.hidden = !request.context;
@@ -101,6 +109,7 @@ export function initSpawnReview(
     if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
   };
   const next = () => {
+    clearTimeout(expiry);
     queue.shift();
     rows = [];
     list.replaceChildren();
@@ -112,8 +121,18 @@ export function initSpawnReview(
     if (!request || busy) return;
     busy = true;
     paintCount();
-    try { await api.answerSpawnReview(request.id, kept); } catch { /* An answer that came too late started nothing. */ }
-    if (queue[0] === request) next();
+    // A late answer is accepted as `data: false` (it started nothing). A refused one keeps the
+    // sheet open with the reason: the prime's call still waits for this answer.
+    const reply = await api.answerSpawnReview(request.id, kept)
+      .catch((failure: unknown) => ({ ok: false as const, error: failure instanceof Error ? failure.message : String(failure) }));
+    if (queue[0] !== request) return;
+    if (!reply.ok) {
+      busy = false;
+      paintCount();
+      showError(reply.error);
+      return;
+    }
+    next();
   };
 
   form.addEventListener('submit', event => {

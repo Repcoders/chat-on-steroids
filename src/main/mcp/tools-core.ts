@@ -1378,9 +1378,9 @@ function registerAgentsTool(reg: SurfaceRegistrar): void {
           // A stale managed worker whose family and ordinary retired-worker TTL have expired
           // must not bootstrap a new prime family to regain local mutation authority. Session
           // origin and durable managed tombstones are denial-only, not adoption credentials.
-          if (await managedWorkerIsolationRequired(spawnCaller) && !managedWorkerAllocationIdentity(spawnCaller)) {
-            return fail('WORKTREE_OWNER_UNAVAILABLE: a retired worker cannot create a prime run after its isolated checkout owner was lost.');
-          }
+          const ownerLost = async () => await managedWorkerIsolationRequired(spawnCaller) && !managedWorkerAllocationIdentity(spawnCaller);
+          const OWNER_LOST = 'WORKTREE_OWNER_UNAVAILABLE: a retired worker cannot create a prime run after its isolated checkout owner was lost.';
+          if (await ownerLost()) return fail(OWNER_LOST);
           // The person sees a batch before anything is staged (spawn-review.ts); they may edit or drop workers.
           let workers: readonly SpawnReviewWorker[] = input.workers;
           let reviewed: { dropped: number; edited: number } | null = null;
@@ -1393,8 +1393,9 @@ function registerAgentsTool(reg: SurfaceRegistrar): void {
                 unavailable: 'SPAWN_REVIEW_UNAVAILABLE: the app window that shows the spawn review is not open.'
               }[review.outcome] + ' Nothing was spawned.');
             }
-            // The person may have switched multi-agent mode off while the sheet was open.
+            // Multi-agent mode or the caller's checkout owner may have gone while the sheet was open.
             if (!reg.agentToolsLive) return reg.featureDisabled('Multi-agent mode', 'Multi-agent mode (experimental)');
+            if (await ownerLost()) return fail(OWNER_LOST);
             workers = review.workers;
             reviewed = { dropped: review.dropped, edited: review.edited };
           }

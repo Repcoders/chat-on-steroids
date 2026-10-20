@@ -3755,7 +3755,11 @@ Main pushes `spawnReview:show` with `{ id, workers, context, expiresAt }` (prelo
 and brings the window forward. The renderer answers `spawnReview:answer { id, kept }` (preload
 `answerSpawnReview`), where `kept` lists `{ index, task, model, reasoningEffort }` by position in
 the request, or is null. Positions only, so an answer can drop and edit workers but never add one;
-an unknown or repeated index is refused. A second batch queues behind the open sheet.
+an unknown or repeated index is refused, and a refused answer keeps the sheet open with the reason.
+A second batch queues behind the open sheet. The renderer also closes a sheet at its `expiresAt`
+and never shows a request already past it, so a request that reached a page still loading cannot
+outlive its call. After an accepted review the handler checks again that multi-agent mode is on and
+that a retired worker caller still has its checkout owner, since either can change during the wait.
 The wait is bounded by `SPAWN_REVIEW_MS` (two minutes); then `spawnReview:close` closes the sheet
 and the call fails `SPAWN_REVIEW_EXPIRED`. Start none or Escape fails it `SPAWN_DECLINED`, and no
 window to show the sheet fails it `SPAWN_REVIEW_UNAVAILABLE`; in each case nothing was spawned.

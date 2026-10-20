@@ -1597,7 +1597,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
       id: z.string().uuid(),
       kept: z.array(z.object({
         index: z.number().int().min(0).max(7),
-        task: z.string().trim().min(1).max(4000),
+        // Not trimmed here: an unedited task, even one the prime padded, must match its source.
+        task: z.string().min(1).max(4000),
         model: z.string().max(80),
         reasoningEffort: z.enum(['', ...REASONING_EFFORTS])
       }).strict()).max(8).nullable()
