@@ -335,3 +335,27 @@ it('shows other apps’ reported limits apart from tokens counted here, and says
   expect(host.textContent).toContain('Off');
   expect(host.textContent).not.toContain('Codex ·');
 });
+
+it('writes Usage numbers and reset dates in the chosen format while the labels stay English', async () => {
+  dom = new JSDOM(readFileSync(new URL('../src/renderer/index.html', import.meta.url), 'utf8'), { url: 'https://local.test/' });
+  vi.stubGlobal('window', dom.window); vi.stubGlobal('document', dom.window.document); vi.stubGlobal('localStorage', dom.window.localStorage);
+  dom.window.localStorage.setItem('cos.ui.language', 'en');
+  const resetAt = new Date(2026, 9, 21, 14, 5).getTime();
+  const data: UsageOverview = { contextTokenCap: 256_000, tokens: 0, models: [], days: [], sessions: 1,
+    limits: [{ model: 'gpt-6-pro', scope: 'model', remaining: 1234, remainingPercent: null, resetAt, windowSeconds: 604800, observedAt: Date.now() }],
+    messages: { through: new Date(2026, 8, 21, 12).getTime(), days: [{ date: '2026-09-21', gpt56: 12345, gpt6: 0 }] } };
+  Object.assign(dom.window, { api: { getUsage: async () => ({ ok: true, data }), getChatModels: async () => ({ ok: true, data: { models: [] } }) } });
+  const { initLanguage } = await import('../src/renderer/i18n.js'); initLanguage();
+  const usage = await import('../src/renderer/usage.js'); usage.initUsage(); await usage.refreshUsage();
+  const element = (id: string) => dom.window.document.getElementById(id)!;
+  expect(element('usageLimits').textContent).toContain('1,234 remaining');
+  expect(element('usageLimits').textContent).toContain(`Resets ${new Date(resetAt).toLocaleString('en')}`);
+  const format = element('uiFormatLocale') as HTMLSelectElement;
+  format.value = 'de-DE'; format.dispatchEvent(new dom.window.Event('change'));
+  // German numbers and dates, English words around them, without reloading Usage.
+  expect(element('usageLimits').textContent).toContain('1.234 remaining');
+  expect(element('usageLimits').textContent).toContain(`Resets ${new Date(resetAt).toLocaleString('de-DE')}`);
+  expect(element('usageMessages56').textContent).toBe('12.345');
+  expect(element('usageMessagePeriod').textContent).toContain(`Local time · ${new Intl.DateTimeFormat('de-DE', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(2026, 8, 21))}`);
+  expect(dom.window.localStorage.getItem('cos.ui.formatLocale')).toBe('de-DE');
+});

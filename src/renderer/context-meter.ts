@@ -1,4 +1,4 @@
-import { currentLanguage, ui, t, tn } from './i18n.js';
+import { formatLocale, ui, t, tn } from './i18n.js';
 import type { Config } from '../shared/types.js';
 import type { SessionSummary } from '../shared/session.js';
 import type { ReasoningEffort } from '../shared/session.js';
@@ -30,20 +30,20 @@ export function paintContextMeter(session: SessionSummary | null, config: Config
   const limit = config.sessions.limitTokens;
   const percent = limit > 0 ? Math.min(100, Math.round(used / limit * 100)) : 0;
   arc.setAttribute('stroke-dasharray', `${pro ? 0 : percent * 0.377} 37.7`);
-  const tokens = () => new Intl.NumberFormat(currentLanguage()).format(used);
+  const tokens = () => new Intl.NumberFormat(formatLocale()).format(used);
   const root = document.getElementById('contextMeter')!;
   const values = root.dataset.display === 'values';
   const compact = document.getElementById('contextMeterCompact');
-  const short = (value: number) => compactTokens(value, currentLanguage());
+  const short = (value: number) => compactTokens(value, formatLocale());
   const counts = () => pro ? short(used) : `${short(used)} / ${short(limit)}`;
   if (compact) {
     ui(compact, 'textContent', () => values || pro ? counts() : `${percent}%`);
   }
   const description = () => [t('Session context · estimated'), pro
     ? t('{0} tokens used', [tokens()])
-    : tn('{0} / {1} token · {2}% of configured limit', '{0} / {1} tokens · {2}% of configured limit', limit, [tokens(), new Intl.NumberFormat(currentLanguage()).format(limit), percent]),
+    : tn('{0} / {1} token · {2}% of configured limit', '{0} / {1} tokens · {2}% of configured limit', limit, [tokens(), new Intl.NumberFormat(formatLocale()).format(limit), percent]),
     pro ? t('Auto-compaction off for Pro') : config.compaction.auto
-      ? t('Auto-compaction at {0} tokens', [new Intl.NumberFormat(currentLanguage()).format(config.compaction.autoTokens)])
+      ? t('Auto-compaction at {0} tokens', [new Intl.NumberFormat(formatLocale()).format(config.compaction.autoTokens)])
       : t('Auto-compaction off')].join('\n');
   // One fact per row: the estimate, the limit from Settings, the share, and when compaction starts.
   ui(document.getElementById('contextTokens')!, 'textContent', () => short(used));

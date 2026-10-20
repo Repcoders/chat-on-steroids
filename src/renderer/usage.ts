@@ -1,4 +1,4 @@
-import { currentLanguage, ui, t, tn } from './i18n.js';
+import { currentLanguage, formatLocale, ui, t, tn } from './i18n.js';
 import { $, el, run } from './dom.js';
 import { DEFAULT_USAGE_FORMULA, usageDateKey as dateKey, usageEstimate, usageMessageTotals, usageModelGroups, usageRate, usageWeekStart, type UsageFormula, type UsageOverview } from '../shared/usage.js';
 import type { ProviderUsage } from '../shared/provider-usage.js';
@@ -13,12 +13,13 @@ function saveFormula(): void {
   try { localStorage.setItem(FORMULA_KEY, JSON.stringify(formula)); } catch { /* Read-only storage still permits an in-memory comparison. */ }
 }
 
-// In the app's language, like every other number on this page, not the system region's: an English
-// page read "4.082,99 $" and "8,5 Mrd." on a German Mac. Created per call so a language change applies.
+// In the format locale, like every other number on this page: the app's language unless Appearance
+// picks a region, never the system's by accident (an English page read "4.082,99 $" and "8,5 Mrd."
+// on a German Mac). Created per call so a language or format change applies.
 // Token counts are estimates with fractions; whole numbers first. Compact notation abbreviates
 // thousands in English ("307.4K") but not in German, which showed "307.373,5" tokens.
-const count = { format: (value: number) => new Intl.NumberFormat(currentLanguage(), { notation: 'compact', maximumFractionDigits: 1 }).format(Math.round(value)) };
-const money = { format: (value: number) => new Intl.NumberFormat(currentLanguage(), { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value) };
+const count = { format: (value: number) => new Intl.NumberFormat(formatLocale(), { notation: 'compact', maximumFractionDigits: 1 }).format(Math.round(value)) };
+const money = { format: (value: number) => new Intl.NumberFormat(formatLocale(), { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value) };
 const featureLabels: Record<string, string> = { deep_research: "Deep research", file_upload: "File uploads", paste_text_to_file: "Pasted text files", image_gen: "Image generation" };
 function usageHint(node: HTMLElement, text: string | (() => string)): void {
   ui(node, 'data-usage-hint', typeof text === 'function' ? text : () => text);
@@ -47,10 +48,10 @@ function paintMessages(): void {
   select.value = String(weekStart);
   if (!snapshot) return;
   const totals = usageMessageTotals(snapshot.messages, weekStart);
-  ui($('usageMessages56'), 'textContent', () => totals.gpt56.toLocaleString(currentLanguage()));
-  ui($('usageMessages6'), 'textContent', () => totals.gpt6.toLocaleString(currentLanguage()));
+  ui($('usageMessages56'), 'textContent', () => totals.gpt56.toLocaleString(formatLocale()));
+  ui($('usageMessages6'), 'textContent', () => totals.gpt6.toLocaleString(formatLocale()));
   const period = () => {
-    const format = new Intl.DateTimeFormat(currentLanguage(), { dateStyle: 'short', timeStyle: 'short' });
+    const format = new Intl.DateTimeFormat(formatLocale(), { dateStyle: 'short', timeStyle: 'short' });
     return t('Local time · {0} → {1}', [format.format(from), format.format(through)]);
   };
   ui($('usageMessagePeriod'), 'textContent', period);
@@ -72,7 +73,7 @@ export async function refreshUsage(fresh = false): Promise<void> {
     paintMessages();
     const summary = $('usageSummary'); summary.replaceChildren();
     for (const [label, number] of [['Processed tokens · est.', value.tokens], ['Peak daily tokens', Math.max(0, ...value.days.map((day) => day.tokens))], ['Conversations', value.sessions], ['Active days', value.days.filter((day) => day.tokens > 0).length]] as const) {
-      const item = el('div'); item.dataset.usageMetric = label; usageHint(item, () => `${Math.round(number).toLocaleString(currentLanguage())} ${t(label).toLowerCase()}`); item.append(el('strong', '', () => count.format(number)), el('span', '', () => t(label))); summary.append(item);
+      const item = el('div'); item.dataset.usageMetric = label; usageHint(item, () => `${Math.round(number).toLocaleString(formatLocale())} ${t(label).toLowerCase()}`); item.append(el('strong', '', () => count.format(number)), el('span', '', () => t(label))); summary.append(item);
     }
     const limits = $('usageLimits'); limits.replaceChildren();
     // Chat model limits first, then feature quotas, then Codex's windows.
@@ -87,9 +88,9 @@ export async function refreshUsage(fresh = false): Promise<void> {
       const name = el('div'); name.append(el('strong', '', displayName));
       if (entry.scope !== 'model') name.append(el('small', 'muted', () => entry.scope === 'codex' ? t("Codex usage, not your ChatGPT chats") : t("Feature quota")));
       const detail = el('div');
-      detail.append(el('b', '', () => stale ? t("Refresh needed") : entry.remaining !== null ? t("{0} remaining", [entry.remaining.toLocaleString(currentLanguage())]) : entry.remainingPercent !== null ? t("{0}% remaining", [Math.round(entry.remainingPercent)]) : t("Not reported")));
+      detail.append(el('b', '', () => stale ? t("Refresh needed") : entry.remaining !== null ? t("{0} remaining", [entry.remaining.toLocaleString(formatLocale())]) : entry.remainingPercent !== null ? t("{0}% remaining", [Math.round(entry.remainingPercent)]) : t("Not reported")));
       const window = () => entry.scope === 'codex' ? '' : entry.windowSeconds === 604800 ? t("Weekly · ") : entry.windowSeconds ? t("{0}h window · ", [Math.round(entry.windowSeconds / 3600)]) : '';
-      detail.append(el('small', 'muted', () => window() + (entry.resetAt ? t("Resets {0}", [new Date(entry.resetAt).toLocaleString(currentLanguage())]) : t("Reset not reported"))));
+      detail.append(el('small', 'muted', () => window() + (entry.resetAt ? t("Resets {0}", [new Date(entry.resetAt).toLocaleString(formatLocale())]) : t("Reset not reported"))));
       if (entry.remainingPercent !== null && !stale) { const progress = document.createElement('progress'); progress.max = 100; progress.value = entry.remainingPercent; ui(progress, 'aria-label', () => t("{0}: {1}% remaining", [displayName(), entry.remainingPercent])); detail.append(progress); }
       row.append(name, detail); limits.append(row);
     }
@@ -121,7 +122,7 @@ function paintRates(): void {
 /** A recorded day key (YYYY-MM-DD) as a short local date, e.g. "Sun, Sep 27". */
 function dayLabel(key: string): string {
   const date = new Date(`${key}T00:00:00`);
-  return Number.isNaN(date.getTime()) ? key : date.toLocaleDateString(currentLanguage(), { weekday: 'short', month: 'short', day: 'numeric' });
+  return Number.isNaN(date.getTime()) ? key : date.toLocaleDateString(formatLocale(), { weekday: 'short', month: 'short', day: 'numeric' });
 }
 function paintCost(): void {
   if (!snapshot) return;
@@ -132,12 +133,12 @@ function paintCost(): void {
   const costSummary = document.getElementById('usageTotalCost');
   if (costSummary) {
     ui(costSummary.querySelector('strong')!, 'textContent', () => costText(total));
-    ui(costSummary, 'data-usage-hint', () => t('{0} estimated tokens; {1} have no comparison rate. Cached-input equivalent, not a bill.', [Math.round(total.tokens).toLocaleString(currentLanguage()), Math.round(total.unpricedTokens).toLocaleString(currentLanguage())]));
+    ui(costSummary, 'data-usage-hint', () => t('{0} estimated tokens; {1} have no comparison rate. Cached-input equivalent, not a bill.', [Math.round(total.tokens).toLocaleString(formatLocale()), Math.round(total.unpricedTokens).toLocaleString(formatLocale())]));
   }
   const daily = snapshot.days.map(day => ({ ...day, ...usageEstimate(day.models, formula) }));
   for (const [label, number] of [['Processed tokens · est.', total.tokens], ['Peak daily tokens', Math.max(0, ...daily.map(day => day.tokens))]] as const) {
     const item = [...$('usageSummary').children].find(node => (node as HTMLElement).dataset.usageMetric === label) as HTMLElement | undefined;
-    if (item) { ui(item.querySelector('strong')!, 'textContent', () => count.format(number)); ui(item, 'data-usage-hint', () => `${Math.round(number).toLocaleString(currentLanguage())} ${t(label).toLowerCase()}`); }
+    if (item) { ui(item.querySelector('strong')!, 'textContent', () => count.format(number)); ui(item, 'data-usage-hint', () => `${Math.round(number).toLocaleString(formatLocale())} ${t(label).toLowerCase()}`); }
   }
   const heat = $('usageHeatmap'); heat.replaceChildren();
   const byDay = new Map(daily.map(day => [day.date, day.tokens])); const peak = Math.max(1, ...daily.map(day => day.tokens));
@@ -178,7 +179,7 @@ function paintCost(): void {
       if (date > today) { place(el('span', 'heat-cell is-future'), row + 2, String(week + 2)); continue; }
       const key = dateKey(date), tokens = byDay.get(key) ?? 0;
       const cell = el('span', 'heat-cell'); cell.dataset.level = String(tokens ? Math.max(1, Math.ceil(tokens / peak * 4)) : 0);
-      const hint = () => t("{0}: {1} estimated tokens", [dayLabel(key), Math.round(tokens).toLocaleString(currentLanguage())]); usageHint(cell, hint); ui(cell, 'aria-label', hint);
+      const hint = () => t("{0}: {1} estimated tokens", [dayLabel(key), Math.round(tokens).toLocaleString(formatLocale())]); usageHint(cell, hint); ui(cell, 'aria-label', hint);
       place(cell, row + 2, String(week + 2));
     }
   }
@@ -190,8 +191,8 @@ function paintCost(): void {
   // The newest weeks are the ones worth seeing; a narrow window scrolls the year sideways.
   setTimeout(() => { const box = heat.parentElement; if (box && box.scrollWidth > box.clientWidth) box.scrollLeft = box.scrollWidth; }, 0);
   ui($('usageHeatmapCaption'), 'textContent', () => t("Estimated context processed per tool call · last 52 weeks"));
-  ui($('usageFormula'), 'textContent', () => t("Final frontend context (capped at {2} tokens for this estimate) × unique tool calls ÷ {0} × each model’s cached-input rate ÷ 1M × {1}.", [formula.divisor, formula.multiplier, snapshot!.contextTokenCap.toLocaleString(currentLanguage())]));
-  ui($('usageCost'), 'textContent', () => t("{0} estimated equivalent. {1}This is a comparison, not a bill.", [costText(total), total.unpricedTokens ? t("{0} tokens have no rate. ", [Math.round(total.unpricedTokens).toLocaleString(currentLanguage())]) : '']));
+  ui($('usageFormula'), 'textContent', () => t("Final frontend context (capped at {2} tokens for this estimate) × unique tool calls ÷ {0} × each model’s cached-input rate ÷ 1M × {1}.", [formula.divisor, formula.multiplier, snapshot!.contextTokenCap.toLocaleString(formatLocale())]));
+  ui($('usageCost'), 'textContent', () => t("{0} estimated equivalent. {1}This is a comparison, not a bill.", [costText(total), total.unpricedTokens ? t("{0} tokens have no rate. ", [Math.round(total.unpricedTokens).toLocaleString(formatLocale())]) : '']));
   const modelTable = el('table', 'usage-table'); const modelHead = el('tr');
   for (const title of ['Recorded model / effort', 'Estimated tokens', 'Estimated equivalent']) modelHead.append(el('th', '', () => t(title)));
   modelTable.append(modelHead);
@@ -199,7 +200,7 @@ function paintCost(): void {
     const estimate = usageEstimate(entry.sources, formula); const row = el('tr');
     const name = el('td', '', () => `${entry.model} · ${entry.reasoningEffort ?? t("effort unknown")}${entry.assumed ? t(" (assumed)") : ''}`);
     usageHint(name, () => t("Recorded IDs: {0}", [[...new Set(entry.sources.map(source => source.model))].join(', ')]));
-    row.append(name, el('td', '', () => Math.round(estimate.tokens).toLocaleString(currentLanguage())), el('td', '', () => estimate.unpricedTokens > 0 && estimate.unpricedTokens === estimate.tokens ? t("Rate unknown") : costText(estimate))); modelTable.append(row);
+    row.append(name, el('td', '', () => Math.round(estimate.tokens).toLocaleString(formatLocale())), el('td', '', () => estimate.unpricedTokens > 0 && estimate.unpricedTokens === estimate.tokens ? t("Rate unknown") : costText(estimate))); modelTable.append(row);
   }
   // The last 30 days as bars, one glance instead of a long table; the table stays one click away.
   const recent = daily.slice(-30);
@@ -210,7 +211,7 @@ function paintCost(): void {
     const bar = el('span', 'usage-bar');
     bar.style.height = `${top > 0 ? Math.max(2, Math.round(day.cost / top * 100)) : 2}%`;
     if (day.cost === top && top > 0) bar.classList.add('is-peak');
-    usageHint(bar, () => `${dayLabel(day.date)} · ${costText(day)} · ${t("{0} estimated tokens", [Math.round(day.tokens).toLocaleString(currentLanguage())])}`);
+    usageHint(bar, () => `${dayLabel(day.date)} · ${costText(day)} · ${t("{0} estimated tokens", [Math.round(day.tokens).toLocaleString(formatLocale())])}`);
     chart.append(bar);
   }
   // Scale and range at a glance: the peak day's amount on top, the first and last day below.
@@ -221,7 +222,7 @@ function paintCost(): void {
   breakdown.append(el('summary', '', () => t("Daily breakdown")));
   const table = el('table', 'usage-table'); const head = el('tr');
   head.append(el('th', '', () => t("Day")), el('th', '', () => t("Estimated tokens")), el('th', '', () => t("Cached × {0}", [formula.multiplier]))); table.append(head);
-  for (const day of [...daily].reverse()) { const row = el('tr'); row.append(el('td', '', () => dayLabel(day.date)), el('td', '', () => Math.round(day.tokens).toLocaleString(currentLanguage())), el('td', '', () => costText(day))); table.append(row); }
+  for (const day of [...daily].reverse()) { const row = el('tr'); row.append(el('td', '', () => dayLabel(day.date)), el('td', '', () => Math.round(day.tokens).toLocaleString(formatLocale())), el('td', '', () => costText(day))); table.append(row); }
   if (!snapshot.days.length) { const row = el('tr'); const cell = el('td', 'muted', () => t("No recorded tool calls yet.")); cell.setAttribute('colspan', '3'); row.append(cell); table.append(row); }
   breakdown.append(table);
   const modelSection = el('section', 'usage-days-model');
@@ -251,7 +252,7 @@ const codexWindowName = (minutes: number) => minutes === 10080 ? t("Weekly limit
 /** Codex's reason codes for a reached limit, as a sentence; an unknown code stays readable as it is. */
 const codexReason = (code: string): string =>
   code === 'workspace_owner_credits_depleted' ? t("The workspace's Codex credits are used up") : code.replace(/_/g, ' ');
-const when = (time: number) => new Date(time).toLocaleString(currentLanguage(), { dateStyle: 'short', timeStyle: 'short' });
+const when = (time: number) => new Date(time).toLocaleString(formatLocale(), { dateStyle: 'short', timeStyle: 'short' });
 
 /**
  * Codex's and Claude Code's usage (#482). What an app's provider reported is kept apart from what

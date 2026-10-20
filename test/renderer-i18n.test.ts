@@ -51,6 +51,41 @@ it.each(languages)('restores %s and synchronizes accessible setup flags, setting
   expect((await import('../src/renderer/i18n.js')).currentLanguage()).toBe(locale);
 });
 
+it('writes numbers and dates in the app language, the system region or a fixed format, and keeps the choice', async () => {
+  window.localStorage.setItem('cos.ui.language', 'en');
+  const i18n = await import('../src/renderer/i18n.js');
+  i18n.initLanguage();
+  const select = document.getElementById('uiFormatLocale') as HTMLSelectElement;
+  const choose = (value: string) => { select.value = value; select.dispatchEvent(new dom.window.Event('change')); };
+  const sample = (locale: string) => `${new Intl.NumberFormat(locale).format(1234.5)} · ${new Intl.DateTimeFormat(locale, { dateStyle: 'short', timeStyle: 'short' }).format(new Date(2026, 9, 20, 15, 30))}`;
+  expect(i18n.formatLocale()).toBe('en');
+  expect(select.value).toBe('app');
+  expect([...select.options].map(option => option.value)).toEqual(['app', 'system', ...i18n.FORMAT_LOCALES]);
+  expect(select.options[0]!.textContent).toBe(`Same as language · ${sample('en')}`);
+  expect(select.options[1]!.textContent).toBe('System region');
+  choose('system');
+  expect(i18n.formatLocale()).toBe('en'); // Until the main process reports the region.
+  i18n.setSystemLocale('en-DE');
+  expect(i18n.formatLocale()).toBe('en-DE');
+  expect(select.options[1]!.textContent).toBe(`System region · ${sample('en-DE')}`);
+  i18n.setSystemLocale('not a locale');
+  expect(i18n.formatLocale()).toBe('en');
+  choose('de-DE');
+  expect(i18n.formatLocale()).toBe('de-DE');
+  expect(select.selectedOptions[0]!.textContent).toBe(`German (Germany) · ${sample('de-DE')}`);
+  expect(window.localStorage.getItem('cos.ui.formatLocale')).toBe('de-DE');
+  // The language changes the words, never the chosen format.
+  i18n.setLanguage('ja');
+  expect(i18n.formatLocale()).toBe('de-DE');
+  expect(select.options[0]!.textContent).toBe(`${catalogs.ja!['Same as language']} · ${sample('ja')}`);
+  expect(select.selectedOptions[0]!.textContent).toBe(`${new Intl.DisplayNames('ja', { type: 'language' }).of('de-DE')} · ${sample('de-DE')}`);
+  vi.resetModules();
+  expect((await import('../src/renderer/i18n.js')).formatLocale()).toBe('de-DE');
+  window.localStorage.setItem('cos.ui.formatLocale', 'xx-unknown');
+  vi.resetModules();
+  expect((await import('../src/renderer/i18n.js')).formatLocale()).toBe('ja');
+});
+
 it.each([
   [['de-DE', 'de'], 'de'], [['zh-Hant-TW'], 'zh-TW'], [['zh-HK'], 'zh-TW'], [['zh-CN'], 'zh-CN'], [['zh'], 'zh-CN'],
   [['pt-PT'], 'pt-PT'], [['pt-BR'], 'pt-BR'], [['pt'], 'pt-BR'], [['nl-NL', 'fr-FR'], 'fr'], [['nl', 'sv'], 'en'],

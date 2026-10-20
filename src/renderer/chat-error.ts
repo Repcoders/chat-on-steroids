@@ -1,7 +1,7 @@
 import type { SessionEvent } from '../shared/session.js';
 import { positionOf } from '../shared/chronology.js';
 import { chatErrorMessageKey, CONVERSATION_DELETED } from '../shared/chat-error.js';
-import { currentLanguage, t } from './i18n.js';
+import { formatLocale, t } from './i18n.js';
 
 type ChatError = Extract<SessionEvent, { kind: 'chat_error' }>;
 
@@ -22,10 +22,10 @@ export function duplicateChatErrors(history: readonly SessionEvent[]): Set<numbe
 
 /** The retry time as a clock time, with the day when the wait ends on another day than the notice. */
 function retryTime(retryAt: number, noticedAt: number): string {
-  const at = new Date(retryAt), language = currentLanguage();
-  const clock = at.toLocaleTimeString(language, { hour: 'numeric', minute: '2-digit' });
+  const at = new Date(retryAt), locale = formatLocale();
+  const clock = at.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
   return at.toDateString() === new Date(noticedAt).toDateString() ? clock
-    : `${at.toLocaleDateString(language, { month: 'short', day: 'numeric' })}, ${clock}`;
+    : `${at.toLocaleDateString(locale, { month: 'short', day: 'numeric' })}, ${clock}`;
 }
 
 /**
