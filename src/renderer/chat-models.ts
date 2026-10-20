@@ -162,6 +162,12 @@ function distinctModelChoices(models: ChatModelCatalog['models']): Array<{ id: s
   });
 }
 
+/** A tracked pair with no model of its own offers the efforts of the default sub-agent model it follows. */
+function effortsFor(modelId: string, value: string, models = catalog.models): readonly ReasoningEffort[] {
+  const id = value || (emptyLabels.has(modelId) ? (document.getElementById('workerModel') as HTMLSelectElement | null)?.value ?? '' : '');
+  return models.find(item => item.id === id)?.efforts ?? [];
+}
+
 function paintPair(modelId: string, effortId: string, modelValue?: string, effortValue?: string, allowEmpty = false): void {
   const model = document.getElementById(modelId) as HTMLSelectElement | null;
   const effort = document.getElementById(effortId) as HTMLSelectElement | null;
@@ -201,7 +207,7 @@ function paintPair(modelId: string, effortId: string, modelValue?: string, effor
   const modelChoices = distinctModelChoices(models);
   if (automaticModel) modelChoices.unshift({ id: '', label: empty });
   const effortChoices: Array<{ id: string; label: string | (() => string) }> =
-    (models.find(item => item.id === nextModel)?.efforts ?? []).map(id => ({ id, label: () => effortLabel(id) }));
+    effortsFor(modelId, nextModel, models).map(id => ({ id, label: () => effortLabel(id) }));
   if (allowEmpty || (automaticModel && !nextModel)) effortChoices.unshift({ id: '', label: empty });
   options(model, modelChoices, nextModel);
   options(effort, effortChoices, nextEffort);
@@ -593,11 +599,13 @@ function wirePair(modelId: string, effortId: string, allowEmpty: boolean): void 
     }
     const model = $<HTMLSelectElement>(modelId);
     const effort = $<HTMLSelectElement>(effortId);
-    const supported = catalog.models.find(item => item.id === model.value)?.efforts ?? [];
+    const supported = effortsFor(modelId, model.value);
     const nextEffort = allowEmpty
       ? supported.includes(effort.value as ReasoningEffort) ? effort.value : ''
       : model.value ? supported.includes('high') ? 'high' : supported[0] ?? '' : '';
     paintPair(modelId, effortId, model.value, nextEffort, allowEmpty);
+    // Role pairs that follow the default sub-agent model offer its efforts.
+    if (modelId === 'workerModel') for (const [roleModel, roleEffort] of pairs) if (emptyLabels.has(roleModel)) paintPair(roleModel, roleEffort, undefined, undefined, true);
     paintStatus();
   });
   document.getElementById(effortId)?.addEventListener('change', () => {

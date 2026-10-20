@@ -73,8 +73,10 @@ export function applyWorkerRoles(config: Config): void {
   const roles = config.multiAgent.roles ?? [];
   const key = JSON.stringify(roles);
   const list = $('workerRoles');
-  // Focus alone does not protect the rows: unedited ones still take a newer saved list.
-  if (key === painted || (list.contains(document.activeElement) && JSON.stringify(rowValues().roles) !== painted)) return;
+  // Focus alone does not protect the rows: unedited ones still take a newer saved list. A row
+  // added and not yet named is an edit too.
+  const edited = JSON.stringify(rowValues().roles) !== painted || !!list.querySelector('.worker-role-name[data-draft]');
+  if (key === painted || (list.contains(document.activeElement) && edited)) return;
   painted = key;
   for (const row of [...list.children]) drop(row);
   for (const role of roles) addRow(role);

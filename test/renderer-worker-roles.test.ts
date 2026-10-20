@@ -73,6 +73,24 @@ it('keeps an empty model or reasoning in a saved role as the sub-agent default',
   expect(workerRolesValue()).toEqual(roles);
 });
 
+// Review finding: a role on the default model could not keep or pick a reasoning level of its own.
+it('offers the default sub-agent model\'s reasoning to a role that follows that model', async () => {
+  const { workerRolesValue, doc, rows, selects } = await settings([{ name: 'Scout', model: '', reasoning: 'high' }, { name: 'Reviewer', model: 'sol', reasoning: 'high' }]);
+  const [, effort] = selects(rows()[0]!);
+  expect([...effort!.options].map(option => [option.value, option.disabled])).toEqual([['', false], ['medium', false], ['high', false]]);
+  expect(effort!.value).toBe('high');
+  const [model, reviewerEffort] = selects(rows()[1]!);
+  model!.value = '';
+  model!.dispatchEvent(new dom.window.Event('change'));
+  expect(reviewerEffort!.value).toBe('high');
+  // A different default sub-agent model changes what the following roles offer.
+  const workerModel = doc.getElementById('workerModel') as HTMLSelectElement;
+  workerModel.value = 'pro';
+  workerModel.dispatchEvent(new dom.window.Event('change'));
+  expect([...effort!.options].filter(option => !option.disabled).map(option => option.value)).toEqual(['', 'pro']);
+  expect(workerRolesValue()[0]).toEqual({ name: 'Scout', model: '', reasoning: 'high' });
+});
+
 // Review finding: clearing a saved role's name dropped it from the next save with nothing on screen.
 it('marks a saved role whose name was cleared, but not a new row that has no name yet', async () => {
   const { workerRolesValue, doc, rows } = await settings([{ name: 'Reviewer', model: 'pro', reasoning: 'pro' }]);
@@ -99,4 +117,14 @@ it('repaints focused rows that were not edited, and keeps rows that were', async
   expect(doc.activeElement).toBe(name());
   applyWorkerRoles(withRoles([{ name: 'Elsewhere', model: 'sol', reasoning: 'high' }]));
   expect(name().value).toBe('Critic, edited');
+});
+
+// Review finding: a focused row added with Add role and not yet named was wiped by a newer list.
+it('keeps a focused new row that has no name yet when a newer list arrives', async () => {
+  const { applyWorkerRoles, doc, rows, withRoles } = await settings([{ name: 'Reviewer', model: 'pro', reasoning: 'pro' }]);
+  (doc.getElementById('addWorkerRole') as HTMLButtonElement).click();
+  const draft = rows()[1]!;
+  applyWorkerRoles(withRoles([{ name: 'Elsewhere', model: 'sol', reasoning: 'high' }]));
+  expect(rows()[1]).toBe(draft);
+  expect(doc.activeElement).toBe(draft.querySelector('.worker-role-name'));
 });
