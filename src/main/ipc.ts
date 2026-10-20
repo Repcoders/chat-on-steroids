@@ -873,9 +873,15 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     pendingImport = null;
     // A save since the preview would make Apply merge onto values the person never saw listed.
     const shown = JSON.stringify(pending.request.base);
+    let current = true;
     const state = await saveSettings(pending.request, config => {
       const parsed = settingsPatch.safeParse(settingsBackupBase(config));
-      if (!parsed.success || JSON.stringify(parsed.data) !== shown) throw new Error(stale);
+      current = parsed.success && JSON.stringify(parsed.data) === shown;
+      if (!current) throw new Error(stale);
+    }).catch((error: unknown) => {
+      // A save that failed on its own (a disk error) changed nothing, so the same preview can be applied again.
+      if (current && pendingImport === null) pendingImport = pending;
+      throw error;
     });
     logInfo('settings imported from a backup file');
     return state;

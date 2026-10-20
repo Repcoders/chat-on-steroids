@@ -2239,6 +2239,20 @@ describe('settings backup', () => {
     expect(getConfig()).toMatchObject({ readOnly: true, capabilities: { command: true } });
   });
 
+  it('keeps the preview for another Apply when the save itself fails', async () => {
+    await fs.writeFile(backup(), JSON.stringify({ format: 'chat-on-steroids-settings', version: 1, settings: { capabilities: { command: false } } }), 'utf8');
+    vi.mocked(dialog.showOpenDialog).mockResolvedValueOnce({ canceled: false, filePaths: [backup()] });
+    const shown = await preview();
+    const rename = vi.spyOn(fs, 'rename').mockRejectedValueOnce(new Error('disk unavailable'));
+    try {
+      expect(await applyImport(shown.data.token)).toMatchObject({ ok: false, error: expect.stringContaining('disk unavailable') });
+    } finally { rename.mockRestore(); }
+    expect(getConfig().capabilities.command).toBe(true);
+    const applied = await applyImport(shown.data.token);
+    expect(applied.ok, applied.error).toBe(true);
+    expect(getConfig().capabilities.command).toBe(false);
+  });
+
   it('refuses a malformed backup before any preview', async () => {
     const wrongType = { format: 'chat-on-steroids-settings', version: 1, settings: { capabilities: { command: 'yes' } } };
     for (const text of ['{ not json', JSON.stringify(wrongType)]) {
