@@ -724,6 +724,15 @@ describe('Loop limits', () => {
     expect((await pass(id, session.id, 'fresh-run')).stage).toBe('ready');
   });
 
+  it('keeps counting after Compact & Resume moves a chat on the app-wide Loop', async () => {
+    await saveConfig({ ...defaultConfig(), goal: { ...defaultConfig().goal, enabled: true, mode: 'loop', loopBackend: 'chatgpt', loopMaxPasses: 2 } });
+    goal.restoreGoalSwitches({ version: 1, savedAt: 1, switches: [], loopRuns: [{ conversationId: 'loop-limit-before-resume', passes: 2, since: 5 }] });
+    expect(goal.moveGoalSwitch('loop-limit-before-resume', 'loop-limit-after-resume')).toBe(false);
+    const session = await loopChat('loop-limit-after-resume');
+    expect(goal.snapshotGoalSwitches().loopRuns).toEqual([{ conversationId: 'loop-limit-after-resume', passes: 2, since: 5 }]);
+    expect((await pass('loop-limit-after-resume', session.id, 'resumed-pass')).stage).toBe('no-reply');
+  });
+
   it('switches Loop off once its time limit has passed, also after a restart', async () => {
     await saveConfig({ ...defaultConfig(), goal: { ...defaultConfig().goal, loopBackend: 'chatgpt', loopMaxMinutes: 30 } });
     const id = 'loop-limit-minutes';

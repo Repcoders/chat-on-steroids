@@ -1224,16 +1224,22 @@ export function moveGoalSwitch(fromConversationId: string, toConversationId: str
   if (!fromConversationId || !toConversationId || fromConversationId === toConversationId) return false;
   if (isGoalDecisionChat(fromConversationId) || isGoalDecisionChat(toConversationId)) return false;
   invalidateGoalControlWrites(pendingGoalSwitches, [fromConversationId]);
+  // A resumed chat continues the same Loop run, so its limits keep counting. That includes a
+  // chat on the app-wide Loop, which has a run but no switch of its own to move.
+  const run = loopRuns.get(fromConversationId);
+  if (run) {
+    loopRuns.delete(fromConversationId);
+    loopRuns.set(toConversationId, run);
+  }
   const row = goalSwitches.get(fromConversationId);
-  if (!row) return false;
+  if (!row) {
+    if (run) persistGoalSwitches();
+    return false;
+  }
   invalidateGoalControlWrites(pendingGoalSwitches, [toConversationId]);
   goalSwitches.delete(fromConversationId);
   goalSwitches.set(toConversationId, row);
-  // A resumed chat continues the same Loop run, so its limits keep counting.
-  const run = loopRuns.get(fromConversationId);
-  loopRuns.delete(fromConversationId);
-  loopRuns.delete(toConversationId);
-  if (run) loopRuns.set(toConversationId, run);
+  if (!run) loopRuns.delete(toConversationId);
   persistGoalSwitches();
   return true;
 }
