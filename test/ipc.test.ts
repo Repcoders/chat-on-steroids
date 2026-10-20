@@ -126,6 +126,16 @@ it('saves Auto-select Skills through Settings and preserves it across a stale un
   expect(getConfig().ui.autoSelectSkills).toBe(wanted);
 });
 
+it('serves the fresh-install settings for per-row reset without touching the saved ones', async () => {
+  const base = getConfig();
+  expect(await save({ ...base, ui: { ...base.ui, autoRefreshPlugins: false, followOutput: false } }, base)).toMatchObject({ ok: true });
+  const saved = getConfig();
+  const reply = await handlers.get('settings:defaults')!(null, undefined) as { ok: boolean; data: unknown };
+  expect(reply).toEqual({ ok: true, data: defaultConfig() });
+  expect(reply.data).toMatchObject({ ui: { autoRefreshPlugins: true, followOutput: true } });
+  expect(getConfig()).toEqual(saved);
+});
+
 it('names a chat with one clean line, and clears the name for an empty one (#1107)', async () => {
   expect(cleanSessionName('  Release\nprep\t\u0000now  ')).toBe('Release prep now');
   expect(cleanSessionName('x'.repeat(300))).toHaveLength(120);
