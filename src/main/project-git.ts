@@ -4,7 +4,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { statSync, watch as watchFs, type FSWatcher } from 'node:fs';
 import type { Stats } from 'node:fs';
 import path from 'node:path';
-import type { ProjectGitChange, ProjectGitChanged, ProjectGitDiff, ProjectGitSnapshot, ProjectGitStatus } from '../shared/project-git.js';
+import type { ProjectGitChange, ProjectGitChanged, ProjectGitDiff, ProjectGitSnapshot, ProjectGitStatus, ProjectGitSummary } from '../shared/project-git.js';
 import { getConfig } from './config.js';
 import { rawPromises as fs } from './rawfs.js';
 import { projectFileTarget } from './project-files.js';
@@ -405,6 +405,59 @@ export async function readProjectGitSnapshot(projectId: string, baseRef?: string
       branchesTruncated: identity.branchesTruncated };
   } catch (error) {
     return unavailable(projectId, error instanceof Error ? error.message : String(error));
+  }
+}
+
+/** Fields before the path in each porcelain v2 record kind: ordinary, renamed, unmerged, untracked. */
+const V2_PATH_FIELDS: Record<string, number> = { '1': 8, '2': 9, u: 10, '?': 1 };
+
+function parseSummary(projectId: string, buffer: Buffer, prefix: string): ProjectGitSummary {
+  const parts = splitZero(buffer);
+  let oid = '', head = '', upstream = '', ab: RegExpExecArray | null = null, changes = 0;
+  for (let index = 0; index < parts.length;) {
+    const record = parts[index++]!;
+    if (record.startsWith('# ')) {
+      const space = record.indexOf(' ', 2);
+      const key = space < 0 ? record.slice(2) : record.slice(2, space), value = space < 0 ? '' : record.slice(space + 1);
+      if (key === 'branch.oid') oid = value;
+      else if (key === 'branch.head') head = value;
+      else if (key === 'branch.upstream') upstream = value;
+      else if (key === 'branch.ab') ab = /^\+(\d+) -(\d+)$/.exec(value);
+      continue;
+    }
+    const fields = V2_PATH_FIELDS[record[0]!];
+    if (fields === undefined) continue;
+    // A rename's original path is the next NUL field, not a record of its own.
+    if (record[0] === '2') index++;
+    let start = 0;
+    for (let field = 0; field < fields && start >= 0; field++) {
+      const space = record.indexOf(' ', start);
+      start = space < 0 ? -1 : space + 1;
+    }
+    if (start > 0 && projectRelative(record.slice(start), prefix) && changes < MAX_CHANGES) changes++;
+  }
+  const branch = head && head !== '(detached)' ? head : /^[0-9a-f]{40,64}$/.test(oid) ? oid.slice(0, 8) : 'HEAD';
+  return {
+    projectId, state: 'ready', branch, changes, truncated: changes >= MAX_CHANGES,
+    ...(upstream && ab ? { upstream: { label: upstream, ahead: Number(ab[1]), behind: Number(ab[2]) } } : {})
+  };
+}
+
+/**
+ * One `git status` per project for its sidebar row: branch, changed paths and ahead/behind its
+ * upstream as last fetched. It never fetches, and it reads the same scope as Review's Working tree.
+ */
+export async function readProjectGitSummary(projectId: string): Promise<ProjectGitSummary> {
+  const empty = (state: ProjectGitSummary['state']): ProjectGitSummary => ({ projectId, state, changes: 0, truncated: false });
+  let context: RepositoryContext | null;
+  try { context = await repositoryContext(projectId); } catch { return empty('unavailable'); }
+  if (!context) return empty('not-repository');
+  try {
+    const status = await runGit(context.projectReal, ['status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all', '--ignore-submodules=dirty', '--find-renames=50%', '--', '.']);
+    if (status.code !== 0) return empty('unavailable');
+    return parseSummary(projectId, status.stdout, context.prefix);
+  } catch {
+    return empty('unavailable');
   }
 }
 

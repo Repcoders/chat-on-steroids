@@ -93,7 +93,8 @@ import { RESERVED_ROOT_NAMES, uniqueRootName, validateNewRoot, SandboxError, res
 import { addProject, addRemoteProject, expireArmedProjectCreates, getSessionProject, listProjects, localProjectPath, onProjectLinkChange, projectWorkspace, removeProject, retryProjectCreate, setProjectColor } from './projects.js';
 import { createProjectEntry, listProjectDirectory, previewProjectFile, projectFileTarget, renameProjectEntry, revalidateProjectFileTarget, saveProjectTextFile, serverFileSnapshot } from './project-files.js';
 import { ProjectFileWatchSet } from './project-file-watcher.js';
-import { ProjectGitWatchSet, readProjectGitDiff, readProjectGitSnapshot } from './project-git.js';
+import { ProjectGitWatchSet, readProjectGitDiff, readProjectGitSnapshot, readProjectGitSummary } from './project-git.js';
+import type { ProjectGitSummary } from '../shared/project-git.js';
 import { hasSecret, isEncryptionAvailable, secureStorageStatus, setAsideUnreadableSecrets, setSecret, storedSecretsUnreadable } from './secrets.js';
 import { setupApiKeySlot } from '../shared/setup-profile.js';
 import { addSetupProfile, removeSetupProfile, switchSetupProfile } from './setup-profiles.js';
@@ -1080,6 +1081,16 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     const { projectId, baseRef } = z.object({ projectId: projectFileId,
       baseRef: z.string().min(1).max(256).optional() }).strict().parse(payload);
     return readProjectGitSnapshot(projectId, baseRef);
+  });
+  // The sidebar's project rows, a few Git reads at a time; Review's snapshot stays per project.
+  handle('projectGit:summaries', async payload => {
+    const { projectIds } = z.object({ projectIds: z.array(projectFileId).min(1).max(32) }).strict().parse(payload);
+    const unique = [...new Set(projectIds)];
+    const summaries: ProjectGitSummary[] = [];
+    for (let index = 0; index < unique.length; index += 3) {
+      summaries.push(...await Promise.all(unique.slice(index, index + 3).map(readProjectGitSummary)));
+    }
+    return summaries;
   });
   handle('projectGit:diff', async payload => {
     const { projectId, path, baseRef, expectedRevision } = z.object({ projectId: projectFileId, path: projectRelativePath.min(1),

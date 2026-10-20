@@ -532,6 +532,14 @@ it('adds picker-selected projects, reuses containing approval, and leaves cancel
   expect(await handlers.get('projects:remove')!(null, { id: folder })).toMatchObject({ ok: false });
   expect(await handlers.get('projectGit:snapshot')!(null, { projectId: folder })).toMatchObject({ ok: false });
   expect(await handlers.get('projectGit:diff')!(null, { projectId: first.data.id, path: '' })).toMatchObject({ ok: false });
+  // Sidebar badges: project ids only, at most 32, and a repeated id is read once.
+  const child = listed.data.find((row: any) => row.id !== first.data.id).id;
+  expect(await handlers.get('projectGit:summaries')!(null, { projectIds: [folder] })).toMatchObject({ ok: false });
+  expect(await handlers.get('projectGit:summaries')!(null, { projectIds: [] })).toMatchObject({ ok: false });
+  expect(await handlers.get('projectGit:summaries')!(null, { projectIds: Array(33).fill(child) })).toMatchObject({ ok: false });
+  expect(await handlers.get('projectGit:summaries')!(null, { projectIds: [child, child] })).toMatchObject({
+    ok: true, data: [{ projectId: child, state: 'not-repository', changes: 0, truncated: false }]
+  });
   expect(await handlers.get('sessions:toolEditReview')!(null, {
     sessionId: first.data.id, callId: 'not-a-uuid', changeIndex: 0
   })).toMatchObject({ ok: false });

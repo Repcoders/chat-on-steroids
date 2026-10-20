@@ -7,7 +7,7 @@ import { EventEmitter } from 'node:events';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { defaultConfig, initConfigPath, saveConfig } from '../src/main/config.js';
 import { initDurableStore, resetDurableForTests } from '../src/main/durable.js';
-import { gitExecutable, ProjectGitWatchSet, readProjectGitDiff, readProjectGitSnapshot } from '../src/main/project-git.js';
+import { gitExecutable, ProjectGitWatchSet, readProjectGitDiff, readProjectGitSnapshot, readProjectGitSummary } from '../src/main/project-git.js';
 import { addProject } from '../src/main/projects.js';
 import { validateNewRoot } from '../src/main/sandbox.js';
 
@@ -338,4 +338,50 @@ it('shows a file renamed differently on both sides as conflicts, even with no wo
   expect(byPath['moved.txt']).toBe('C');
   // Deleted on both sides: no working file and no HEAD version, still a readable (empty) diff.
   expect(await readProjectGitDiff(id, 'moved.txt', undefined, snapshot.revision)).toMatchObject({ status: 'C', currentText: '' });
+});
+
+it('summarizes a project row: branch, changed paths in the project and ahead/behind its upstream', async () => {
+  const root = path.join(approved, 'monorepo');
+  const nested = path.join(root, 'packages', 'app');
+  await fs.mkdir(nested, { recursive: true });
+  await git(root, 'init', '-b', 'main');
+  await git(root, 'config', 'user.email', 'test@example.com');
+  await git(root, 'config', 'user.name', 'CoS Test');
+  await fs.writeFile(path.join(root, 'outside.txt'), 'outside\n');
+  await fs.writeFile(path.join(nested, 'edited.txt'), 'edited\n');
+  await fs.writeFile(path.join(nested, 'old name.txt'), 'renamed\n');
+  await git(root, 'add', '.'); await git(root, 'commit', '-m', 'baseline');
+  await git(root, 'branch', 'base');
+  await git(root, 'checkout', '-b', 'feature/badges');
+  await git(root, 'branch', '--set-upstream-to=base');
+  await fs.writeFile(path.join(nested, 'ahead.txt'), 'ahead\n');
+  await git(root, 'add', '.'); await git(root, 'commit', '-m', 'ahead');
+  const project = await addProject(nested);
+  expect(await readProjectGitSummary(project.id)).toEqual({
+    projectId: project.id, state: 'ready', branch: 'feature/badges', changes: 0, truncated: false,
+    upstream: { label: 'base', ahead: 1, behind: 0 }
+  });
+
+  // Three changed paths inside the project; a rename counts once and the edit outside not at all.
+  await fs.writeFile(path.join(root, 'outside.txt'), 'changed outside\n');
+  await fs.writeFile(path.join(nested, 'edited.txt'), 'changed\n');
+  await git(root, 'mv', 'packages/app/old name.txt', 'packages/app/new name.txt');
+  await fs.writeFile(path.join(nested, 'untracked.txt'), 'new\n');
+  const { stdout: tree } = await exec('git', ['rev-parse', 'base^{tree}'], { cwd: root });
+  const { stdout: behind } = await exec('git', ['commit-tree', tree.trim(), '-p', 'base', '-m', 'behind'], { cwd: root });
+  await git(root, 'update-ref', 'refs/heads/base', behind.trim());
+  expect(await readProjectGitSummary(project.id)).toMatchObject({
+    state: 'ready', branch: 'feature/badges', changes: 3, upstream: { label: 'base', ahead: 1, behind: 1 }
+  });
+
+  const { stdout: head } = await exec('git', ['rev-parse', 'HEAD'], { cwd: root });
+  await git(root, 'checkout', '--detach');
+  const detached = await readProjectGitSummary(project.id);
+  expect(detached).toMatchObject({ state: 'ready', branch: head.trim().slice(0, 8), changes: 3 });
+  expect(detached.upstream).toBeUndefined();
+
+  const plainRoot = path.join(approved, 'plain');
+  await fs.mkdir(plainRoot);
+  const plain = await addProject(plainRoot);
+  expect(await readProjectGitSummary(plain.id)).toEqual({ projectId: plain.id, state: 'not-repository', changes: 0, truncated: false });
 });
