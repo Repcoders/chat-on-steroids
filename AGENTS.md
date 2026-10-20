@@ -1298,6 +1298,13 @@ prevent a late spawn after close. IPC accepts only the current main-frame sender
 named requests. Output pauses at 256 KiB until xterm parser acknowledgements drain it; scrollback
 is limited to 5,000 lines and queued input to 256 KiB. Ctrl+C interrupts unless copying a selection;
 Ctrl+Shift+C copies. Native terminal escape handling stays in xterm, not HTML rendering.
+In a local project's tab, `renderer/terminal-file-links.ts` links `path:line[:column]` and
+`path(line,column)` locations in the output. Relative paths resolve against the tab's starting
+project cwd (a later `cd` is not tracked); an absolute path links only inside that cwd, and `..`
+may not climb out. Ctrl+click (⌘+click on macOS) opens the file in Files at that line through
+`previewProjectFile`, which still enforces project containment. Files shows the selected chat's
+project, so a link from another project's shell only says which project to switch to. Server
+projects and projectless shells have no links.
 Appearance application refreshes all existing xterm palettes, including hidden tabs, from the
 current page/ink tokens without recreating shells; cursor colors follow the same palette.
 `scripts/verify-workspace-terminal.cjs` tests real Electron/PTY input, cwd/environment persistence,

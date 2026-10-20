@@ -292,6 +292,8 @@ export function createFilePanel(options: FilePanelOptions) {
   let generation = 0;
   let selection: Selection = { path: '', kind: 'root' };
   let previewPath: string | null = null;
+  /** The line a terminal link asked for, shown once that file's code surface is mounted. */
+  let lineTarget: { path: string; line: number; column: number } | null = null;
   let previewValue: ProjectFilePreview | null = null;
   let renderedPreview: ProjectFilePreview | null = null;
   let pendingCodePreview: ProjectFilePreview | null = null;
@@ -608,7 +610,8 @@ export function createFilePanel(options: FilePanelOptions) {
     if (!listings.has(entry.path)) await loadDirectory(entry.path);
   }
 
-  async function selectFile(entry: ProjectFileEntry): Promise<void> {
+  async function selectFile(entry: ProjectFileEntry, at: { line: number; column: number } | null = null): Promise<void> {
+    lineTarget = at && { path: entry.path, ...at };
     if (entry.path === editingPath) return;
     if (editingPath) {
       if (!(await leaveEditorIfNeeded())) return;
@@ -951,6 +954,28 @@ export function createFilePanel(options: FilePanelOptions) {
     languageLabel.textContent = created.language;
     publish();
     codeViewer = created;
+    revealLineTarget();
+  }
+
+  function revealLineTarget(): void {
+    const target = lineTarget;
+    if (!target || previewPath !== target.path) return;
+    // Wait for a mount still in flight rather than moving the viewer it replaces.
+    const surface = editingPath === target.path ? codeEditor
+      : !pendingCodePreview && renderedPreview?.path === target.path ? codeViewer : null;
+    if (!surface) return;
+    lineTarget = null;
+    surface.goTo(target.line, target.column);
+  }
+
+  /** Opens a project file in Files with one line in view, as a terminal file link asks. */
+  async function openFileAt(projectId: string, relative: string, line: number, column: number): Promise<boolean> {
+    if (options.reviewOnly || mode !== 'files' || project?.id !== projectId) return false;
+    if (pane.hidden) await show(false);
+    if (project?.id !== projectId || mode !== 'files') return false;
+    await selectFile({ name: baseName(relative), path: relative, kind: 'file', bytes: null }, { line, column });
+    revealLineTarget();
+    return previewPath === relative;
   }
 
   async function mountPdfViewer(value: ProjectFilePreview & { pdfDataBase64: string }, host: HTMLElement, revision: string): Promise<void> {
@@ -1650,6 +1675,7 @@ export function createFilePanel(options: FilePanelOptions) {
     show,
     mountAt(parent: HTMLElement): void { if (pane.parentElement !== parent) parent.append(pane); },
     openReview,
+    openFileAt,
     visible: () => !pane.hidden,
     update(next: LocalProject | null): void {
       const changed = project?.id !== next?.id;

@@ -6,6 +6,8 @@ import { t, ui } from './i18n.js';
 import { onAppearanceChanged } from './appearance.js';
 import { enableTabReorder, reorderKey } from './tab-reorder.js';
 import type { LocalProject } from '../shared/projects.js';
+import { isMac } from './shortcuts.js';
+import { terminalFileLinkProvider, type TerminalFileLink } from './terminal-file-links.js';
 
 type Tab = { id: string; title: string; node: HTMLElement; term: Terminal; fit: FitAddon; ready: boolean; exited: boolean; queued: number; writes: Promise<void> };
 export type WorkspaceTerminalTab = { id: string; title: string; exited: boolean };
@@ -13,7 +15,8 @@ export type WorkspaceTerminalTab = { id: string; title: string; exited: boolean 
 /** A hidden panel retains its shells; each dock owns only the tabs it created. */
 export function createWorkspaceTerminal(onToggleBottom: () => void, initialMount: HTMLElement,
   options: { id?: string; onEmpty?: () => void; onClosePanel?: () => void;
-    dockedTabs?: boolean; onTabsChanged?: () => void } = {}) {
+    dockedTabs?: boolean; onTabsChanged?: () => void;
+    onOpenFile?: (project: LocalProject, link: TerminalFileLink) => void } = {}) {
   const app = document.querySelector<HTMLElement>('.app')!;
   const panel = el('section', 'workspace-terminal'); panel.id = options.id ?? 'workspaceTerminal'; panel.hidden = true;
   ui(panel, 'aria-label', () => t('Terminal'));
@@ -131,7 +134,15 @@ export function createWorkspaceTerminal(onToggleBottom: () => void, initialMount
       const result = await window.api.terminalCreate(id, scope?.id ?? null, Math.min(500, term.cols), Math.min(200, term.rows));
       if (!tabs.has(id)) { void window.api.terminalClose(id); return; }
       if (!result.ok) { tab.exited = true; term.writeln(`\r\n${result.error}`); }
-      else { tab.ready = true; tab.title = scope ? `${scope.name} · ${result.data.shell}` : result.data.shell; node.title = result.data.cwd; }
+      else {
+        tab.ready = true; tab.title = scope ? `${scope.name} · ${result.data.shell}` : result.data.shell; node.title = result.data.cwd;
+        // Locations in the output open in Files. A server project's paths are not on this disk.
+        const openFile = options.onOpenFile, cwd = result.data.cwd;
+        if (scope && !scope.remote && openFile) term.registerLinkProvider(terminalFileLinkProvider(term, cwd, {
+          open: link => openFile(scope, link),
+          hover: over => { node.title = over ? t('{0}+click to open in Files', [isMac() ? '⌘' : t('Ctrl')]) : cwd; }
+        }));
+      }
       paint(); fit(); options.onTabsChanged?.(); if (open && selected === id) term.focus();
     })();
     return id;

@@ -8,16 +8,17 @@ import type { ProjectDirectoryListing, ProjectFilePreview, ProjectFilesChanged }
 import type { ProjectGitChanged, ProjectGitDiff, ProjectGitSnapshot } from '../src/shared/project-git.js';
 
 const createPdfViewer = vi.hoisted(() => vi.fn());
-const codeMount = vi.hoisted(() => ({ wait: null as Promise<void> | null, calls: 0 }));
+const codeMount = vi.hoisted(() => ({ wait: null as Promise<void> | null, calls: 0, jumps: [] as Array<[string, number, number | undefined]> }));
 vi.mock('../src/renderer/file-pdf-viewer.js', () => ({ createProjectPdfViewer: createPdfViewer }));
 vi.mock('../src/renderer/file-code-editor.js', () => ({
-  createProjectCodeEditor: async (options: { parent: HTMLElement; text: string; onChange?: (text: string) => void }) => {
+  createProjectCodeEditor: async (options: { parent: HTMLElement; filename: string; text: string; onChange?: (text: string) => void }) => {
     codeMount.calls++;
     if (codeMount.wait) await codeMount.wait;
     const input = document.createElement('textarea'); input.className = 'test-code-input'; input.value = options.text;
     options.parent.append(input);
     input.addEventListener('input', () => options.onChange?.(input.value));
-    return { getValue: () => input.value, focus: () => input.focus(), destroy: () => input.remove(), language: 'Plain text' };
+    return { getValue: () => input.value, focus: () => input.focus(), destroy: () => input.remove(), language: 'Plain text',
+      goTo: (line: number, column?: number) => { codeMount.jumps.push([options.filename, line, column]); } };
   },
   createProjectDiffViewer: async (options: { parent: HTMLElement; baseText: string; currentText: string }) => {
     const view = document.createElement('pre');
@@ -94,7 +95,7 @@ it('rearms a lost watch without resending watches for ordinary file changes or a
 });
 
 beforeEach(() => {
-  codeMount.wait = null; codeMount.calls = 0;
+  codeMount.wait = null; codeMount.calls = 0; codeMount.jumps = [];
   dom = new JSDOM('<body><section id="host"></section><button id="toggle"></button></body>', { url: 'https://cos.local/' });
   vi.stubGlobal('window', dom.window);
   vi.stubGlobal('document', dom.window.document);
@@ -599,6 +600,27 @@ it('previews and attaches a selected project file without exposing a native path
   expect((window.api.attachProjectFile as any)).toHaveBeenCalledWith(projectA.id, 'README.md');
   expect(attached).toEqual(['README.md']);
   expect(JSON.stringify((window.api.attachProjectFile as any).mock.calls)).not.toContain('C:\\alpha');
+});
+
+it('opens a terminal file link in Files at its line, and only for the project Files shows', async () => {
+  vi.mocked(window.api.previewProjectFile).mockImplementation((_projectId: string, path: string) =>
+    ok({ ...preview, path, name: path.split('/').at(-1)!, text: 'one\ntwo\n' }));
+  const onShow = vi.fn();
+  const panel = createFilePanel({ host, mount: host, onShow });
+  panel.update(projectA);
+  await expect(panel.openFileAt(projectB.id, 'src/main.ts', 42, 7)).resolves.toBe(false);
+  expect(window.api.previewProjectFile).not.toHaveBeenCalled();
+
+  await expect(panel.openFileAt(projectA.id, 'src/main.ts', 42, 7)).resolves.toBe(true);
+  await tick();
+  expect(onShow).toHaveBeenCalledOnce();
+  expect(window.api.previewProjectFile).toHaveBeenCalledWith(projectA.id, 'src/main.ts');
+  expect(codeMount.jumps).toEqual([['main.ts', 42, 7]]);
+
+  // The file already on screen moves to the new line without a second mount.
+  await panel.openFileAt(projectA.id, 'src/main.ts', 3, 1); await tick();
+  expect(codeMount.calls).toBe(1);
+  expect(codeMount.jumps).toEqual([['main.ts', 42, 7], ['main.ts', 3, 1]]);
 });
 
 it('uses the file name as the title and its relative path as metadata in file and diff previews', async () => {
