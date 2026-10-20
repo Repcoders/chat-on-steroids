@@ -73,7 +73,9 @@ it('measures an older config against the fresh-install default and says so', () 
   paintSettingDefaults(older, fresh(), view.doc);
   expect(changedSettings(older, fresh())).toEqual(['autoContinue', 'autoRefreshPlugins']);
   expect(view.reset('autoRefreshPlugins')!.title).toBe('Reset to the default for new installs');
-  expect(view.reset('autoRefreshPlugins')!.getAttribute('aria-label')).toBe('Reset to the default for new installs');
+  // Both resets show at once, so each names the setting it resets.
+  expect(view.reset('autoRefreshPlugins')!.getAttribute('aria-label')).toBe('Reset Automatic plugin refresh to the default for new installs');
+  expect(view.reset('autoContinue')!.getAttribute('aria-label')).toBe('Reset Automatically recover unfinished answers to the default for new installs');
   view.reset('autoRefreshPlugins')!.click();
   expect(view.control<HTMLInputElement>('autoRefreshPlugins').checked).toBe(true);
 });

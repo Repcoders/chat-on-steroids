@@ -66,7 +66,10 @@ function resetButton(row: HTMLElement, control: Control, value: Shown): HTMLButt
     button.className = 'btn setting-reset';
     button.append(icon('i-zoom-reset'));
     ui(button, 'title', () => t('Reset to the default for new installs'));
-    ui(button, 'aria-label', () => t('Reset to the default for new installs'));
+    // Several rows can show one at once, so each says which setting it resets. The name is read when
+    // the label is (re)written, after a language change has translated the row's own text.
+    const name = row.querySelector('.setting-text > b');
+    ui(button, 'aria-label', () => t('Reset {0} to the default for new installs', [name?.textContent?.replace(/\s+/g, ' ').trim() ?? '']));
     // After the control: a row that is a <label> names its first labelable descendant.
     row.append(button);
   }
