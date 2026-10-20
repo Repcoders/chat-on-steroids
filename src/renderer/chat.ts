@@ -180,7 +180,7 @@ function rowMenuButton(owner: string): HTMLElement | null {
 const savingProjectColor = new Set<string>();
 const removingProject = new Set<string>();
 
-/** A project's menu: its color (a submenu) and taking it off the sidebar. A new chat has its own button on the row. */
+/** A project's menu: its color (a submenu), blocking its chats and taking it off the sidebar. A new chat has its own button on the row. */
 function projectMenuItems(id: string): RowMenuItem[] {
   const color = projects.find(row => row.id === id)?.color ?? null;
   const link = projects.find(row => row.id === id)?.chatgpt;
@@ -201,12 +201,86 @@ function projectMenuItems(id: string): RowMenuItem[] {
         label: () => choice ? projectColorName(choice) : t('None'), run: () => void saveProjectColor(id, choice)
       }))
     },
+    // Each chat's own Block, pressed for every chat the project holds now. A block belongs to a
+    // ChatGPT conversation, so a chat started in the project later is not blocked, and the item says so.
+    {
+      action: 'block-project', icon: 'i-ban', separated: true, disabled: blockingProject.has(id),
+      label: () => t('Block all chats'),
+      title: () => t('Block every chat in this project: their tool calls are refused. Chats started later are not blocked.'),
+      run: () => void setProjectChatsBlocked(id, true)
+    },
+    ...(projectMayHoldBlockedChat(id) ? [{
+      action: 'release-project', icon: 'i-play', disabled: blockingProject.has(id),
+      label: () => t('Release all chats'), title: () => t("Release this project's blocked chats: their tool calls run again"),
+      run: () => void setProjectChatsBlocked(id, false)
+    } satisfies RowMenuItem] : []),
     {
       action: 'remove', icon: 'i-trash', danger: true, separated: true, disabled: removingProject.has(id),
       label: () => t('Remove'), title: () => t('Remove project from sidebar; keep conversations and files'),
       run: () => void removeProjectFromSidebar(id)
     }
   ];
+}
+
+/**
+ * Whether Release all chats has something to release: a held row of the project is blocked, or,
+ * while part of its history is unread, a block belongs to a conversation no held row carries.
+ */
+function projectMayHoldBlockedChat(id: string): boolean {
+  if (sessions.some(entry => entry.projectId === id && chatToolPolicy(entry) === 'blocked')) return true;
+  const history = projectHistory.get(id);
+  if (history?.asked && !history.cursor) return false;
+  const held = new Set(sessions.flatMap(entry => entry.chatIds));
+  return [...blockedChats].some(conversationId => !held.has(conversationId));
+}
+
+const blockingProject = new Set<string>();
+/**
+ * Blocks every chat of the project, or releases its blocked ones, through each chat's own
+ * `sessions:block`: no project-wide policy is stored. The project's whole history is read first,
+ * so a chat on an older page is included, and its rows join the sidebar as expanding it does.
+ * Block gives each chat its own block, also one that only inherits a block from an earlier chat,
+ * so releasing that earlier chat later does not release it.
+ */
+async function setProjectChatsBlocked(id: string, blocked: boolean): Promise<void> {
+  if (blockingProject.has(id)) return;
+  blockingProject.add(id);
+  try {
+    const chats: SessionSummary[] = [];
+    const read: { cursor: { updatedAt: number; id: string } | null } = { cursor: null };
+    do {
+      const page = await run(api.listSessions({ projectId: id, limit: SESSION_PAGE_SIZE, ...(read.cursor ? { cursor: read.cursor } : {}) }));
+      if (!page) return;
+      chats.push(...page.sessions);
+      blockedChats = new Set(page.blocked);
+      trustedChats = new Set(page.trusted ?? []);
+      read.cursor = page.nextCursor ?? null;
+    } while (read.cursor);
+    mergeSessionRows(chats);
+    loadedOlderSessions = true;
+    const history = projectHistory.get(id) ?? { cursor: null, asked: false, loading: false };
+    history.asked = true;
+    history.cursor = null;
+    history.failed = false;
+    projectHistory.set(id, history);
+    const targets = chats.filter(entry => !!entry.conversationId &&
+      (blocked ? !blockedChats.has(entry.conversationId) : chatToolPolicy(entry) === 'blocked'));
+    let changed = 0;
+    for (const entry of targets) {
+      const reply = await api.setSessionBlocked(entry.id, blocked);
+      if (!reply.ok) continue;
+      blockedChats = new Set(reply.data);
+      changed++;
+    }
+    paintSessions();
+    const failed = targets.length - changed;
+    const done = !targets.length
+      ? (blocked ? t('No unblocked chats in this project') : t('No blocked chats in this project'))
+      : blocked
+        ? tn('Blocked {0} chat. Chats started later are not blocked.', 'Blocked {0} chats. Chats started later are not blocked.', changed)
+        : tn('Released {0} chat.', 'Released {0} chats.', changed);
+    toast(failed ? `${done} ${tn('{0} could not be changed.', '{0} could not be changed.', failed)}` : done);
+  } finally { blockingProject.delete(id); }
 }
 
 const retryingChatgptProject = new Set<string>();
@@ -778,6 +852,26 @@ function unattributedBlocked(): boolean {
 }
 
 /**
+ * The Block or Trust that decides a chat's tool calls, as its menu offers Release or Untrust.
+ *
+ * Mirrors main's exact decision order for presentation: exact Block wins; in strict mode an
+ * exact Trust wins before inherited lineage, then each committed predecessor is considered
+ * nearest-first with Block ahead of Trust. An older policy hidden behind a nearer decision is
+ * not the current effective state and must not paint a row inconsistently with the kernel.
+ */
+function chatToolPolicy(summary: SessionSummary): 'blocked' | 'trusted' | null {
+  if (!summary.conversationId) return null;
+  if (blockedChats.has(summary.conversationId)) return 'blocked';
+  if (deps.state()?.config.multiAgent?.strictChatAllowlist !== true) return null;
+  if (trustedChats.has(summary.conversationId)) return 'trusted';
+  for (const conversationId of committedResumeAncestorsFromSummary(summary, summary.conversationId)) {
+    if (blockedChats.has(conversationId)) return 'blocked';
+    if (trustedChats.has(conversationId)) return 'trusted';
+  }
+  return null;
+}
+
+/**
  * A sub-agent in the words of its parent's summary, read from the badges its own row draws:
  * needing the person (blocked or failed), running, or sleeping; null once it has finished.
  */
@@ -947,26 +1041,8 @@ function sessionRow(summary: SessionSummary): HTMLElement {
       });
     }
   } else {
-    const policyLineage = [
-      summary.conversationId,
-      ...committedResumeAncestorsFromSummary(summary, summary.conversationId)
-    ];
     const strictAllowlist = deps.state()?.config.multiAgent?.strictChatAllowlist === true;
-    // Mirror main's exact decision order for presentation: exact Block wins; in strict mode an
-    // exact Trust wins before inherited lineage, then each committed predecessor is considered
-    // nearest-first with Block ahead of Trust. An older policy hidden behind a nearer decision is
-    // not the current effective state and must not paint this row inconsistently with the kernel.
-    let effectivePolicy: 'blocked' | 'trusted' | null = blockedChats.has(summary.conversationId)
-      ? 'blocked'
-      : strictAllowlist && trustedChats.has(summary.conversationId)
-        ? 'trusted'
-        : null;
-    if (strictAllowlist && effectivePolicy === null) {
-      for (const conversationId of policyLineage.slice(1)) {
-        if (blockedChats.has(conversationId)) { effectivePolicy = 'blocked'; break; }
-        if (trustedChats.has(conversationId)) { effectivePolicy = 'trusted'; break; }
-      }
-    }
+    const effectivePolicy = chatToolPolicy(summary);
     items.push(
       { action: 'rename', icon: 'i-pencil', label: () => t('Rename'), title: () => t("Rename this chat in the app. Its title in ChatGPT stays the same."), run: () => startRename(summary) },
       { action: 'open', icon: 'i-out', label: () => t('Open in browser'), title: () => t("Open this chat in your browser"), run: () => void run(api.openSessionChat(summary.id)) },
