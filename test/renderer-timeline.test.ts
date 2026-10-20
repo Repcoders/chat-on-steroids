@@ -6408,6 +6408,25 @@ describe('answer links', () => {
     expect(w.document.querySelector('#timeline .is-search-hit')?.textContent).toContain('Tag first, then build.');
   });
 
+  it('lets the newest link win when an older one is still reading its chat', async () => {
+    const other = { ...summary([]), id: '2026-10-17-other001', title: 'Other chat' };
+    const { w, openAnswerLink } = await boot([ask, reply(), end], false, [], [], { sessions: [other] });
+    const api = (w as any).api;
+    const getSession = api.getSession;
+    let release!: () => void;
+    const held = new Promise<void>(resolve => { release = resolve; });
+    api.getSession = vi.fn(async (...args: unknown[]) => { await held; return getSession(...args); });
+    api.locateMessage = vi.fn(async () => ({ ok: true, data: { seq: 2, kind: 'assistant_message', messageId: replyId, position: 2 } }));
+    const linked = summary([]).id;
+    // The first link points at a chat the sidebar has not loaded; the second opens while it is read.
+    openAnswerLink({ sessionId: linked, messageId: replyId }); await settle();
+    openAnswerLink({ sessionId: other.id, messageId: replyId }); await settle(); await settle();
+    release(); await settle(); await settle();
+    expect(w.document.querySelector(`.sess.is-sel[data-id="${other.id}"]`)).not.toBeNull();
+    expect(api.locateMessage).not.toHaveBeenCalledWith(linked, replyId);
+    expect(api.locateMessage).toHaveBeenCalledWith(other.id, replyId);
+  });
+
   it('keeps the sidebar paging when a link opened the app before its first page arrived', async () => {
     const newest = { ...summary([]), updatedAt: T0 + 2 };
     const older = { ...summary([]), id: '2026-10-17-older001', title: 'Older chat', updatedAt: T0 + 1 };
