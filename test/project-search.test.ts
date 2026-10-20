@@ -79,6 +79,13 @@ it('runs one search at a time: a new query or Stop cancels the running one', asy
   expect((await third).stoppedBecause).toBe('cancelled');
 });
 
+it('says a regular expression ripgrep cannot read is the problem, and only for a regex search', async () => {
+  await writeTree(projectPath, { 'a.txt': 'needle (\n' });
+  const project = await addProject(projectPath);
+  await expect(searchProject(query(project.id, '(', { regex: true }))).rejects.toThrow('The search failed. Check the regular expression.');
+  expect((await searchProject(query(project.id, '(', { regex: false }))).hits.map(hit => hit.line)).toEqual([1]);
+});
+
 it('refuses a project id that is not a known project', async () => {
   await expect(searchProject(query('33333333-3333-4333-8333-333333333333', 'needle'))).rejects.toThrow(/not found/i);
 });

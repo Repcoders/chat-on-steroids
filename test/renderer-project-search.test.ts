@@ -99,7 +99,7 @@ it('drops a reply for a project that is no longer open, and cancels its search',
   expect(mount.querySelector('.project-search-status')?.textContent).toBe('');
 });
 
-it('tells the user to narrow a search that hit the result cap, and explains a failed regex', async () => {
+it('tells the user to narrow a search that hit the result cap, and shows why a search failed', async () => {
   const hits = Array.from({ length: 500 }, (_, index) => ({ path: 'big.txt', line: index + 1, text: 'needle' }));
   vi.mocked(window.api.searchProject).mockReturnValueOnce(ok({ projectId: project.id, filesScanned: 9, stoppedBecause: 'limit', hits }));
   const panel = createProjectSearchPanel({ mount, onOpen: vi.fn() });
@@ -107,10 +107,15 @@ it('tells the user to narrow a search that hit the result cap, and explains a fa
   search('needle');
   await tick();
   expect(mount.querySelector('.project-search-status')?.textContent).toBe('Showing the first 500 matches. Narrow the search to see the rest.');
-  vi.mocked(window.api.searchProject).mockResolvedValueOnce({ ok: false, error: 'ripgrep search failed (exit 2)' });
+  vi.mocked(window.api.searchProject).mockResolvedValueOnce({ ok: false, error: 'The search failed. Check the regular expression.' });
   mount.querySelectorAll<HTMLButtonElement>('.project-search-toggle')[1]!.click();
   await tick();
   expect(window.api.searchProject).toHaveBeenLastCalledWith(expect.objectContaining({ regex: true }));
   expect(mount.querySelector('.project-search-status')?.textContent).toBe('The search failed. Check the regular expression.');
   expect(mount.querySelectorAll('.project-search-hit')).toHaveLength(0);
+  // With regex on, a failure that has nothing to do with the pattern still says what it is.
+  vi.mocked(window.api.searchProject).mockResolvedValueOnce({ ok: false, error: 'Project not found' });
+  search('needle');
+  await tick();
+  expect(mount.querySelector('.project-search-status')?.textContent).toBe('Project not found');
 });

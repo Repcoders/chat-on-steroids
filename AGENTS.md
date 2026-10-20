@@ -1282,7 +1282,7 @@ project is selected, main chooses the OS user's home directory as the initial cw
 does not supply a path. Selecting a project later does not retarget that shell. The bottom
 header's X hides the dock but preserves its shells.
 The bottom `+` menu opens another bottom shell. On the right, each shell is one dock tab
-alongside Files, Review and Sub-agents; there is no nested Terminal tab bar. The right
+alongside Files, Review, Search and Sub-agents; there is no nested Terminal tab bar. The right
 `+` menu creates a new shell tab, while the Terminal quick action/shortcut selects an
 existing right shell or creates one if none exists. Closing a right shell tab retires that
 exact PTY; hiding either dock preserves its PTYs. Closing the last bottom terminal tab
@@ -4477,7 +4477,7 @@ The Files panel projects the current session's LocalProject through fixed IPC us
 UUID and relative paths. It does not change the main composer or grant additional filesystem
 access. Main re-resolves current approved roots and rejects traversal, symbolic links/junctions
 and project-root mutation. The renderer's `workspace-docks.ts` owns the right tool dock and
-bottom terminal dock; Files, Review, Sub-agents and each Terminal view retain their own content
+bottom terminal dock; Files, Review, Search, Sub-agents and each Terminal view retain their own content
 and async lifetimes. Closing the right dock hides its active tool but retains its tab selection.
 Every dock track change (right column, bottom row) goes through `moveWorkDock`, which animates
 resolved pixel tracks (CSS keeps the resting layout). Open/close slide the content whole at its
@@ -4488,7 +4488,7 @@ and bottom-terminal tabs share one pill layout with a truncating `.tab-label`, a
 pointer drag or Ctrl+Shift+Left/Right; the owner's order stays authoritative. Selecting a tab
 updates the existing pills; only tab, order or title changes rebuild them.
 The right dock has launcher shortcuts, tool tabs and a `+` tool menu. Its Files, Review,
-Sub-agents and Terminal actions open right tabs; repeated Terminal `+` actions add a shell there.
+Search, Sub-agents and Terminal actions open right tabs; repeated Terminal `+` actions add a shell there.
 With no tabs, the right dock shows only launcher shortcuts; its tab bar and `+` stay hidden.
 The `+` popover must receive real pointer input above any active tool header.
 The bottom dock has no generic shortcut screen or second tool tab strip; Terminal owns its own
@@ -4555,17 +4555,6 @@ checkout or push authority. Review projects `M/A/D/R/U`, plus `C` for every unme
 file missing from the worktree diffs as empty. It also projects ancestor-folder markers and
 bounded unified diffs; Files may open it from its toolbar. Files and Review are alternate right
 tabs; Review does not add a second file watcher or expose file-write actions.
-Search (`project-search.ts` both sides, fifth right-dock action, Ctrl+Shift+5) is a read-only text
-search over the selected project on this computer. `projectFiles:search` takes the project UUID,
-the query, one include glob, extra folder names to exclude and the case/regex switches, resolves
-the root through `projectFileTarget` and runs the shared `search()` with the bundled ripgrep:
-`DEFAULT_EXCLUDES`, the tree's `.gitignore`/`.ignore` files (`respectIgnore`, no Git repository
-required; the JS fallback without ripgrep cannot read them), no link following, 500 hits, the
-usual 10 s budget. One search runs at a time; a new query or `projectFiles:cancelSearch` aborts the
-running one, which answers with its hits so far and `stoppedBecause: 'cancelled'`. Hits are
-project-relative paths and 1-based lines. Opening one calls Files' `openFile`, which unfolds its
-folders, previews the file through the normal `projectFiles:preview` route and selects that line.
-A project in a server folder is refused, as `projectFileTarget` refuses it.
 Review also identifies the checked-out branch and offers a searchable, read-only comparison
 against locally known branch refs. Selecting a ref never switches branches or fetches remote
 data. The comparison shows committed changes from the selected ref's merge base to current
@@ -4589,6 +4578,18 @@ only the bounded viewport. Unavailable reads reset lazy-load admission so closin
 retries, while a pending or successful read remains single-flight/cached. Inline syntax uses the
 file viewer's palette in the selected theme; dark overrides are scoped to dark mode for both
 surfaces. The existing Review dock remains available.
+
+Search (`project-search.ts` both sides, fifth right-dock action, Ctrl+Shift+5) is a read-only text
+search over the selected project on this computer. `projectFiles:search` takes the project UUID,
+the query, one include glob, extra folder names to exclude and the case/regex switches, resolves
+the root through `projectFileTarget` and runs the shared `search()` with the bundled ripgrep:
+`DEFAULT_EXCLUDES`, the tree's `.gitignore`/`.ignore` files (`respectIgnore`, no Git repository
+required; the JS fallback without ripgrep cannot read them), no link following, 500 hits, the
+usual 10 s budget. One search runs at a time; a new query or `projectFiles:cancelSearch` aborts the
+running one, which answers with its hits so far and `stoppedBecause: 'cancelled'`. Hits are
+project-relative paths and 1-based lines. Opening one calls Files' `openFile`, which unfolds its
+folders, previews the file through the normal `projectFiles:preview` route and selects that line.
+A project in a server folder is refused, as `projectFileTarget` refuses it.
 
 Unchanged session/directory updates preserve preview DOM and pending code loads. File reads keep
 the previous accepted preview until replacement content is ready; hidden previews stay hidden.

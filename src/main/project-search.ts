@@ -39,6 +39,13 @@ export async function searchProject(query: ProjectSearchQuery): Promise<ProjectS
       filesScanned: outcome.filesScanned,
       stoppedBecause: outcome.stoppedBecause
     };
+  } catch (error) {
+    // ripgrep exits 2 on a pattern it cannot parse, and search() keeps its stderr out of the
+    // message. With regex off the query is a fixed string, so the same exit is something else.
+    if (query.regex && error instanceof Error && error.message.startsWith('ripgrep search failed')) {
+      throw new Error('The search failed. Check the regular expression.');
+    }
+    throw error;
   } finally {
     if (running === controller) running = null;
   }

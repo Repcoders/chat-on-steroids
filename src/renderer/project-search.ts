@@ -153,7 +153,7 @@ export function createProjectSearchPanel(options: ProjectSearchOptions) {
     if (!reply.ok) {
       results.replaceChildren();
       const message = reply.error;
-      setStatus(() => isRegex ? t('The search failed. Check the regular expression.') : t(message));
+      setStatus(() => t(message));
       return;
     }
     paint(reply.data, caseSensitive, isRegex, needle);
