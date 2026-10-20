@@ -156,6 +156,20 @@
 .plugin-dialog-head .btn { color: var(--soft); }
 .plugin-dialog-body { padding: 24px; font-size: calc(13px * var(--text-scale, 1)); line-height: 1.6; }
 .plugin-dialog-body > p:first-child { margin-top: 0; }
+.project-home-facts { display: grid; gap: 6px; }
+.project-home-fact { display: flex; align-items: center; gap: 8px; min-width: 0; margin: 0; color: var(--soft); }
+.project-home-fact > .ico { flex: none; color: var(--faint); }
+.project-home-path, .project-home-branch { min-width: 0; overflow: hidden; color: var(--ink); font-family: var(--mono); font-size: calc(12px * var(--text-scale, 1)); text-overflow: ellipsis; white-space: nowrap; }
+.project-home-branch { flex: 0 1 auto; }
+.project-home-changes { flex: none; }
+.project-home-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 22px; }
+.project-home-heading { margin: 0 0 6px; color: var(--soft); font-size: calc(11.5px * var(--text-scale, 1)); font-weight: 550; }
+.project-home-chats { display: grid; margin: 0; padding: 0; list-style: none; }
+.project-home-chat { display: flex; align-items: baseline; gap: 12px; min-width: 0; padding: 7px 0; border-top: 1px solid var(--line); }
+.project-home-chat-title { flex: 1 1 auto; min-width: 0; padding: 0; overflow: hidden; color: var(--ink); background: none; border: 0; font: inherit; text-align: start; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.project-home-chat-title:hover { text-decoration: underline; }
+.project-home-chat-meta { flex: none; color: var(--faint); font-size: calc(11.5px * var(--text-scale, 1)); }
+.project-home-empty { margin: 0; color: var(--soft); }
 .plugin-detail-hero, .plugin-card-head { display: flex; align-items: center; gap: 17px; margin-bottom: 20px; }
 .plugin-detail-hero .plugin-icon { width: 60px; height: 60px; border-radius: 16px; }
 .plugin-detail-hero p, .plugin-card-head p { margin: 0; color: var(--soft); line-height: 1.6; }

@@ -1836,10 +1836,11 @@ it('offers a new chat beside a project\'s menu, and its color as a submenu and r
   expect(button.getAttribute('aria-expanded')).toBe('true');
   const menu = w.document.querySelector<HTMLElement>('.row-menu')!;
   expect(menu.getAttribute('role')).toBe('menu');
-  expect([...menu.querySelectorAll<HTMLElement>('.row-menu-item')].map(item => item.dataset.rowAction)).toEqual(['color', 'remove']);
+  expect([...menu.querySelectorAll<HTMLElement>('.row-menu-item')].map(item => item.dataset.rowAction)).toEqual(['home', 'color', 'remove']);
   expect(menuItem(w, 'remove').classList.contains('is-danger')).toBe(true);
-  expect(w.document.activeElement).toBe(menuItem(w, 'color'));
+  expect(w.document.activeElement).toBe(menuItem(w, 'home'));
   // Keyboard: Down and Up move, Right opens the color submenu on the current choice, Left comes back.
+  menu.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
   menu.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
   expect(w.document.activeElement).toBe(menuItem(w, 'remove'));
   menu.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
@@ -1865,6 +1866,27 @@ it('offers a new chat beside a project\'s menu, and its color as a submenu and r
   expect(projectMenu(w, project.id) && menuItem(w, 'new-chat')).toBeNull();
   w.document.body.dispatchEvent(new w.Event('pointerdown', { bubbles: true }));
   (w.document.querySelector(`.project-heading > [data-new-project="${project.id}"]`) as HTMLButtonElement).click(); await settle();
+  expect((w.document.getElementById('chatInput') as HTMLTextAreaElement).placeholder).toBe('Message in Workspace…');
+});
+
+it('opens a project\'s home from its menu with the branch, changes and chats, and starts a new chat there', async () => {
+  const project = { id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', name: 'Workspace', path: 'C:\\workspace\\primary', createdAt: 1 };
+  const { w } = await boot([], false, [], [project], { summary: { title: 'Placeholder project chat' } });
+  const api = (w as any).api;
+  api.getProjectGitSnapshot = vi.fn(async (id: string) => ({ ok: true, data: {
+    projectId: id, state: 'ready', truncated: false, revision: 'r', currentBranch: 'main',
+    changes: [{ status: 'M', path: 'src/a.ts', additions: 3, deletions: 1, binary: false }]
+  } }));
+  projectMenu(w, project.id); menuItem(w, 'home').click(); await settle();
+  const home = w.document.querySelector<HTMLDialogElement>('.project-home-dialog')!;
+  expect(home.open).toBe(true);
+  expect(api.getProjectGitSnapshot).toHaveBeenCalledWith(project.id);
+  expect(home.querySelector('#projectHomeTitle')!.textContent).toBe('Workspace');
+  expect(home.querySelector('.project-home-path')!.textContent).toBe('C:\\workspace\\primary');
+  expect(home.querySelector('.project-home-git')!.textContent).toBe('mainChanges (1)');
+  expect([...home.querySelectorAll('.project-home-chat-title')].map(node => node.textContent)).toEqual(['Placeholder project chat']);
+  (home.querySelector('[data-home-action="new-chat"]') as HTMLButtonElement).click(); await settle();
+  expect(w.document.querySelector('.project-home-dialog')).toBeNull();
   expect((w.document.getElementById('chatInput') as HTMLTextAreaElement).placeholder).toBe('Message in Workspace…');
 });
 
