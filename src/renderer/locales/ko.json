@@ -2777,5 +2777,18 @@
   "Chats sit under their project folders.": "채팅이 프로젝트 폴더 아래에 놓입니다.",
   "All chats in one list, active ones on top.": "모든 채팅을 한 목록에, 활성 채팅은 맨 위에.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "한 채팅이 동시에 실행할 수 있는 서브에이전트 채팅의 최대 수. 연결된 브라우저 확장 프로그램이 필요합니다.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "긴 작업은 도구 결과 직후 자동 계속으로 새 턴에서 이어집니다. 턴이 짧을수록 덜 끊깁니다. Goal 및 Loop 채팅에서도 사용됩니다. Pro 모델과 서브에이전트 자체 채팅에서는 사용되지 않습니다."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "긴 작업은 도구 결과 직후 자동 계속으로 새 턴에서 이어집니다. 턴이 짧을수록 덜 끊깁니다. Goal 및 Loop 채팅에서도 사용됩니다. Pro 모델과 서브에이전트 자체 채팅에서는 사용되지 않습니다.",
+  "Pin all": "모두 고정",
+  "Unpin all": "모두 고정 해제",
+  "Mark all as read": "모두 읽음으로 표시",
+  "Block all": "모두 차단",
+  "Release all": "모두 차단 해제",
+  "Remove all…": "모두 제거…",
+  "Clear selection": "선택 해제",
+  "Block these chats: every tool call they make is refused and they are told to stop": "이 채팅들 차단: 모든 도구 호출을 거부하고 중지하도록 알립니다",
+  "Release these chats: their tool calls run again": "이 채팅들 차단 해제: 도구 호출을 다시 실행합니다",
+  "Remove these chats and their saved histories from the app. The chats stay in ChatGPT.": "이 채팅들과 저장된 기록을 앱에서 제거합니다. 채팅은 ChatGPT에 남아 있습니다.",
+  "{0} chats selected": "채팅 {0}개 선택됨",
+  "Remove {0} chats from the app? Their saved histories are deleted. The chats stay in ChatGPT.": "채팅 {0}개를 앱에서 제거할까요? 저장된 기록이 삭제됩니다. 채팅은 ChatGPT에 남아 있습니다.",
+  "{0} chats removed from the app": "앱에서 채팅 {0}개를 제거했습니다"
 }

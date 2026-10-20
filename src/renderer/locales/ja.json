@@ -2777,5 +2777,18 @@
   "Chats sit under their project folders.": "チャットはプロジェクトのフォルダーの下に並びます。",
   "All chats in one list, active ones on top.": "すべてのチャットを 1 つのリストに。作業中のものが上に来ます。",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "1 つのチャットが同時に実行できるサブエージェントのチャットの上限。ブラウザー拡張機能の接続が必要です。",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "長い作業はツール結果の直後に、自動の「続ける」で新しいターンに引き継がれます。短いターンほど途切れにくくなります。ゴールとループのチャットでも使われます。Pro モデルとサブエージェント自身のチャットでは使われません。"
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "長い作業はツール結果の直後に、自動の「続ける」で新しいターンに引き継がれます。短いターンほど途切れにくくなります。ゴールとループのチャットでも使われます。Pro モデルとサブエージェント自身のチャットでは使われません。",
+  "Pin all": "すべてピン留め",
+  "Unpin all": "すべて固定を解除",
+  "Mark all as read": "すべて既読にする",
+  "Block all": "すべてブロック",
+  "Release all": "すべてブロックを解除",
+  "Remove all…": "すべて削除…",
+  "Clear selection": "選択を解除",
+  "Block these chats: every tool call they make is refused and they are told to stop": "これらのチャットをブロック：すべてのツール呼び出しを拒否し、停止を指示します",
+  "Release these chats: their tool calls run again": "これらのチャットのブロックを解除：ツール呼び出しを再び許可します",
+  "Remove these chats and their saved histories from the app. The chats stay in ChatGPT.": "これらのチャットと保存済みの履歴をアプリから削除します。チャットは ChatGPT に残ります。",
+  "{0} chats selected": "{0}件のチャットを選択中",
+  "Remove {0} chats from the app? Their saved histories are deleted. The chats stay in ChatGPT.": "{0}件のチャットをアプリから削除しますか？保存済みの履歴は削除されます。チャットは ChatGPT に残ります。",
+  "{0} chats removed from the app": "{0}件のチャットをアプリから削除しました"
 }

@@ -24,6 +24,7 @@ import { shownSessionTitle } from './session-title.js';
 import { preserveTimelineViewport, ROUNDING_PX } from './timeline-scroll.js';
 import { createSidebarOrder, SIDEBAR_PROJECT_SCOPE } from './sidebar-order.js';
 import { createSidebarPins, pinnedSortScope } from './sidebar-pins.js';
+import { createSidebarSelection } from './sidebar-selection.js';
 import { createSidebarCompletionState } from './sidebar-completion.js';
 import { toolResultText } from './tool-result.js';
 import { renderEditCards } from './tool-artifacts.js';
@@ -306,6 +307,7 @@ let sidebarPins: ReturnType<typeof createSidebarPins> | undefined;
 const pinnable = (entry: SessionSummary): boolean => !!entry.conversationId && entry.origin?.kind !== 'worker';
 const pinnedChat = (entry: SessionSummary): boolean => pinnable(entry) && sidebarPins?.has(entry.id) === true;
 let sidebarCompletion: ReturnType<typeof createSidebarCompletionState> | undefined;
+const sidebarSelection = createSidebarSelection();
 function draftKey(): string { return selectedId ?? (selectedProjectId ? `project:${selectedProjectId}` : 'new'); }
 let selectionGeneration = 0;
 // Async file import belongs to one visible composer draft, not just to a session key.
@@ -854,11 +856,30 @@ function sessionRowTitle(summary: SessionSummary, pinned: boolean, badges: Badge
   return [shownSessionTitle(summary), ...state, ...(pinned ? [t("Pinned")] : []), ...badges.map((badge) => t(badge.text)), ago(summary.updatedAt)].join(' · ');
 }
 
+/**
+ * Mirror main's exact decision order for presentation: exact Block wins; in strict mode an
+ * exact Trust wins before inherited lineage, then each committed predecessor is considered
+ * nearest-first with Block ahead of Trust. An older policy hidden behind a nearer decision is
+ * not the current effective state and must not paint a row inconsistently with the kernel.
+ */
+function chatPolicy(summary: SessionSummary): 'blocked' | 'trusted' | null {
+  if (!summary.conversationId) return null;
+  if (blockedChats.has(summary.conversationId)) return 'blocked';
+  if (deps.state()?.config.multiAgent?.strictChatAllowlist !== true) return null;
+  if (trustedChats.has(summary.conversationId)) return 'trusted';
+  for (const conversationId of committedResumeAncestorsFromSummary(summary, summary.conversationId)) {
+    if (blockedChats.has(conversationId)) return 'blocked';
+    if (trustedChats.has(conversationId)) return 'trusted';
+  }
+  return null;
+}
+
 function sessionRow(summary: SessionSummary): HTMLElement {
   const row = el('div', 'sess');
   row.dataset.id = summary.id;
   if (summary.id === selectedId) row.classList.add('is-sel');
   if (summary.id === activeId && summary.endedAt === null) row.classList.add('is-live');
+  if (sidebarSelection.has(summary.id)) row.classList.add('is-picked');
 
   const top = el('div', 'sess-top');
   top.setAttribute('role', 'button');
@@ -946,26 +967,8 @@ function sessionRow(summary: SessionSummary): HTMLElement {
       });
     }
   } else {
-    const policyLineage = [
-      summary.conversationId,
-      ...committedResumeAncestorsFromSummary(summary, summary.conversationId)
-    ];
     const strictAllowlist = deps.state()?.config.multiAgent?.strictChatAllowlist === true;
-    // Mirror main's exact decision order for presentation: exact Block wins; in strict mode an
-    // exact Trust wins before inherited lineage, then each committed predecessor is considered
-    // nearest-first with Block ahead of Trust. An older policy hidden behind a nearer decision is
-    // not the current effective state and must not paint this row inconsistently with the kernel.
-    let effectivePolicy: 'blocked' | 'trusted' | null = blockedChats.has(summary.conversationId)
-      ? 'blocked'
-      : strictAllowlist && trustedChats.has(summary.conversationId)
-        ? 'trusted'
-        : null;
-    if (strictAllowlist && effectivePolicy === null) {
-      for (const conversationId of policyLineage.slice(1)) {
-        if (blockedChats.has(conversationId)) { effectivePolicy = 'blocked'; break; }
-        if (trustedChats.has(conversationId)) { effectivePolicy = 'trusted'; break; }
-      }
-    }
+    const effectivePolicy = chatPolicy(summary);
     items.push(
       { action: 'rename', icon: 'i-pencil', label: () => t('Rename'), title: () => t("Rename this chat in the app. Its title in ChatGPT stays the same."), run: () => startRename(summary) },
       { action: 'open', icon: 'i-out', label: () => t('Open in browser'), title: () => t("Open this chat in your browser"), run: () => void run(api.openSessionChat(summary.id)) },
@@ -1025,8 +1028,11 @@ function sessionRow(summary: SessionSummary): HTMLElement {
   more.setAttribute('aria-haspopup', 'menu'); more.setAttribute('aria-expanded', String(rowMenuOpenFor(owner)));
   ui(more, 'title', () => t('More options'));
   ui(more, 'aria-label', () => t('More options'));
+  // A picked row's menu acts on every picked chat.
+  const several = () => sidebarSelection.has(summary.id) && sidebarSelection.size > 1;
   const menu = (at?: { x: number; y: number }) => ({
-    owner, at, label: () => shownSessionTitle(summary), anchor: () => rowMenuButton(owner), items: () => items
+    owner, at, label: () => several() ? pickedLabel() : shownSessionTitle(summary), anchor: () => rowMenuButton(owner),
+    items: () => several() ? pickedMenuItems() : items
   });
   more.addEventListener('click', (event) => { event.stopPropagation(); document.getElementById('sessionTooltip')?.remove(); toggleRowMenu(menu()); });
   row.addEventListener('contextmenu', (event) => { event.preventDefault(); document.getElementById('sessionTooltip')?.remove(); openRowMenu(menu({ x: event.clientX, y: event.clientY })); });
@@ -1210,9 +1216,121 @@ async function toggleSessionTrust(id: string, expectedConversationId: string, tr
   paintSessions();
 }
 
-async function deleteSession(id: string): Promise<void> {
-  const done = await run(api.deleteSession(id));
-  if (done === null) return;
+/** The chats that can be picked, top to bottom as the sidebar shows them; a collapsed group's are hidden. */
+function shownPickable(): string[] {
+  const byId = new Map(sessions.map(entry => [entry.id, entry]));
+  return [...new Set([...$('sessionList').querySelectorAll<HTMLElement>('.sess[data-id]')]
+    .filter(row => !row.closest('details:not([open])'))
+    .map(row => row.dataset.id!)
+    .filter(id => { const entry = byId.get(id); return !!entry && pinnable(entry); }))];
+}
+
+function pickedChats(): SessionSummary[] {
+  const byId = new Map(sessions.map(entry => [entry.id, entry]));
+  return sidebarSelection.ids(shownPickable()).map(id => byId.get(id)!);
+}
+
+const pickedLabel = (): string => tn('{0} chat selected', '{0} chats selected', sidebarSelection.size);
+
+/**
+ * Ctrl/Cmd-click (or Ctrl+Space) picks one chat more, Shift-click (or Shift+Space) the run up to it.
+ * Says whether it picked, so the click does not also open the chat.
+ */
+function pickSession(event: MouseEvent | KeyboardEvent, id: string): boolean {
+  const extend = event.shiftKey, toggle = event.ctrlKey || event.metaKey;
+  const entry = sessions.find(row => row.id === id);
+  if ((!extend && !toggle) || event.altKey || !entry || !pinnable(entry)) return false;
+  const order = shownPickable();
+  if (extend) sidebarSelection.extend(id, selectedId, order);
+  else sidebarSelection.toggle(id, selectedId, order);
+  paintSessions();
+  // The rows were rebuilt: the keyboard stays on the same chat.
+  if (event instanceof KeyboardEvent) $('sessionList').querySelector<HTMLElement>(`.sess[data-id="${CSS.escape(id)}"] .sess-top`)?.focus({ preventScroll: true });
+  return true;
+}
+
+/** The chat menu's actions that make sense for several chats, each through its own single-chat owner. */
+function pickedMenuItems(): RowMenuItem[] {
+  const chats = pickedChats();
+  const unpinned = chats.filter(entry => !pinnedChat(entry));
+  const unseen = chats.filter(entry => !sessionWorking(entry) && sidebarCompletion?.isUnseen(entry));
+  const unblocked = chats.filter(entry => chatPolicy(entry) !== 'blocked');
+  const items: RowMenuItem[] = [{
+    action: 'pin', icon: unpinned.length ? 'i-pin' : 'i-pinned',
+    label: () => unpinned.length ? t('Pin all') : t('Unpin all'),
+    run: () => { for (const entry of unpinned.length ? unpinned : chats) sidebarPins?.toggle(entry.id); paintSessions(); }
+  }];
+  if (unseen.length) items.push({
+    action: 'read', icon: 'i-check', label: () => t('Mark all as read'),
+    run: () => { for (const entry of unseen) sidebarCompletion?.markSeen(entry); paintSessions(); }
+  });
+  items.push({
+    action: 'block', icon: unblocked.length ? 'i-ban' : 'i-play',
+    label: () => unblocked.length ? t('Block all') : t('Release all'),
+    title: () => unblocked.length
+      ? t("Block these chats: every tool call they make is refused and they are told to stop")
+      : t("Release these chats: their tool calls run again"),
+    run: () => void blockPicked(unblocked.length ? unblocked : chats, unblocked.length > 0)
+  }, {
+    action: 'remove', icon: 'i-trash', danger: true, separated: true, label: () => t('Remove all…'),
+    title: () => t("Remove these chats and their saved histories from the app. The chats stay in ChatGPT."),
+    run: () => void removePicked(chats)
+  });
+  return items;
+}
+
+async function blockPicked(chats: SessionSummary[], blocked: boolean): Promise<void> {
+  for (const entry of chats) {
+    const next = await run(api.setSessionBlocked(entry.id, blocked));
+    if (next === null) break;
+    blockedChats = new Set(next);
+  }
+  paintSessions();
+}
+
+/** Removing one chat is immediate; removing several says how many first. */
+async function removePicked(chats: SessionSummary[]): Promise<void> {
+  if (!chats.length || !window.confirm(tn(
+    'Remove {0} chat from the app? Its saved history is deleted. The chat stays in ChatGPT.',
+    'Remove {0} chats from the app? Their saved histories are deleted. The chats stay in ChatGPT.', chats.length))) return;
+  let removed = 0;
+  for (const entry of chats) {
+    if (await run(api.deleteSession(entry.id)) === null) break;
+    forgetSession(entry.id);
+    removed++;
+  }
+  sidebarSelection.clear();
+  if (removed) toast(tn('{0} chat removed from the app', '{0} chats removed from the app', removed));
+  await loadSessions();
+}
+
+/** The bar above the chat list while chats are picked: how many, their actions, and Clear. */
+function paintSelectionBar(): void {
+  if (sidebarSelection.keep(shownPickable())) {
+    for (const row of $('sessionList').querySelectorAll<HTMLElement>('.sess.is-picked')) row.classList.toggle('is-picked', sidebarSelection.has(row.dataset.id!));
+  }
+  let bar = document.getElementById('sidebarSelection');
+  if (!sidebarSelection.size) { bar?.remove(); return; }
+  if (!bar) {
+    bar = el('div', 'sidebar-selection'); bar.id = 'sidebarSelection';
+    const count = el('span', 'sidebar-selection-count'); count.setAttribute('role', 'status');
+    const more = el('button', 'btn row-menu-button') as HTMLButtonElement;
+    more.type = 'button'; more.dataset.rowMenu = 'selection'; more.append(icon('i-more-vertical'));
+    more.setAttribute('aria-haspopup', 'menu'); more.setAttribute('aria-expanded', 'false');
+    ui(more, 'title', () => t('More options')); ui(more, 'aria-label', () => t('More options'));
+    more.addEventListener('click', () => toggleRowMenu({ owner: 'selection', label: pickedLabel, anchor: () => rowMenuButton('selection'), items: pickedMenuItems }));
+    const clear = el('button', 'btn row-menu-button sidebar-selection-clear') as HTMLButtonElement;
+    clear.type = 'button'; clear.append(icon('i-x'));
+    ui(clear, 'title', () => t('Clear selection')); ui(clear, 'aria-label', () => t('Clear selection'));
+    clear.addEventListener('click', () => { sidebarSelection.clear(); paintSessions(); });
+    bar.append(count, more, clear);
+    $('sessionList').closest('.scroll')!.before(bar);
+  }
+  ui(bar.querySelector('.sidebar-selection-count')!, 'textContent', pickedLabel);
+}
+
+/** Drops a removed chat from the sidebar and, when it was open, from the chat pane. */
+function forgetSession(id: string): void {
   sessions = sessions.filter((entry) => entry.id !== id);
   pressure.delete(id);
   sessionTotal = Math.max(0, sessionTotal - 1);
@@ -1227,6 +1345,12 @@ async function deleteSession(id: string): Promise<void> {
     detailLoadGeneration++;
     handoffLoadGeneration++;
   }
+}
+
+async function deleteSession(id: string): Promise<void> {
+  const done = await run(api.deleteSession(id));
+  if (done === null) return;
+  forgetSession(id);
   toast(t("Chat removed from the app"));
   await loadSessions();
 }
@@ -1902,6 +2026,7 @@ function paintSessions(): void {
   if (layout !== 'inbox') inboxPicker.close();
   if (layout === 'inbox') {
     paintInbox();
+    paintSelectionBar();
     syncSelectedWorkspace();
     scheduleToolActivityExpiry();
     return;
@@ -2061,6 +2186,7 @@ function paintSessions(): void {
     }
   }
   restoreFocus();
+  paintSelectionBar();
   syncSelectedWorkspace();
   $('projectsEmpty').hidden = projectSections.length > 0;
   $('sessionsEmpty').hidden = rows.length > 0;
@@ -8434,16 +8560,23 @@ export function initChat(next: Deps): void {
   });
   $('sessionList').addEventListener('click', (event) => {
     const row = (event.target as HTMLElement).closest<HTMLElement>('[data-id]');
-    if (!row?.dataset.id || row.dataset.id === selectedId) return;
+    if (!row?.dataset.id) return;
+    if (pickSession(event, row.dataset.id)) { event.preventDefault(); return; }
+    // A plain click opens one chat and lets the picked ones go.
+    if (sidebarSelection.clear()) paintSessions();
+    if (row.dataset.id === selectedId) return;
     pendingNewInput = null;
     selectSession(row.dataset.id);
   });
   $('sessionList').addEventListener('keydown', (event) => {
-    if (event.altKey || event.ctrlKey || event.metaKey || !['Enter', ' '].includes(event.key)) return;
+    if (event.key === 'Escape' && sidebarSelection.clear()) { event.preventDefault(); paintSessions(); return; }
+    if (event.altKey || !['Enter', ' '].includes(event.key)) return;
     const target = event.target as HTMLElement;
     const control = target.closest<HTMLElement>('[data-session-select]');
     const row = control?.closest<HTMLElement>('[data-id]');
     if (!control || target !== control || !row?.dataset.id) return;
+    if (event.key === ' ' && pickSession(event, row.dataset.id)) { event.preventDefault(); return; }
+    if (event.ctrlKey || event.metaKey) return;
     event.preventDefault();
     if (row.dataset.id === selectedId) return;
     pendingNewInput = null;

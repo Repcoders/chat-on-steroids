@@ -2777,5 +2777,18 @@
   "Chats sit under their project folders.": "Các cuộc trò chuyện nằm dưới thư mục dự án của chúng.",
   "All chats in one list, active ones on top.": "Tất cả cuộc trò chuyện trong một danh sách, cái đang hoạt động ở trên cùng.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Số cuộc trò chuyện tác nhân phụ tối đa mà một cuộc trò chuyện có thể chạy cùng lúc. Cần tiện ích mở rộng trình duyệt đã kết nối.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Công việc dài tiếp tục trong một lượt mới với Tiếp tục tự động, ngay sau một kết quả công cụ. Lượt ngắn hơn ít bị ngắt hơn. Cũng dùng trong các cuộc trò chuyện có Goal và Loop; không dùng với mô hình Pro hay trong cuộc trò chuyện riêng của tác nhân phụ."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Công việc dài tiếp tục trong một lượt mới với Tiếp tục tự động, ngay sau một kết quả công cụ. Lượt ngắn hơn ít bị ngắt hơn. Cũng dùng trong các cuộc trò chuyện có Goal và Loop; không dùng với mô hình Pro hay trong cuộc trò chuyện riêng của tác nhân phụ.",
+  "Pin all": "Ghim tất cả",
+  "Unpin all": "Bỏ ghim tất cả",
+  "Mark all as read": "Đánh dấu tất cả là đã đọc",
+  "Block all": "Chặn tất cả",
+  "Release all": "Bỏ chặn tất cả",
+  "Remove all…": "Xóa tất cả…",
+  "Clear selection": "Bỏ chọn",
+  "Block these chats: every tool call they make is refused and they are told to stop": "Chặn các cuộc trò chuyện này: mọi lệnh gọi công cụ của chúng bị từ chối và chúng được yêu cầu dừng",
+  "Release these chats: their tool calls run again": "Giải phóng các cuộc trò chuyện này: các lệnh gọi công cụ của chúng được chạy lại",
+  "Remove these chats and their saved histories from the app. The chats stay in ChatGPT.": "Xóa các cuộc trò chuyện này và lịch sử đã lưu khỏi ứng dụng. Các cuộc trò chuyện vẫn còn trong ChatGPT.",
+  "{0} chats selected": "Đã chọn {0} cuộc trò chuyện",
+  "Remove {0} chats from the app? Their saved histories are deleted. The chats stay in ChatGPT.": "Xóa {0} cuộc trò chuyện khỏi ứng dụng? Lịch sử đã lưu của chúng sẽ bị xóa. Các cuộc trò chuyện vẫn còn trong ChatGPT.",
+  "{0} chats removed from the app": "Đã xóa {0} cuộc trò chuyện khỏi ứng dụng"
 }

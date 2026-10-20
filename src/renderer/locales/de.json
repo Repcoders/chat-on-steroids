@@ -2822,5 +2822,21 @@
   "Chats sit under their project folders.": "Chats stehen unter ihren Projektordnern.",
   "All chats in one list, active ones on top.": "Alle Chats in einer Liste, aktive oben.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Wie viele Unteragenten-Chats ein Chat höchstens gleichzeitig ausführen darf. Benötigt die verbundene Browser-Erweiterung.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Lange Arbeit läuft direkt nach einem Tool-Ergebnis in einem neuen Durchlauf mit automatischem Weiter weiter. Kürzere Durchläufe brechen seltener ab. Auch in Goal- und Loop-Chats; nicht bei Pro-Modellen und nicht in den Chats von Unteragenten."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Lange Arbeit läuft direkt nach einem Tool-Ergebnis in einem neuen Durchlauf mit automatischem Weiter weiter. Kürzere Durchläufe brechen seltener ab. Auch in Goal- und Loop-Chats; nicht bei Pro-Modellen und nicht in den Chats von Unteragenten.",
+  "Pin all": "Alle anheften",
+  "Unpin all": "Alle lösen",
+  "Mark all as read": "Alle als gelesen markieren",
+  "Block all": "Alle blockieren",
+  "Release all": "Alle freigeben",
+  "Remove all…": "Alle entfernen…",
+  "Clear selection": "Auswahl aufheben",
+  "Block these chats: every tool call they make is refused and they are told to stop": "Diese Chats blockieren: Jeder ihrer Tool-Aufrufe wird abgelehnt, und sie werden zum Anhalten aufgefordert",
+  "Release these chats: their tool calls run again": "Diese Chats freigeben: ihre Tool-Aufrufe laufen wieder",
+  "Remove these chats and their saved histories from the app. The chats stay in ChatGPT.": "Diese Chats samt gespeichertem Verlauf aus der App entfernen. In ChatGPT bleiben die Chats erhalten.",
+  "{0} chats selected": "{0} Chats ausgewählt",
+  "{0} chats selected|one": "{0} Chat ausgewählt",
+  "Remove {0} chats from the app? Their saved histories are deleted. The chats stay in ChatGPT.": "{0} Chats aus der App entfernen? Ihr gespeicherter Verlauf wird gelöscht. In ChatGPT bleiben die Chats erhalten.",
+  "Remove {0} chats from the app? Their saved histories are deleted. The chats stay in ChatGPT.|one": "{0} Chat aus der App entfernen? Sein gespeicherter Verlauf wird gelöscht. In ChatGPT bleibt der Chat erhalten.",
+  "{0} chats removed from the app": "{0} Chats aus der App entfernt",
+  "{0} chats removed from the app|one": "{0} Chat aus der App entfernt"
 }

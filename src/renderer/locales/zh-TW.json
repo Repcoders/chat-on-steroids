@@ -2777,5 +2777,18 @@
   "Chats sit under their project folders.": "聊天顯示在各自的專案資料夾下。",
   "All chats in one list, active ones on top.": "所有聊天在同一清單中，進行中的排在最前。",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "一個聊天可同時執行的子代理聊天上限。需要已連線的瀏覽器擴充功能。",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "長時間的工作會在工具結果之後，透過自動「繼續」在新回合中接著進行。回合越短越不容易中斷。也用於目標和循環聊天；不用於 Pro 模型或子代理自己的聊天。"
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "長時間的工作會在工具結果之後，透過自動「繼續」在新回合中接著進行。回合越短越不容易中斷。也用於目標和循環聊天；不用於 Pro 模型或子代理自己的聊天。",
+  "Pin all": "全部釘選",
+  "Unpin all": "全部取消釘選",
+  "Mark all as read": "全部標為已讀",
+  "Block all": "全部阻止",
+  "Release all": "全部解除阻止",
+  "Remove all…": "全部移除…",
+  "Clear selection": "取消選取",
+  "Block these chats: every tool call they make is refused and they are told to stop": "阻止這些聊天：拒絕它們的所有工具呼叫，並通知它們停止",
+  "Release these chats: their tool calls run again": "解除阻止：恢復這些聊天的工具呼叫",
+  "Remove these chats and their saved histories from the app. The chats stay in ChatGPT.": "從應用程式中移除這些聊天及其儲存的歷史記錄。聊天仍保留在 ChatGPT 中。",
+  "{0} chats selected": "已選取 {0} 個聊天",
+  "Remove {0} chats from the app? Their saved histories are deleted. The chats stay in ChatGPT.": "要從應用程式中移除 {0} 個聊天嗎？其儲存的歷史記錄將被刪除。聊天仍保留在 ChatGPT 中。",
+  "{0} chats removed from the app": "已從應用程式中移除 {0} 個聊天"
 }

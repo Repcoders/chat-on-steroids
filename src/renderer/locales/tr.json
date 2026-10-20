@@ -2822,5 +2822,21 @@
   "Chats sit under their project folders.": "Sohbetler proje klasörlerinin altında durur.",
   "All chats in one list, active ones on top.": "Tüm sohbetler tek listede, etkin olanlar üstte.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Bir sohbetin aynı anda çalıştırabileceği en fazla yardımcı ajan sohbeti sayısı. Bağlı tarayıcı eklentisi gerekir.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Uzun işler, bir araç sonucundan hemen sonra otomatik Devam ile yeni bir turda sürer. Kısa turlar daha az kesilir. Hedef ve Döngü sohbetlerinde de kullanılır; Pro modellerde ve yardımcı ajanların kendi sohbetlerinde kullanılmaz."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Uzun işler, bir araç sonucundan hemen sonra otomatik Devam ile yeni bir turda sürer. Kısa turlar daha az kesilir. Hedef ve Döngü sohbetlerinde de kullanılır; Pro modellerde ve yardımcı ajanların kendi sohbetlerinde kullanılmaz.",
+  "Pin all": "Tümünü sabitle",
+  "Unpin all": "Tümünün sabitlemesini kaldır",
+  "Mark all as read": "Tümünü okundu olarak işaretle",
+  "Block all": "Tümünü engelle",
+  "Release all": "Tümünün engelini kaldır",
+  "Remove all…": "Tümünü kaldır…",
+  "Clear selection": "Seçimi temizle",
+  "Block these chats: every tool call they make is refused and they are told to stop": "Bu sohbetleri engelle: tüm araç çağrıları reddedilir ve durmaları söylenir",
+  "Release these chats: their tool calls run again": "Bu sohbetlerin engelini kaldır: araç çağrıları yeniden çalışabilir",
+  "Remove these chats and their saved histories from the app. The chats stay in ChatGPT.": "Bu sohbetleri ve kayıtlı geçmişlerini uygulamadan kaldır. Sohbetler ChatGPT'de kalır.",
+  "{0} chats selected": "{0} sohbet seçildi",
+  "{0} chats selected|one": "{0} sohbet seçildi",
+  "Remove {0} chats from the app? Their saved histories are deleted. The chats stay in ChatGPT.": "{0} sohbet uygulamadan kaldırılsın mı? Kayıtlı geçmişleri silinir. Sohbetler ChatGPT'de kalır.",
+  "Remove {0} chats from the app? Their saved histories are deleted. The chats stay in ChatGPT.|one": "{0} sohbet uygulamadan kaldırılsın mı? Kayıtlı geçmişi silinir. Sohbet ChatGPT'de kalır.",
+  "{0} chats removed from the app": "{0} sohbet uygulamadan kaldırıldı",
+  "{0} chats removed from the app|one": "{0} sohbet uygulamadan kaldırıldı"
 }
