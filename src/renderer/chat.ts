@@ -7244,6 +7244,7 @@ export function chatApply(state: AppState, previous?: Config): void {
 export function chatVisible(next: boolean): void {
   if (visible === next) return;
   visible = next;
+  timelineMinimap?.paint();
   if (next) void refreshAll();
   else {
     window.clearTimeout(toolActivityTimer);
@@ -8435,7 +8436,8 @@ export function initChat(next: Deps): void {
     jump.addEventListener('click', jumpToLatest);
     dock.append(jump); pane.append(dock);
     // Beside the pane rather than in it, so it stays put while the chat scrolls.
-    timelineMinimap = initTimelineMinimap({ pane, timeline: $('timeline'), shown: () => !!selectedId && detailFor === selectedId && timelineShown(),
+    // Only while the Chat panel is on screen: another app tab leaves its own Alt+Up/Down alone.
+    timelineMinimap = initTimelineMinimap({ pane, timeline: $('timeline'), shown: () => visible && !!selectedId && detailFor === selectedId && timelineShown(),
       jumped: () => { readTimeline(); paintJumpLatest(); } });
     pane.after(timelineMinimap.element);
   }

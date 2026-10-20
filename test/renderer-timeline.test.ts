@@ -5656,6 +5656,32 @@ it('hides the previous chat minimap while another chat loads', async () => {
   expect(map.hidden).toBe(true);
 });
 
+it('leaves Alt+Up to other app tabs while the chat is hidden, and keeps following its end', async () => {
+  const ask = (seq: number, words: string): SessionEvent => ({ kind: 'user_message', seq, time: T0 + seq * 1000, source: 'extension', messageId: `ask-${seq}`, message: text(words) });
+  const answer = (seq: number, words: string): SessionEvent => ({ kind: 'assistant_message', seq, time: T0 + seq * 1000, source: 'extension',
+    messageId: `answer-${seq}`, message: text(words), final: false });
+  const { w, append } = await boot([ask(1, 'Plan the login page'), answer(2, 'Here is a plan.'), ask(3, 'Add a remember-me box')]);
+  const pane = w.document.getElementById('chatBody')!;
+  Object.defineProperties(pane, { clientHeight: { value: 400, configurable: true }, scrollHeight: { value: 2000, configurable: true } });
+  pane.getBoundingClientRect = () => ({ top: 0 } as DOMRect);
+  await append([answer(4, 'More output')]);
+  expect(pane.scrollTop).toBe(pane.scrollHeight);
+  [...w.document.querySelectorAll<HTMLElement>('#timeline .ev-user_message')].forEach((row, index) => {
+    row.getBoundingClientRect = () => ({ top: index * 1000 - pane.scrollTop, bottom: index * 1000 + 40 - pane.scrollTop, height: 40 } as DOMRect);
+  });
+  // Another app tab, with nothing focused: the key is not the hidden chat's.
+  (w.document.querySelector('nav button[data-tab="usage"]') as HTMLButtonElement).click();
+  const key = new w.KeyboardEvent('keydown', { key: 'ArrowUp', altKey: true, bubbles: true, cancelable: true });
+  w.document.body.dispatchEvent(key);
+  expect(key.defaultPrevented).toBe(false);
+  expect(pane.scrollTop).toBe(pane.scrollHeight);
+  // Back in the chat, its dashes are offered again and new output still follows the end.
+  (w.document.getElementById('backToChat') as HTMLButtonElement).click();
+  expect(w.document.querySelector<HTMLElement>('.timeline-minimap')!.hidden).toBe(false);
+  await append([answer(5, 'Later output')]);
+  expect(pane.scrollTop).toBe(pane.scrollHeight);
+});
+
 it('keeps the chat reading state out of Agents & automation, which shares its scroll pane', async () => {
   const { w, append } = await boot([{ kind: 'assistant_message', seq: 1, time: T0 + 1000, source: 'extension', messageId: 'first', message: text('Hello'), final: false }]);
   const pane = w.document.getElementById('chatBody')!;
