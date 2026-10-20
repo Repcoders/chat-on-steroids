@@ -21,7 +21,7 @@ import type { GoalModel } from '../shared/goal-reasoning.js';
 import { renderGoalReasoning } from './goal-reasoning.js';
 import { MAX_TASK_REQUEST_CHARS, taskRequestProblem } from '../shared/task-progress.js';
 import { shownSessionTitle } from './session-title.js';
-import { preserveTimelineViewport, ROUNDING_PX } from './timeline-scroll.js';
+import { preserveTimelineViewport, promptAboveView, ROUNDING_PX } from './timeline-scroll.js';
 import { createSidebarOrder, SIDEBAR_PROJECT_SCOPE } from './sidebar-order.js';
 import { createSidebarPins, pinnedSortScope } from './sidebar-pins.js';
 import { createSidebarCompletionState } from './sidebar-completion.js';
@@ -3844,6 +3844,8 @@ const rowCache = new Map<string, { sig: string; row: HTMLElement }>();
  * releases the hold, and a button brings them back to the end whenever content lies below.
  */
 const SEND_TOP_GAP = 16, JUMP_DISTANCE = 150, SEND_GLIDE_MS = 700;
+/** The top band the pinned question covers: a later question starting there is already the one read. */
+const PROMPT_PIN_INSET = 48;
 const USER_MESSAGE_KEY = 'message:user_message\u0000';
 let sendAnchor: { key: string; inputId: string; messageId?: string; before: Set<string>; session: string | null; seen: boolean; smoothUntil: number } | null = null;
 /** The reader scrolled away from a held message: they are reading, not following the end. */
@@ -3931,6 +3933,70 @@ function paintJumpLatest(): void {
   const jump = document.getElementById('jumpLatest');
   // A page of history ends before the chat does: even at its bottom, the end is not on screen.
   if (jump) jump.classList.toggle('is-shown', !!selectedId && timelineShown() && (distanceFromTail() > JUMP_DISTANCE || onHistoryPage()));
+  paintPromptPin();
+}
+
+type UserMessageEvent = Extract<SessionEvent, { kind: 'user_message' }>;
+/**
+ * The question the pinned prompt stands for, while it shows. Its event outlives its row: history
+ * paging can trim the question off the page while its answer is still being read.
+ */
+let pinnedPrompt: { event: UserMessageEvent; key: string; generation: number } | null = null;
+
+/**
+ * Reading a long answer, its question has scrolled out of view: it stays pinned at the top of the
+ * chat as one line, and clicking it scrolls back to the message. It moves with the same reading
+ * position as Jump to latest.
+ */
+function paintPromptPin(): void {
+  const pin = document.getElementById('promptPin');
+  if (!pin) return;
+  const pane = $('chatBody');
+  const rows = [...$('timeline').querySelectorAll<HTMLElement>('[data-timeline-key]')];
+  // By event, not key: a question sent from the app is keyed by its input.
+  const prompts = rows.filter(row => rowEvents.get(row)?.kind === 'user_message');
+  const row = selectedId && timelineShown() ? promptAboveView(pane, prompts, PROMPT_PIN_INSET) : null;
+  const event = row && rowEvents.get(row);
+  if (event?.kind === 'user_message') pinnedPrompt = { event, key: row!.dataset.timelineKey!, generation: selectionGeneration };
+  else if (row || !selectedId || !timelineShown() || !answersTrimmedPrompt(pane, rows, prompts)) pinnedPrompt = null;
+  const shown = pinnedPrompt?.event;
+  const text = !shown ? ''
+    : (shown.authoredText ?? userPromptText(shown.message.text.trimStart()) ?? shown.message.text).replace(/\s+/g, ' ').trim() ||
+      (shown.attachments?.length || shown.assets?.length ? t("User attachment") : '');
+  if (!text) pinnedPrompt = null;
+  pin.hidden = !pinnedPrompt;
+  const label = pin.querySelector('.prompt-pin-text')!;
+  if (label.textContent !== text) label.textContent = text;
+}
+
+/**
+ * Whether the pinned question, no longer on the page, still owns what the top of the view shows:
+ * no loaded question has reached the top since, and the first row there came after it, in the
+ * same turn when both know theirs.
+ */
+function answersTrimmedPrompt(pane: HTMLElement, rows: HTMLElement[], prompts: HTMLElement[]): boolean {
+  const pinned = pinnedPrompt;
+  if (!pinned || pinned.generation !== selectionGeneration || prompts.some(row => row.dataset.timelineKey === pinned.key)) return false;
+  const edge = pane.getBoundingClientRect().top;
+  if (prompts.some(row => { const rect = row.getBoundingClientRect(); return rect.height > 0 && rect.top <= edge + PROMPT_PIN_INSET; })) return false;
+  const top = rows.find(row => { const rect = row.getBoundingClientRect(); return rect.height > 0 && rect.bottom > edge && rowEvents.has(row); });
+  const event = top && rowEvents.get(top);
+  return !!event && positionOf(event) > positionOf(pinned.event) && (!event.turnId || !pinned.event.turnId || event.turnId === pinned.event.turnId);
+}
+
+function scrollToPinnedPrompt(): void {
+  const pinned = pinnedPrompt;
+  if (!pinned || !selectedId) return;
+  const row = [...$('timeline').querySelectorAll<HTMLElement>('[data-timeline-key]')].find(node => node.dataset.timelineKey === pinned.key);
+  // Going back up to the question is reading: new output no longer pulls the view down.
+  readTimeline();
+  if (!row) {
+    // Trimmed off the page: open the page around it, as a search result does.
+    void revealChatLocation(selectedId, { seq: pinned.event.seq, kind: 'user_message', messageId: pinned.event.messageId ?? null, position: positionOf(pinned.event) });
+    return;
+  }
+  const pane = $('chatBody');
+  scrollPane(pane, Math.max(0, pane.scrollTop + row.getBoundingClientRect().top - pane.getBoundingClientRect().top - SEND_TOP_GAP), true);
 }
 
 /** Whether the chat shows a page of history whose newer rows, and so its live end, are not loaded. */
@@ -8396,6 +8462,15 @@ export function initChat(next: Deps): void {
     ui(jump, 'title', () => t('Jump to latest')); ui(jump, 'aria-label', () => t('Jump to latest'));
     jump.addEventListener('click', jumpToLatest);
     dock.append(jump); pane.append(dock);
+    const pinDock = el('div', 'prompt-pin-dock');
+    const pin = el('button', 'prompt-pin') as HTMLButtonElement;
+    pin.id = 'promptPin'; pin.type = 'button'; pin.hidden = true;
+    const pinText = el('span', 'prompt-pin-text');
+    pinText.setAttribute('dir', 'auto');
+    pin.append(icon('i-arrow-up'), pinText);
+    ui(pin, 'title', () => t('Back to your message')); ui(pin, 'aria-label', () => t('Back to your message'));
+    pin.addEventListener('click', scrollToPinnedPrompt);
+    pinDock.append(pin); pane.prepend(pinDock);
   }
   $('createPlan').addEventListener('click', () => {
     // The toolbar toggle only arms planning; Send/Enter generates from the draft.

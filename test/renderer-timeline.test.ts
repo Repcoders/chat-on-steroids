@@ -5553,6 +5553,96 @@ it('offers a way back to the end of the chat that clears any reserved space', as
   expect(content.style.getPropertyValue('--timeline-scroll-reserve')).toBe('');
 });
 
+it('pins the question of the answer being read to the top of the chat, and goes back to it on click', async () => {
+  const question = (seq: number, id: string, value: string): SessionEvent => ({ kind: 'user_message', seq, time: T0 + seq * 1000, source: 'extension', messageId: id, message: text(value) });
+  const answer = (seq: number, id: string, value: string): SessionEvent => ({ kind: 'assistant_message', seq, time: T0 + seq * 1000, source: 'extension', messageId: id, message: text(value), final: false });
+  const { w, append } = await boot([question(1, 'first', 'First placeholder question'), answer(2, 'short', 'Short answer.'),
+    question(3, 'second', 'Explain the   placeholder\nplan'), answer(4, 'long', 'A long answer.')]);
+  const pane = w.document.getElementById('chatBody')!;
+  const timeline = w.document.getElementById('timeline')!;
+  const pin = w.document.getElementById('promptPin') as HTMLButtonElement;
+  expect(pin.closest('#chatBody')).not.toBeNull();
+  expect(pin.getAttribute('aria-label')).toBe('Back to your message');
+  // Questions 60px tall, the first answer 100px, every later row 2000px; the pane is 400px high.
+  const layout = () => {
+    let top = 0;
+    const tops = new Map<Element, { top: number; height: number }>();
+    for (const row of timeline.querySelectorAll<HTMLElement>('[data-timeline-key]')) {
+      if (row.parentElement?.closest('[data-timeline-key]')) continue;
+      const height = row.matches('.ev-user_message') ? 60 : tops.size === 1 ? 100 : 2000;
+      tops.set(row, { top, height }); top += height;
+    }
+    return { tops, total: top };
+  };
+  w.HTMLElement.prototype.getBoundingClientRect = function () {
+    const box = this === pane ? { top: 0, height: 400 } : layout().tops.get(this);
+    const top = box ? (this === pane ? 0 : box.top - pane.scrollTop) : 0;
+    return { top, bottom: top + (box?.height ?? 0), height: box?.height ?? 0 } as DOMRect;
+  };
+  Object.defineProperties(pane, { clientHeight: { configurable: true, value: 400 }, scrollHeight: { configurable: true, get: () => layout().total } });
+  const scrolled = vi.fn((options: ScrollToOptions) => { pane.scrollTop = options.top!; });
+  pane.scrollTo = scrolled as unknown as typeof pane.scrollTo;
+  const read = (top: number) => { pane.scrollTop = top; pane.dispatchEvent(new w.Event('scroll')); };
+  read(0);
+  expect(pin.hidden).toBe(true);
+  // The second question (160–220) has scrolled away while its answer is read: it is pinned as one line.
+  read(900);
+  expect(pin.hidden).toBe(false);
+  expect(pin.querySelector('.prompt-pin-text')!.textContent).toBe('Explain the placeholder plan');
+  // While any of it still shows, nothing is pinned.
+  read(190);
+  expect(pin.hidden).toBe(true);
+  read(1200);
+  pin.click();
+  expect(scrolled).toHaveBeenLastCalledWith({ top: 144, behavior: 'smooth' });
+  pane.dispatchEvent(new w.Event('scroll'));
+  expect(pin.hidden).toBe(true);
+  // Going back up is reading: new output no longer pulls the view to the end.
+  await append([answer(5, 'long', 'A long answer, still being written.')]);
+  expect(pane.scrollTop).toBe(144);
+  // History paging can trim the question off the page while its answer is still read: the pin stays,
+  // and a click opens the page around the question, as a search result does.
+  read(900);
+  // Trimmed from the top: the first exchange and the question, leaving the answer being read.
+  const rows = [...timeline.querySelectorAll<HTMLElement>('[data-timeline-key]')];
+  const asked = rows.findIndex(row => row.textContent!.includes('Explain the'));
+  rows.slice(0, asked + 1).forEach(row => row.remove());
+  read(600);
+  expect(pin.hidden).toBe(false);
+  expect(pin.querySelector('.prompt-pin-text')!.textContent).toBe('Explain the placeholder plan');
+  pin.click();
+  await vi.waitFor(() => expect(timeline.querySelector('.is-search-hit')?.textContent).toContain('Explain the'));
+  // Back at the first question, nothing trimmed is left pinned.
+  read(0);
+  expect(pin.hidden).toBe(true);
+});
+
+it('pins a question sent from the app, whose row is keyed by its input', async () => {
+  const { w } = await boot([
+    { kind: 'user_message', seq: 1, time: T0 + 1000, source: 'extension', messageId: 'first', message: text('Typed in ChatGPT') },
+    { kind: 'assistant_message', seq: 2, time: T0 + 2000, source: 'extension', messageId: 'short', message: text('Short answer.'), final: false },
+    { kind: 'user_message', seq: 3, time: T0 + 3000, source: 'app', messageId: 'sent', inputId: 'input-sent', message: text('Sent from the app') },
+    { kind: 'assistant_message', seq: 4, time: T0 + 4000, source: 'extension', messageId: 'long', message: text('A long answer.'), final: false }
+  ]);
+  const pane = w.document.getElementById('chatBody')!;
+  const timeline = w.document.getElementById('timeline')!;
+  const pin = w.document.getElementById('promptPin') as HTMLButtonElement;
+  const rows = [...timeline.querySelectorAll<HTMLElement>('[data-timeline-key]')].filter(row => !row.parentElement?.closest('[data-timeline-key]'));
+  expect(rows.map(row => row.dataset.timelineKey)).toContain('input:input-sent');
+  // Questions 60px tall, the first answer 100px, the long answer 2000px; the pane is 400px high.
+  const heights = [60, 100, 60, 2000];
+  w.HTMLElement.prototype.getBoundingClientRect = function () {
+    const index = rows.indexOf(this);
+    const top = this === pane || index < 0 ? 0 : heights.slice(0, index).reduce((sum, height) => sum + height, 0) - pane.scrollTop;
+    const height = this === pane ? 400 : heights[index] ?? 0;
+    return { top, bottom: top + height, height } as DOMRect;
+  };
+  Object.defineProperties(pane, { clientHeight: { configurable: true, value: 400 }, scrollHeight: { configurable: true, value: 2220 } });
+  pane.scrollTop = 900; pane.dispatchEvent(new w.Event('scroll'));
+  expect(pin.hidden).toBe(false);
+  expect(pin.querySelector('.prompt-pin-text')!.textContent).toBe('Sent from the app');
+});
+
 it('keeps the chat reading state out of Agents & automation, which shares its scroll pane', async () => {
   const { w, append } = await boot([{ kind: 'assistant_message', seq: 1, time: T0 + 1000, source: 'extension', messageId: 'first', message: text('Hello'), final: false }]);
   const pane = w.document.getElementById('chatBody')!;
