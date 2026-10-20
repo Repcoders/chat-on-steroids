@@ -41,7 +41,8 @@ import { DEFAULT_HELPER_CHAT_MODEL, isAstraModel } from '../shared/chat-models.j
 import { supportsFinishAutomation } from '../shared/finish.js';
 import { answerAnchors, messageAnswerAnchors } from '../shared/markdown-export.js';
 import type { InputImage, InputAttachment, InputAutomation } from '../shared/input.js';
-import { authoredTextOf, injectableAttachments, queuedFollowup, MAX_INPUT_IMAGES } from '../shared/input.js';
+import { authoredTextOf, EDITABLE_IMAGE_TYPES, injectableAttachments, queuedFollowup, MAX_INPUT_IMAGES } from '../shared/input.js';
+import { openImageEditor } from './image-editor.js';
 import type { InputArgs, InputEntry } from '../main/session/input.js';
 import type { DictationEvent } from '../shared/dictation.js';
 import { PROJECT_COLORS, type LocalProject, type ProjectColor } from '../shared/projects.js';
@@ -645,8 +646,51 @@ function paintComposerImages(): void {
     const remove = el('button', 'image-remove', '×'); remove.setAttribute('type', 'button'); ui(remove, 'aria-label', () => t("Remove {0}", [image.name]));
     remove.addEventListener('click', () => { imageDrafts.set(key, images.filter((_entry, at) => at !== index)); paintComposerImages(); });
     tile.append(remove); box.append(tile);
+    if ('dataUrl' in image || !EDITABLE_IMAGE_TYPES.includes(image.mimeType) || image.size > 12 * 1024 * 1024) return;
+    const edit = el('button', 'image-edit'); edit.setAttribute('type', 'button'); edit.append(icon('i-pencil'));
+    ui(edit, 'aria-label', () => t("Edit {0}", [image.name])); ui(edit, 'title', () => t("Edit {0}", [image.name]));
+    edit.addEventListener('click', () => void editComposerImage(image));
+    tile.querySelector('img')?.addEventListener('click', () => edit.click());
+    tile.append(edit);
   });
   paintDeliveryControls();
+}
+/** Redact or mark up one staged image: the flattened copy is staged like a pasted image and takes the original's place. */
+let imageEditing = false;
+/** Edited copies still staging, by draft: that draft's Send waits, so an original cannot go out instead. */
+const imageReplacing = new Map<string, number>();
+function imageReplacingWait(key: string): boolean {
+  if (!imageReplacing.has(key)) return false;
+  toast(t("Wait until the edited image is attached")); return true;
+}
+async function editComposerImage(file: InputAttachment): Promise<void> {
+  if (imageEditing) return;
+  imageEditing = true;
+  const owner = composerDraftOwner();
+  let edited: Blob | null = null;
+  try {
+    const source = await run(api.attachmentImage(file));
+    if (!source || !ownsComposerDraft(owner)) return;
+    const image = document.createElement('img'); image.src = source.dataUrl;
+    try { await image.decode(); } catch { toast(t("Could not open this image for editing")); return; }
+    edited = await openImageEditor({ image, width: source.width, height: source.height, name: file.name });
+  } finally { imageEditing = false; }
+  if (!edited || !ownsComposerDraft(owner)) return;
+  const name = `${file.name.replace(/\.[^.]*$/, '') || 'image'}-edited.${edited.type === 'image/jpeg' ? 'jpg' : 'png'}`;
+  imageReplacing.set(owner.key, (imageReplacing.get(owner.key) ?? 0) + 1);
+  let staged: InputAttachment[] | null;
+  try { staged = await run(api.dropFiles([new File([edited], name, { type: edited.type })])); }
+  finally {
+    const left = (imageReplacing.get(owner.key) ?? 1) - 1;
+    if (left) imageReplacing.set(owner.key, left); else imageReplacing.delete(owner.key);
+  }
+  if (!staged) return;
+  const drafts = imageDrafts.get(owner.key) ?? [], at = drafts.findIndex(entry => 'id' in entry && entry.id === file.id);
+  if (!staged[0] || !ownsComposerDraft(owner) || at < 0) { toast(t("Files were not added because the draft changed.")); return; }
+  const total = drafts.reduce((sum, entry, index) => sum + (index === at || !('size' in entry) ? 0 : entry.size), staged[0].size);
+  if (total > 512 * 1024 * 1024) { toast(t("Attach up to 20 files and 512 MB per message")); return; }
+  imageDrafts.set(owner.key, drafts.map((entry, index) => index === at ? staged[0]! : entry));
+  paintComposerImages();
 }
 function attachmentCard(file: InputAttachment, inComposer = false): HTMLElement {
   if (file.preview) {
@@ -7688,6 +7732,7 @@ async function sendComposer(delivery?: 'finish' | 'auto' | 'after-turn', plan?: 
   const images = imageDrafts.get(key) ?? [];
   const text = plan?.[0] ?? (authoredComposerText().trim() || (images.length ? 'Please look at the attached files.' : ''));
   if ($<HTMLButtonElement>('chatSend').disabled) return;
+  if (imageReplacingWait(key)) return;
   if (!text) {
     // An empty/repeated form submission is not a Stop gesture. Only activation
     // of the button while it actually displays Stop/Cancel owns this branch.
@@ -7727,6 +7772,8 @@ async function sendComposer(delivery?: 'finish' | 'auto' | 'after-turn', plan?: 
   if (discoveryGeneration !== composerDiscoveryGeneration || discoverySelection !== selectionGeneration || discoverySession !== selectedId ||
       authoredComposerText() !== discoveryDraft || (imageDrafts.get(key) ?? []).some((image, index) => image !== images[index]) ||
       (imageDrafts.get(key)?.length ?? 0) !== images.length) return false;
+  // An edit saved while the model was being confirmed is still staging its copy.
+  if (imageReplacingWait(key)) return false;
   if (!modelSettings) { toast(t("Model discovery could not confirm your selection. Choose an available model and thinking effort, then send again.")); return false; }
   const sessionId = selectedId;
   const generation = selectionGeneration;

@@ -1734,6 +1734,16 @@ draft; the Folders card keeps its explicit folder-drop owner, and ordinary text 
 its native editor behavior. Async import results carry both the draft key and its replacement
 generation. Navigation, Send, accepted planning and retry replacement retire that owner so a
 late file cannot attach to a later draft, while ordinary edits and parallel imports remain valid.
+A staged PNG, JPEG or WebP chip (`shared/input.ts` `EDITABLE_IMAGE_TYPES`) has a pencil that opens
+`renderer/image-editor.ts`. Preload `attachmentImage` (`sessions:attachmentImage`) revalidates the
+exact staged metadata under the staging lock, refuses animated images, and returns an upright PNG copy
+within 4096x4096 plus its size, never a path. Redact (an opaque whole-pixel black fill, never a blur)
+and Box (a red outline) are burned into one flattened canvas copy, staged through `dropFiles` like a
+pasted image (PNG, else JPEG when the PNG passes 12 MB; neither fitting is a save error) and put at the
+original's place in the same draft owner. That draft's Send waits while the copy stages, and a copy that
+would pass the 512 MB message limit keeps the original. The original leaves the draft and its staged
+bytes expire with ordinary pruning. Tests: `renderer-image-editor.test.ts`, the editor cases in
+`renderer-timeline.test.ts` and `session-input-attachments.test.ts`.
 
 Bridge chunks are bounded to 512 KiB and require the exact pre-send claimed input and attachment
 membership. Native upload completion and final provider submission are separate checks.

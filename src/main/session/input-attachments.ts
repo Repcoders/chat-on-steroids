@@ -5,7 +5,7 @@ import { z } from 'zod';
 import sharp from 'sharp';
 import { sessionsRoot } from './store.js';
 import type { InputAttachment } from '../../shared/input.js';
-import { injectableAttachments, MAX_INPUT_IMAGES } from '../../shared/input.js';
+import { EDITABLE_IMAGE_TYPES, injectableAttachments, MAX_INPUT_IMAGES } from '../../shared/input.js';
 import { normalizeInputImage } from './input-images.js';
 
 export const MAX_ATTACHMENT_BYTES = 512 * 1024 * 1024;
@@ -107,6 +107,22 @@ export function normalizeInputAttachments(attachments: InputAttachment[]) {
       images.push(await normalizeInputImage(await readImageBytes(attachment), attachment.name));
     }
     return images;
+  });
+  staging = next.catch(() => undefined);
+  return next;
+}
+export const EDIT_IMAGE_MAX_SIDE = 4096;
+/** An upright PNG copy of one staged image for the composer's editor; the original stays untouched. */
+export function readInputAttachmentImage(attachment: InputAttachment): Promise<{ dataUrl: string; width: number; height: number }> {
+  const next = staging.then(async () => {
+    if (!EDITABLE_IMAGE_TYPES.includes(attachment.mimeType)) throw new Error('Only PNG, JPEG and WebP images can be edited');
+    await validate([attachment]);
+    const bytes = await readImageBytes(attachment);
+    // An animated WebP would come back as its first frame only, like a GIF.
+    if (((await sharp(bytes, { limitInputPixels: 30_000_000, animated: true }).metadata()).pages ?? 1) > 1) throw new Error('Animated images cannot be edited');
+    const { data, info } = await sharp(bytes, { limitInputPixels: 30_000_000, animated: false }).rotate()
+      .resize({ width: EDIT_IMAGE_MAX_SIDE, height: EDIT_IMAGE_MAX_SIDE, fit: 'inside', withoutEnlargement: true }).png().toBuffer({ resolveWithObject: true });
+    return { dataUrl: `data:image/png;base64,${data.toString('base64')}`, width: info.width, height: info.height };
   });
   staging = next.catch(() => undefined);
   return next;

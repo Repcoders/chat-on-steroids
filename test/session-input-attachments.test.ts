@@ -4,7 +4,7 @@ import sharp from 'sharp';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { makeTempDir, removeTempDir } from './helpers.js';
 import { initSessionStore } from '../src/main/session/store.js';
-import { stageInputAttachment, stageInputAttachments, validateInputAttachments, readInputAttachmentChunk, ATTACHMENT_CHUNK_BYTES, MAX_ATTACHMENT_BYTES } from '../src/main/session/input-attachments.js';
+import { stageInputAttachment, stageInputAttachments, validateInputAttachments, readInputAttachmentChunk, readInputAttachmentImage, ATTACHMENT_CHUNK_BYTES, MAX_ATTACHMENT_BYTES } from '../src/main/session/input-attachments.js';
 let directory: string;
 beforeEach(async () => { directory = await makeTempDir('cos-attachments-'); initSessionStore(directory); });
 afterEach(async () => { await removeTempDir(directory); });
@@ -74,4 +74,24 @@ it('releases thumbnail source files so expired image originals can be pruned imm
   await stageInputAttachment({ text: 'next draft' }, new Set());
   await expect(fs.stat(original)).rejects.toMatchObject({ code: 'ENOENT' });
   await expect(fs.stat(original + '.json')).rejects.toMatchObject({ code: 'ENOENT' });
+});
+it('opens a staged image upright within the edit bound for the editor, never changing the original', async () => {
+  // Stored 6x2 with an EXIF quarter turn: it shows, and is edited, 2x6 like its thumbnail.
+  const jpeg = await sharp({ create: { width: 6, height: 2, channels: 3, background: '#437b79' } }).jpeg().withMetadata({ orientation: 6 }).toBuffer();
+  const photo = await stageInputAttachment({ name: 'photo.jpg', bytes: jpeg }, new Set());
+  const opened = await readInputAttachmentImage(photo);
+  expect(opened).toMatchObject({ width: 2, height: 6 });
+  expect(await sharp(Buffer.from(opened.dataUrl.replace(/^data:image\/png;base64,/, ''), 'base64')).metadata()).toMatchObject({ format: 'png', width: 2, height: 6 });
+  expect(Buffer.from(await readInputAttachmentChunk(photo, 0), 'base64')).toEqual(jpeg);
+  const wide = await sharp({ create: { width: 5000, height: 1000, channels: 3, background: '#ffffff' } }).png().toBuffer();
+  expect(await readInputAttachmentImage(await stageInputAttachment({ name: 'wide.png', bytes: wide }, new Set()))).toMatchObject({ width: 4096, height: 819 });
+  await expect(readInputAttachmentImage({ ...photo, name: 'other.jpg' })).rejects.toThrow('changed');
+  await expect(readInputAttachmentImage(await stageInputAttachment({ text: 'notes' }, new Set()))).rejects.toThrow('PNG, JPEG and WebP');
+});
+it('refuses to open an animated WebP for editing, which would keep only its first frame', async () => {
+  const frame = (background: string) => sharp({ create: { width: 4, height: 4, channels: 3, background } }).png().toBuffer();
+  const animated = await sharp([await frame('#ff0000'), await frame('#0000ff')], { join: { animated: true } }).webp().toBuffer();
+  await expect(readInputAttachmentImage(await stageInputAttachment({ name: 'loop.webp', bytes: animated }, new Set()))).rejects.toThrow('Animated');
+  const still = await stageInputAttachment({ name: 'still.webp', bytes: await sharp(await frame('#00ff00')).webp().toBuffer() }, new Set());
+  expect(await readInputAttachmentImage(still)).toMatchObject({ width: 4, height: 4 });
 });

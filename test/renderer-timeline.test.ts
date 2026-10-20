@@ -1359,6 +1359,123 @@ it('restores the image draft after rejected injection and removes native-only de
   expect(app.w.document.querySelector('[aria-label="Remove image.png"]')).not.toBeNull();
 });
 
+it('replaces a staged screenshot with its redacted copy before Send', async () => {
+  const app = await boot([]);
+  const w = app.w as any;
+  const shot = { id: '11111111-2222-4333-8444-555555555555', name: 'screen.png', mimeType: 'image/png', size: 42, preview: 'data:image/webp;base64,YQ==' };
+  const edited = { ...shot, id: '33333333-2222-4333-8444-555555555555', name: 'screen-edited.png' };
+  const fills: number[][] = [];
+  w.HTMLImageElement.prototype.decode = async () => undefined;
+  w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (_target, key) => key === 'fillRect' ? (...box: number[]) => fills.push(box) : () => undefined, set: () => true });
+  w.HTMLCanvasElement.prototype.toBlob = (done: BlobCallback, type?: string) => done(new Blob(['redacted'], { type }));
+  w.HTMLCanvasElement.prototype.getBoundingClientRect = function () { return { left: 0, top: 0, width: this.width, height: this.height }; };
+  w.api.chooseFiles = async () => ({ ok: true, data: [shot] });
+  w.api.attachmentImage = vi.fn(async () => ({ ok: true, data: { dataUrl: 'data:image/png;base64,YQ==', width: 320, height: 180 } }));
+  w.api.dropFiles = vi.fn(async () => ({ ok: true, data: [edited] }));
+  w.document.getElementById('attachImages')!.click(); await settle();
+  (w.document.querySelector('[aria-label="Edit screen.png"]') as HTMLButtonElement).click(); await settle();
+  expect(w.api.attachmentImage).toHaveBeenCalledWith(shot);
+  const canvas = w.document.querySelector('.image-editor-canvas') as HTMLCanvasElement;
+  for (const [type, x, y] of [['pointerdown', 40, 30], ['pointermove', 120, 60], ['pointerup', 120, 60]] as const)
+    canvas.dispatchEvent(new w.MouseEvent(type, { clientX: x, clientY: y, button: 0, bubbles: true }));
+  [...w.document.querySelectorAll('.image-editor-dialog button')].find((node: any) => node.textContent === 'Save')!.click();
+  await settle();
+  expect(fills.at(-1)).toEqual([40, 30, 80, 30]);
+  const [[file]] = w.api.dropFiles.mock.calls[0];
+  expect([file.name, file.type]).toEqual(['screen-edited.png', 'image/png']);
+  expect([...w.document.querySelectorAll('#composerImages img')].map((node: any) => node.alt)).toEqual(['screen-edited.png']);
+  w.document.getElementById('composer')!.dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+  await settle();
+  expect(app.live.sent.at(-1)?.attachments).toEqual([edited]);
+});
+
+it('holds Send while the edited copy stages, offers Edit without a preview and keeps the original past the message limit', async () => {
+  const app = await boot([]);
+  const w = app.w as any;
+  const shot = { id: '11111111-2222-4333-8444-555555555555', name: 'screen.png', mimeType: 'image/png', size: 42 };
+  const big = { id: '22222222-2222-4333-8444-555555555555', name: 'big.bin', mimeType: 'application/octet-stream', size: 512 * 1024 * 1024 - 100 };
+  w.HTMLImageElement.prototype.decode = async () => undefined;
+  w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: () => () => undefined, set: () => true });
+  w.HTMLCanvasElement.prototype.toBlob = (done: BlobCallback, type?: string) => done(new Blob(['redacted'], { type }));
+  w.HTMLCanvasElement.prototype.getBoundingClientRect = function () { return { left: 0, top: 0, width: this.width, height: this.height }; };
+  w.api.attachmentImage = async () => ({ ok: true, data: { dataUrl: 'data:image/png;base64,YQ==', width: 320, height: 180 } });
+  const edit = async (staging: Promise<unknown>) => {
+    w.api.dropFiles = vi.fn(() => staging);
+    (w.document.querySelector('[aria-label="Edit screen.png"]') as HTMLButtonElement).click(); await settle();
+    const canvas = w.document.querySelector('.image-editor-canvas') as HTMLCanvasElement;
+    for (const [type, x, y] of [['pointerdown', 40, 30], ['pointermove', 120, 60], ['pointerup', 120, 60]] as const)
+      canvas.dispatchEvent(new w.MouseEvent(type, { clientX: x, clientY: y, button: 0, bubbles: true }));
+    [...w.document.querySelectorAll('.image-editor-dialog button')].find((node: any) => node.textContent === 'Save')!.click();
+    await settle();
+  };
+  w.api.chooseFiles = async () => ({ ok: true, data: [shot] });
+  w.document.getElementById('attachImages')!.click(); await settle();
+  let finish!: (value: unknown) => void;
+  await edit(new Promise(resolve => { finish = resolve; }));
+  const field = w.document.getElementById('chatInput') as HTMLTextAreaElement;
+  field.value = 'Too early'; field.dispatchEvent(new w.Event('input', { bubbles: true }));
+  w.document.getElementById('composer')!.dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+  await settle();
+  expect(app.live.sent).toHaveLength(0);
+  expect(w.document.querySelector('.toast')?.textContent).toBe('Wait until the edited image is attached');
+  finish({ ok: true, data: [{ ...shot, id: '33333333-2222-4333-8444-555555555555', name: 'screen-edited.png', size: 99 }] });
+  await settle();
+  expect(w.document.querySelector('[aria-label="Remove screen-edited.png"]')).not.toBeNull();
+  w.document.querySelector('[aria-label="Remove screen-edited.png"]')!.click();
+  w.api.chooseFiles = async () => ({ ok: true, data: [shot, big] });
+  w.document.getElementById('attachImages')!.click(); await settle();
+  await edit(Promise.resolve({ ok: true, data: [{ ...shot, id: '44444444-2222-4333-8444-555555555555', name: 'screen-edited.png', size: 200 }] }));
+  expect(w.document.querySelector('[aria-label="Remove screen.png"]')).not.toBeNull();
+  expect(w.document.querySelector('[aria-label="Remove screen-edited.png"]')).toBeNull();
+  expect(w.document.querySelector('.toast')?.textContent).toBe('Attach up to 20 files and 512 MB per message');
+});
+
+it('keeps Send waiting until every edited copy in the draft is staged, also after model discovery', async () => {
+  // A new chat whose default model is not confirmed yet: Send asks for the model list first.
+  const app = await boot([], false, [], [], { defaultChatModel: 'gpt-6' });
+  const w = app.w as any;
+  w.api.requestChatModels = async () => ({ ok: true, data: { state: 'unavailable', requestedAt: 1, observedAt: null, models: [] } });
+  (w.document.getElementById('refreshComposerModels') as HTMLButtonElement).click(); await settle();
+  const one = { id: '11111111-2222-4333-8444-555555555555', name: 'one.png', mimeType: 'image/png', size: 42 };
+  const two = { ...one, id: '22222222-2222-4333-8444-555555555555', name: 'two.png' };
+  w.HTMLImageElement.prototype.decode = async () => undefined;
+  w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: () => () => undefined, set: () => true });
+  w.HTMLCanvasElement.prototype.toBlob = (done: BlobCallback, type?: string) => done(new Blob(['redacted'], { type }));
+  w.HTMLCanvasElement.prototype.getBoundingClientRect = function () { return { left: 0, top: 0, width: this.width, height: this.height }; };
+  w.api.attachmentImage = async () => ({ ok: true, data: { dataUrl: 'data:image/png;base64,YQ==', width: 320, height: 180 } });
+  const finishes = new Map<string, (value: unknown) => void>();
+  w.api.dropFiles = vi.fn((files: File[]) => new Promise(resolve => finishes.set(files[0]!.name, resolve)));
+  const edit = async (name: string) => {
+    (w.document.querySelector(`[aria-label="Edit ${name}"]`) as HTMLButtonElement).click(); await settle();
+    const canvas = w.document.querySelector('.image-editor-canvas') as HTMLCanvasElement;
+    for (const [type, x, y] of [['pointerdown', 40, 30], ['pointermove', 120, 60], ['pointerup', 120, 60]] as const)
+      canvas.dispatchEvent(new w.MouseEvent(type, { clientX: x, clientY: y, button: 0, bubbles: true }));
+    [...w.document.querySelectorAll('.image-editor-dialog button')].find((node: any) => node.textContent === 'Save')!.click();
+    await settle();
+  };
+  const submit = async () => { w.document.getElementById('composer')!.dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true })); await settle(); };
+  const copy = (file: typeof one) => ({ ok: true, data: [{ ...file, id: file.id.replace('5555', '6666'), name: file.name.replace('.png', '-edited.png') }] });
+  w.api.chooseFiles = async () => ({ ok: true, data: [one, two] });
+  w.document.getElementById('attachImages')!.click(); await settle();
+  // Two copies staging, finished in reverse order: Send waits for both.
+  await edit('one.png'); await edit('two.png');
+  finishes.get('two-edited.png')!(copy(two)); await settle();
+  await submit();
+  expect(app.live.sent).toHaveLength(0);
+  finishes.get('one-edited.png')!(copy(one)); await settle();
+  // An edit saved while Send waits for the model list holds that Send too.
+  let discovered!: (value: unknown) => void;
+  w.api.requestChatModels = vi.fn(() => new Promise(resolve => { discovered = resolve; }));
+  w.api.dropFiles = vi.fn(() => new Promise(() => undefined));
+  const sending = submit();
+  await sending;
+  await edit('one-edited.png');
+  discovered({ ok: true, data: { state: 'ready', requestedAt: 1, observedAt: Date.now(), models: [{ id: 'gpt-6', label: 'GPT-6', efforts: ['none', 'high'] }] } });
+  await settle();
+  expect(app.live.sent).toHaveLength(0);
+  expect(w.document.querySelector('.toast')?.textContent).toBe('Wait until the edited image is attached');
+});
+
 it.each([7, 10, 11])('uses the same visible delivery choice and payload for %s attached images', async count => {
   const { w, live } = await boot([]);
   const files = Array.from({ length: count }, (_, index) => ({

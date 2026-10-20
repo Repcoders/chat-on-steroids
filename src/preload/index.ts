@@ -222,6 +222,8 @@ const api = {
     } catch { return { ok: false, error: 'Could not read the attachment' }; }
   },
   attachText: (text: string) => call<InputAttachment>('sessions:attachText', { text }),
+  /** An upright PNG copy (at most 4096 px a side) of a staged PNG, JPEG or WebP for the composer's editor. */
+  attachmentImage: (attachment: InputAttachment) => call<{ dataUrl: string; width: number; height: number }>('sessions:attachmentImage', { attachment }),
   getUsage: () => call<UsageOverview>('usage:get'),
   /** Codex's and Claude Code's usage from their logs here; `fresh` skips the 30-second cache. */
   getProviderUsage: (fresh = false) => call<ProviderUsage>('usage:providers', { fresh }),
