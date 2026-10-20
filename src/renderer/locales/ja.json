@@ -2790,5 +2790,6 @@
   "Remove these chats and their saved histories from the app. The chats stay in ChatGPT.": "これらのチャットと保存済みの履歴をアプリから削除します。チャットは ChatGPT に残ります。",
   "{0} chats selected": "{0}件のチャットを選択中",
   "Remove {0} chats from the app? Their saved histories are deleted. The chats stay in ChatGPT.": "{0}件のチャットをアプリから削除しますか？保存済みの履歴は削除されます。チャットは ChatGPT に残ります。",
-  "{0} chats removed from the app": "{0}件のチャットをアプリから削除しました"
+  "{0} chats removed from the app": "{0}件のチャットをアプリから削除しました",
+  "Selected": "選択済み"
 }

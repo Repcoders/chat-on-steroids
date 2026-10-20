@@ -2790,5 +2790,6 @@
   "Remove these chats and their saved histories from the app. The chats stay in ChatGPT.": "이 채팅들과 저장된 기록을 앱에서 제거합니다. 채팅은 ChatGPT에 남아 있습니다.",
   "{0} chats selected": "채팅 {0}개 선택됨",
   "Remove {0} chats from the app? Their saved histories are deleted. The chats stay in ChatGPT.": "채팅 {0}개를 앱에서 제거할까요? 저장된 기록이 삭제됩니다. 채팅은 ChatGPT에 남아 있습니다.",
-  "{0} chats removed from the app": "앱에서 채팅 {0}개를 제거했습니다"
+  "{0} chats removed from the app": "앱에서 채팅 {0}개를 제거했습니다",
+  "Selected": "선택됨"
 }

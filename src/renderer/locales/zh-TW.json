@@ -2790,5 +2790,6 @@
   "Remove these chats and their saved histories from the app. The chats stay in ChatGPT.": "從應用程式中移除這些聊天及其儲存的歷史記錄。聊天仍保留在 ChatGPT 中。",
   "{0} chats selected": "已選取 {0} 個聊天",
   "Remove {0} chats from the app? Their saved histories are deleted. The chats stay in ChatGPT.": "要從應用程式中移除 {0} 個聊天嗎？其儲存的歷史記錄將被刪除。聊天仍保留在 ChatGPT 中。",
-  "{0} chats removed from the app": "已從應用程式中移除 {0} 個聊天"
+  "{0} chats removed from the app": "已從應用程式中移除 {0} 個聊天",
+  "Selected": "已選取"
 }

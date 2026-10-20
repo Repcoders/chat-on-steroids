@@ -2838,5 +2838,6 @@
   "Remove {0} chats from the app? Their saved histories are deleted. The chats stay in ChatGPT.": "{0} Chats aus der App entfernen? Ihr gespeicherter Verlauf wird gelöscht. In ChatGPT bleiben die Chats erhalten.",
   "Remove {0} chats from the app? Their saved histories are deleted. The chats stay in ChatGPT.|one": "{0} Chat aus der App entfernen? Sein gespeicherter Verlauf wird gelöscht. In ChatGPT bleibt der Chat erhalten.",
   "{0} chats removed from the app": "{0} Chats aus der App entfernt",
-  "{0} chats removed from the app|one": "{0} Chat aus der App entfernt"
+  "{0} chats removed from the app|one": "{0} Chat aus der App entfernt",
+  "Selected": "Ausgewählt"
 }

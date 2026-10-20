@@ -2934,5 +2934,6 @@
   "{0} chats removed from the app": "Чатов убрано из приложения: {0}",
   "{0} chats removed from the app|one": "{0} чат убран из приложения",
   "{0} chats removed from the app|few": "{0} чата убрано из приложения",
-  "{0} chats removed from the app|many": "{0} чатов убрано из приложения"
+  "{0} chats removed from the app|many": "{0} чатов убрано из приложения",
+  "Selected": "Выбран"
 }

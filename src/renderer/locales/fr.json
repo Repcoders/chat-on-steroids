@@ -2886,5 +2886,6 @@
   "Remove {0} chats from the app? Their saved histories are deleted. The chats stay in ChatGPT.|many": "Retirer {0} de chats de l’app ? Leurs historiques enregistrés sont supprimés. Les chats restent dans ChatGPT.",
   "{0} chats removed from the app": "{0} chats retirés de l’app",
   "{0} chats removed from the app|one": "{0} chat retiré de l’app",
-  "{0} chats removed from the app|many": "{0} de chats retirés de l’app"
+  "{0} chats removed from the app|many": "{0} de chats retirés de l’app",
+  "Selected": "Sélectionné"
 }

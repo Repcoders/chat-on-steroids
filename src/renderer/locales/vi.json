@@ -2790,5 +2790,6 @@
   "Remove these chats and their saved histories from the app. The chats stay in ChatGPT.": "Xóa các cuộc trò chuyện này và lịch sử đã lưu khỏi ứng dụng. Các cuộc trò chuyện vẫn còn trong ChatGPT.",
   "{0} chats selected": "Đã chọn {0} cuộc trò chuyện",
   "Remove {0} chats from the app? Their saved histories are deleted. The chats stay in ChatGPT.": "Xóa {0} cuộc trò chuyện khỏi ứng dụng? Lịch sử đã lưu của chúng sẽ bị xóa. Các cuộc trò chuyện vẫn còn trong ChatGPT.",
-  "{0} chats removed from the app": "Đã xóa {0} cuộc trò chuyện khỏi ứng dụng"
+  "{0} chats removed from the app": "Đã xóa {0} cuộc trò chuyện khỏi ứng dụng",
+  "Selected": "Đã chọn"
 }

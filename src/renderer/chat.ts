@@ -879,7 +879,8 @@ function sessionRow(summary: SessionSummary): HTMLElement {
   row.dataset.id = summary.id;
   if (summary.id === selectedId) row.classList.add('is-sel');
   if (summary.id === activeId && summary.endedAt === null) row.classList.add('is-live');
-  if (sidebarSelection.has(summary.id)) row.classList.add('is-picked');
+  const picked = sidebarSelection.has(summary.id);
+  if (picked) row.classList.add('is-picked');
 
   const top = el('div', 'sess-top');
   top.setAttribute('role', 'button');
@@ -893,6 +894,8 @@ function sessionRow(summary: SessionSummary): HTMLElement {
     // Double-click names the chat, like the pencil does (#1107).
     if (summary.conversationId) title.addEventListener('dblclick', (event) => { event.stopPropagation(); startRename(summary); });
     top.append(title);
+    // The tint alone would not tell a screen reader which rows are picked.
+    if (picked) top.append(el('span', 'sr-only', () => t('Selected')));
   }
   const badges = sessionBadges(summary);
   const pinned = pinnedChat(summary);

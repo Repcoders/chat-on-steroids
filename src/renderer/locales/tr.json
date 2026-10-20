@@ -2838,5 +2838,6 @@
   "Remove {0} chats from the app? Their saved histories are deleted. The chats stay in ChatGPT.": "{0} sohbet uygulamadan kaldırılsın mı? Kayıtlı geçmişleri silinir. Sohbetler ChatGPT'de kalır.",
   "Remove {0} chats from the app? Their saved histories are deleted. The chats stay in ChatGPT.|one": "{0} sohbet uygulamadan kaldırılsın mı? Kayıtlı geçmişi silinir. Sohbet ChatGPT'de kalır.",
   "{0} chats removed from the app": "{0} sohbet uygulamadan kaldırıldı",
-  "{0} chats removed from the app|one": "{0} sohbet uygulamadan kaldırıldı"
+  "{0} chats removed from the app|one": "{0} sohbet uygulamadan kaldırıldı",
+  "Selected": "Seçildi"
 }

@@ -74,6 +74,9 @@ app.whenReady().then(async () => {
   assert.deepEqual(await picked(),['chat-1','chat-2','chat-3','chat-4','chat-5']);
   assert.equal(await bar(),'5 chats selected');
   assert.equal(await js(`document.querySelector('#sessionList .sess.is-sel')?.dataset.id ?? null`),'chat-1','Picking opens no chat');
+  // A screen reader hears which rows are picked, not only how many.
+  assert.deepEqual(await js(`[...document.querySelectorAll('#sessionList .sess-top .sr-only')].map(s=>s.closest('.sess').dataset.id+':'+s.textContent)`),
+    ['chat-1','chat-2','chat-3','chat-4','chat-5'].map(id=>id+':Selected'));
   // Ctrl/Cmd-click on a picked chat lets it go again.
   await click('chat-5',ctrl); await click('chat-5',ctrl);
   assert.equal(await bar(),'5 chats selected');
