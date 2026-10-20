@@ -33,6 +33,8 @@ export function initChatSources(deps: ChatSourcesDeps): { open(id: string): void
   let sessionId: string | null = null;
   let all: SessionSource[] = [];
   let limited = false;
+  // Until the list arrives, and after it failed, there is nothing to say about it.
+  let loaded = false;
   let generation = 0;
   let copiedTimer = 0;
 
@@ -81,6 +83,7 @@ export function initChatSources(deps: ChatSourcesDeps): { open(id: string): void
   };
 
   const paint = (): void => {
+    if (!loaded) return;
     const sources = shown();
     copy.disabled = !sources.length;
     // A page the search would find may be among those left out.
@@ -100,6 +103,7 @@ export function initChatSources(deps: ChatSourcesDeps): { open(id: string): void
     sessionId = id;
     all = [];
     limited = false;
+    loaded = false;
     field.value = '';
     list.replaceChildren();
     copy.disabled = true;
@@ -110,6 +114,7 @@ export function initChatSources(deps: ChatSourcesDeps): { open(id: string): void
       if (mine !== generation || !dialog.open || !sources) return;
       all = sources.sources;
       limited = Boolean(sources.limited);
+      loaded = true;
       paint();
     });
   };

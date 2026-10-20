@@ -5393,11 +5393,21 @@ it('does not call a chat empty of sources when its Sources fail to load', async 
   const reply: SessionEvent = { kind: 'assistant_message', seq: 1, time: T0, source: 'extension', turnId: 'web-turn', messageId: 'reply',
     message: text('Release B is faster.'), final: true, state: 'final', references: [{ index: 0, sources: [{ title: 'Release B', url: 'https://example.com/b' }] }] };
   const { w } = await boot([reply, { seq: 2, time: T0 + 1_000, source: 'extension', kind: 'turn_end', turnId: 'web-turn', outcome: 'completed' }]);
-  (w as any).api.chatSources = vi.fn(async () => ({ ok: false, error: 'Sources unavailable' }));
+  let fail!: () => void;
+  (w as any).api.chatSources = vi.fn(() => new Promise(resolve => { fail = () => resolve({ ok: false, error: 'Sources unavailable' }); }));
   w.document.querySelector<HTMLButtonElement>('.answer-sources')!.click(); await settle();
   const dialog = w.document.getElementById('sourcesDialog') as HTMLDialogElement;
+  const field = w.document.getElementById('sourcesFilter') as HTMLInputElement;
   expect(dialog.open).toBe(true);
-  // The toast reports the failure; the list does not claim the chat cites nothing.
+  // Typing before the list arrives, or after it failed, does not claim the chat cites nothing.
+  field.value = 'release';
+  field.dispatchEvent(new w.Event('input', { bubbles: true }));
+  expect(dialog.querySelector('.search-status')).toBeNull();
+  fail(); await settle();
+  // The toast reports the failure.
+  expect(dialog.querySelector('.search-status')).toBeNull();
+  field.value = '';
+  field.dispatchEvent(new w.Event('input', { bubbles: true }));
   expect(dialog.querySelector('.search-status')).toBeNull();
 });
 
