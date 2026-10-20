@@ -45,7 +45,8 @@ function addRow(role: WorkerRole): HTMLInputElement {
   row.append(name, model, effort, remove);
   // Painting looks the selects up by id, so the row is in the document first.
   $('workerRoles').append(row);
-  untrack.set(row, trackModelPair(model.id, effort.id, role.model, role.reasoning));
+  // Empty is a real choice here: that half follows the default sub-agent setting.
+  untrack.set(row, trackModelPair(model.id, effort.id, role.model, role.reasoning, () => t('Sub-agent default')));
   for (const control of [name, model, effort]) control.addEventListener('change', () => save());
   remove.addEventListener('click', () => { drop(row); paintAdd(); save(); });
   paintAdd();
@@ -54,16 +55,26 @@ function addRow(role: WorkerRole): HTMLInputElement {
 
 export function initWorkerRoles(onSave: () => void): void {
   save = onSave;
-  $('addWorkerRole').addEventListener('click', () => addRow({ name: '', model: '', reasoning: '' }).focus());
+  // A new role starts from the default sub-agent pair, the closest thing to what it will change.
+  $('addWorkerRole').addEventListener('click', () => {
+    const name = addRow({
+      name: '', model: $<HTMLSelectElement>('workerModel').value, reasoning: $<HTMLSelectElement>('workerReasoning').value as WorkerRole['reasoning']
+    });
+    // Not yet named is a draft, not a mistake; it stops being one once a name is typed.
+    name.dataset.draft = 'true';
+    name.addEventListener('input', () => { if (name.value.trim()) delete name.dataset.draft; });
+    name.focus();
+  });
   paintAdd();
 }
 
-/** Repaints from config unless the rows already show it or the person is editing them. */
+/** Repaints from config unless the rows already show it or the person has edited them. */
 export function applyWorkerRoles(config: Config): void {
   const roles = config.multiAgent.roles ?? [];
   const key = JSON.stringify(roles);
   const list = $('workerRoles');
-  if (key === painted || list.contains(document.activeElement)) return;
+  // Focus alone does not protect the rows: unedited ones still take a newer saved list.
+  if (key === painted || (list.contains(document.activeElement) && JSON.stringify(rowValues().roles) !== painted)) return;
   painted = key;
   for (const row of [...list.children]) drop(row);
   for (const role of roles) addRow(role);
@@ -74,24 +85,35 @@ export function applyWorkerRoles(config: Config): void {
  * The roles the rows describe, for the settings save. A row without a name is still being
  * written and a repeated name would make the lookup ambiguous, so neither is saved.
  */
-export function workerRolesValue(): WorkerRole[] {
+function rowValues(): { roles: WorkerRole[]; repeated: Set<HTMLInputElement> } {
   const roles: WorkerRole[] = [];
+  const repeated = new Set<HTMLInputElement>();
   const names = new Set<string>();
   for (const row of $('workerRoles').children) {
     const name = row.querySelector<HTMLInputElement>('.worker-role-name')!;
     const [model, effort] = [...row.querySelectorAll('select')];
     const value = name.value.trim();
-    const repeated = names.has(value.toLowerCase());
-    if (repeated) {
+    if (names.has(value.toLowerCase())) repeated.add(name);
+    if (!value || repeated.has(name)) continue;
+    names.add(value.toLowerCase());
+    roles.push({ name: value, model: model!.value, reasoning: effort!.value as WorkerRole['reasoning'] });
+  }
+  return { roles, repeated };
+}
+
+export function workerRolesValue(): WorkerRole[] {
+  const { roles, repeated } = rowValues();
+  for (const name of $('workerRoles').querySelectorAll<HTMLInputElement>('.worker-role-name')) {
+    if (repeated.has(name)) {
       name.setAttribute('aria-invalid', 'true');
       ui(name, 'title', () => t('Another role already has this name'));
+    } else if (!name.value.trim() && !name.dataset.draft) {
+      name.setAttribute('aria-invalid', 'true');
+      ui(name, 'title', () => t('A role needs a name to be saved'));
     } else {
       name.removeAttribute('aria-invalid');
       ui(name, 'title', () => '');
     }
-    if (!value || repeated) continue;
-    names.add(value.toLowerCase());
-    roles.push({ name: value, model: model!.value, reasoning: effort!.value as WorkerRole['reasoning'] });
   }
   // What this save proposes is what the rows show; its echo from main repaints nothing.
   painted = JSON.stringify(roles);

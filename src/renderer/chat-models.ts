@@ -43,6 +43,8 @@ function chooseAutomatic(): void {
   paintPair('composerModel', 'composerReasoning', '', '');
   paintStatus();
 }
+/** What an empty choice means in a pair added later, where it is not Automatic. */
+const emptyLabels = new Map<string, () => string>();
 const pairs: Array<readonly [string, string, boolean]> = [
   ['composerModel', 'composerReasoning', false],
   ['defaultChatModel', 'defaultChatReasoning', true],
@@ -165,6 +167,7 @@ function paintPair(modelId: string, effortId: string, modelValue?: string, effor
   const effort = document.getElementById(effortId) as HTMLSelectElement | null;
   if (!model || !effort) return;
   const models = modelId === 'composerModel' ? composerModels() : catalog.models;
+  const empty = emptyLabels.get(modelId) ?? (() => t('Automatic'));
   // No saved sub-agent default starts workers on ChatGPT's current model. The select says so as
   // Automatic instead of naming a model nothing would use; a model picked there still gets its
   // preferred effort.
@@ -177,10 +180,10 @@ function paintPair(modelId: string, effortId: string, modelValue?: string, effor
     // cannot prove which efforts that alias supports. Retain both requested values
     // until the user deliberately selects a family; native selection proves the pair.
     const modelChoices = [...distinctModelChoices(models), { id: nextModel, label: `${observed.label} · ${nextModel}` }];
-    if (automaticModel) modelChoices.unshift({ id: '', label: () => t('Automatic') });
+    if (automaticModel) modelChoices.unshift({ id: '', label: empty });
     options(model, modelChoices, nextModel);
     const effortChoices = [{ id: nextEffort, label: () => nextEffort ? effortLabel(nextEffort) : t('Keep requested model settings') }];
-    if (allowEmpty && nextEffort) effortChoices.unshift({ id: '', label: () => t('Automatic') });
+    if (allowEmpty && nextEffort) effortChoices.unshift({ id: '', label: empty });
     options(effort, effortChoices, nextEffort);
     return;
   }
@@ -196,10 +199,10 @@ function paintPair(modelId: string, effortId: string, modelValue?: string, effor
     nextEffort = supported.includes('high') ? 'high' : supported[0] ?? '';
   }
   const modelChoices = distinctModelChoices(models);
-  if (automaticModel) modelChoices.unshift({ id: '', label: () => t('Automatic') });
+  if (automaticModel) modelChoices.unshift({ id: '', label: empty });
   const effortChoices: Array<{ id: string; label: string | (() => string) }> =
     (models.find(item => item.id === nextModel)?.efforts ?? []).map(id => ({ id, label: () => effortLabel(id) }));
-  if (allowEmpty || (automaticModel && !nextModel)) effortChoices.unshift({ id: '', label: () => t('Automatic') });
+  if (allowEmpty || (automaticModel && !nextModel)) effortChoices.unshift({ id: '', label: empty });
   options(model, modelChoices, nextModel);
   options(effort, effortChoices, nextEffort);
 }
@@ -570,14 +573,16 @@ export function initChatModels(onPaint?: () => void): void {
 
 /**
  * Paints a settings pair added after startup, such as a worker role row, from the same catalog
- * as the fixed pairs, and keeps it repainted until the returned call drops it.
+ * as the fixed pairs, and keeps it repainted until the returned call drops it. Its empty choice
+ * is kept and named by `emptyLabel`, so an empty saved value survives every repaint.
  */
-export function trackModelPair(modelId: string, effortId: string, model: string, effort: string): () => void {
-  const pair = [modelId, effortId, false] as const;
+export function trackModelPair(modelId: string, effortId: string, model: string, effort: string, emptyLabel: () => string): () => void {
+  const pair = [modelId, effortId, true] as const;
   pairs.push(pair);
-  wirePair(modelId, effortId, false);
-  paintPair(modelId, effortId, model, effort);
-  return () => { const at = pairs.indexOf(pair); if (at >= 0) pairs.splice(at, 1); };
+  emptyLabels.set(modelId, emptyLabel);
+  wirePair(modelId, effortId, true);
+  paintPair(modelId, effortId, model, effort, true);
+  return () => { const at = pairs.indexOf(pair); if (at >= 0) pairs.splice(at, 1); emptyLabels.delete(modelId); };
 }
 
 function wirePair(modelId: string, effortId: string, allowEmpty: boolean): void {

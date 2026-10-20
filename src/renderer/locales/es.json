@@ -2876,5 +2876,7 @@
   "Role model": "Modelo del rol",
   "Role reasoning": "Razonamiento del rol",
   "Remove role {0}": "Eliminar el rol {0}",
-  "Another role already has this name": "Otro rol ya tiene este nombre"
+  "Another role already has this name": "Otro rol ya tiene este nombre",
+  "Sub-agent default": "Predeterminado de subagente",
+  "A role needs a name to be saved": "Un rol necesita un nombre para guardarse"
 }

@@ -2876,5 +2876,7 @@
   "Role model": "Modelo da função",
   "Role reasoning": "Raciocínio da função",
   "Remove role {0}": "Remover a função {0}",
-  "Another role already has this name": "Outra função já tem este nome"
+  "Another role already has this name": "Outra função já tem este nome",
+  "Sub-agent default": "Padrão dos subagentes",
+  "A role needs a name to be saved": "Uma função precisa de um nome para ser salva"
 }

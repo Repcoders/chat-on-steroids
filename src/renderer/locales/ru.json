@@ -2921,5 +2921,7 @@
   "Role model": "Модель роли",
   "Role reasoning": "Уровень рассуждений роли",
   "Remove role {0}": "Удалить роль {0}",
-  "Another role already has this name": "Роль с таким названием уже есть"
+  "Another role already has this name": "Роль с таким названием уже есть",
+  "Sub-agent default": "По умолчанию для субагента",
+  "A role needs a name to be saved": "Чтобы сохранить роль, укажите её название"
 }

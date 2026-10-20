@@ -2786,5 +2786,7 @@
   "Role model": "Mô hình của vai trò",
   "Role reasoning": "Suy luận của vai trò",
   "Remove role {0}": "Xóa vai trò {0}",
-  "Another role already has this name": "Đã có vai trò khác dùng tên này"
+  "Another role already has this name": "Đã có vai trò khác dùng tên này",
+  "Sub-agent default": "Mặc định của tác nhân phụ",
+  "A role needs a name to be saved": "Vai trò cần có tên để được lưu"
 }

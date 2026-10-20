@@ -2786,5 +2786,7 @@
   "Role model": "역할 모델",
   "Role reasoning": "역할 추론",
   "Remove role {0}": "역할 {0} 제거",
-  "Another role already has this name": "같은 이름의 역할이 이미 있습니다"
+  "Another role already has this name": "같은 이름의 역할이 이미 있습니다",
+  "Sub-agent default": "서브에이전트 기본값",
+  "A role needs a name to be saved": "역할을 저장하려면 이름이 필요합니다"
 }

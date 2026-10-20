@@ -2831,5 +2831,7 @@
   "Role model": "Rol modeli",
   "Role reasoning": "Rol akıl yürütmesi",
   "Remove role {0}": "{0} rolünü kaldır",
-  "Another role already has this name": "Bu ada sahip başka bir rol zaten var"
+  "Another role already has this name": "Bu ada sahip başka bir rol zaten var",
+  "Sub-agent default": "Yardımcı ajan varsayılanı",
+  "A role needs a name to be saved": "Bir rolün kaydedilmesi için adı olmalıdır"
 }

@@ -2786,5 +2786,7 @@
   "Role model": "角色模型",
   "Role reasoning": "角色推理强度",
   "Remove role {0}": "移除角色 {0}",
-  "Another role already has this name": "已有其他角色使用此名称"
+  "Another role already has this name": "已有其他角色使用此名称",
+  "Sub-agent default": "子智能体默认设置",
+  "A role needs a name to be saved": "角色需要名称才能保存"
 }

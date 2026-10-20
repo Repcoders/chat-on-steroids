@@ -2786,5 +2786,7 @@
   "Role model": "ロールのモデル",
   "Role reasoning": "ロールの推論強度",
   "Remove role {0}": "ロール {0} を取り除く",
-  "Another role already has this name": "同じ名前のロールがすでにあります"
+  "Another role already has this name": "同じ名前のロールがすでにあります",
+  "Sub-agent default": "サブエージェントの既定",
+  "A role needs a name to be saved": "ロールを保存するには名前が必要です"
 }
