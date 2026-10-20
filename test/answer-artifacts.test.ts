@@ -145,3 +145,18 @@ it('leaves out formulas inside indented code, at the top and in a list', () => {
     { kind: 'formula', text: 'y' }
   ]);
 });
+
+it('reads formulas after indented code that shows a fence line', () => {
+  const answer = [
+    'Shell:',
+    '',
+    '    ```sh',
+    '    run',
+    '',
+    '$$ outside $$'
+  ].join('\n');
+  expect(answerArtifacts(answer)).toEqual([
+    { kind: 'code', text: '```sh\nrun' },
+    { kind: 'formula', text: 'outside' }
+  ]);
+});

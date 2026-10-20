@@ -57,8 +57,10 @@ function withoutCode(text: string): string {
 /** The formulas outside code; `code` holds the spans of marked's code blocks, indented ones too. */
 function displayFormulas(text: string, code: Array<[number, number]>): Array<{ at: number; artifact: AnswerArtifact }> {
   if (!text.includes('\\[') && !text.includes('$$')) return [];
-  let prose = withoutCode(text);
+  // Code blocks go first, so a fence line shown inside indented code does not open a fence.
+  let prose = text;
   for (const [from, to] of code) prose = prose.slice(0, from) + prose.slice(from, to).replace(/[^\n]/g, ' ') + prose.slice(to);
+  prose = withoutCode(prose);
   const out: Array<{ at: number; artifact: AnswerArtifact }> = [];
   DISPLAY_OPEN.lastIndex = 0;
   for (let match = DISPLAY_OPEN.exec(prose); match; match = DISPLAY_OPEN.exec(prose)) {
