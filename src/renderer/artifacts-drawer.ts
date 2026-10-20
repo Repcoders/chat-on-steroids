@@ -113,7 +113,7 @@ export function createArtifactsDrawer(deps: ArtifactsDrawerDeps) {
     loaded = key;
     const id = sessionId, mine = ++generation;
     loading = true; paint();
-    void deps.load(id).then(reply => {
+    void deps.load(id).catch(() => null).then(reply => {
       if (mine !== generation) return;
       loading = false;
       // A failed read keeps what was listed, or says it failed, instead of claiming the chat has none.

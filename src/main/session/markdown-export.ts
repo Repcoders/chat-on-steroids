@@ -90,12 +90,15 @@ export async function artifactsInSession(id: string): Promise<SessionArtifactsRe
   }
   const artifacts: SessionArtifact[] = [];
   let question = '', answer = 0, chars = 0;
+  // A turn's answers are one answer, as Copy answer joins them; one outside a turn stands alone.
+  const counted = new Set<string>();
   for (const entry of transcriptEntries(events)) {
     if (entry.role === 'user') {
       question = entry.stored.text.replace(/\s+/g, ' ').trim().slice(0, QUESTION_CHARS);
       continue;
     }
-    answer++;
+    if (entry.turnId === null || !counted.has(entry.turnId)) answer++;
+    if (entry.turnId !== null) counted.add(entry.turnId);
     const event = bySeq.get(entry.seq);
     if (event?.kind !== 'assistant_message') continue;
     const found = answerArtifacts(await fullText(id, entry.stored, entry.html));

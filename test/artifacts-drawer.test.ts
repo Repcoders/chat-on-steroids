@@ -130,3 +130,15 @@ it('cuts a long line in the preview and still copies all of it', async () => {
   await flush();
   expect(deps.copy).toHaveBeenCalledWith(line);
 });
+
+it('treats a read that throws as a failed read, and tries it again when the panel reopens', async () => {
+  const { drawer, deps, mount } = await setup();
+  deps.load.mockRejectedValueOnce(new Error('gone'));
+  drawer.update('chat-1', '1'); drawer.show(mount);
+  await flush();
+  expect(document.querySelector<HTMLElement>('.artifacts-status')!.textContent).toBe("Could not read this chat's artifacts.");
+  drawer.hide(); drawer.show(mount);
+  await flush();
+  expect(deps.load).toHaveBeenCalledTimes(2);
+  expect(items()).toHaveLength(4);
+});

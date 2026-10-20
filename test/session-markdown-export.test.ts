@@ -125,3 +125,18 @@ it('bounds a chat\'s artifacts and says when it lists only part of them', async 
   expect(reply.artifacts.at(-1)).toMatchObject({ text: 'line 499', answer: 25 });
 });
 
+
+it('numbers the answers of one turn as one answer, as Copy answer joins them', async () => {
+  const said = (seq: number, kind: 'user_message' | 'assistant_message', turnId: string, messageId: string, text: string) => (
+    { seq, time: seq, source: 'extension', kind, turnId, messageId, ...(kind === 'assistant_message' ? { final: true, state: 'final' } : {}),
+      message: { text, truncated: false, chars: text.length } });
+  store.readEvents.mockResolvedValue([
+    said(1, 'user_message', 't1', 'u1', 'Two steps'),
+    said(2, 'assistant_message', 't1', 'a1', '```sh\nfirst\n```'),
+    said(3, 'assistant_message', 't1', 'a2', '```sh\nsecond\n```'),
+    said(4, 'user_message', 't2', 'u2', 'Next'),
+    said(5, 'assistant_message', 't2', 'a3', '```sh\nthird\n```')
+  ] as SessionEvent[]);
+  const reply = await artifactsInSession('session-1');
+  expect(reply.artifacts.map(artifact => [artifact.text, artifact.answer])).toEqual([['first', 1], ['second', 1], ['third', 2]]);
+});

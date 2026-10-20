@@ -4494,7 +4494,7 @@ asks `sessions:artifacts { id }` → `SessionArtifactsReply { artifacts, limited
 (`artifactsInSession` in `session/markdown-export.ts`: the code blocks, tables and display formulas
 of the whole recording's final answers, parsed from the full Markdown by `shared/answer-artifacts.ts`,
 in spoken order, at most 500 and 2,000,000 characters, `limited` beyond; each with its answer's
-number, the question before it, at most 120 characters, and its `SessionSearchLocation`). It
+number (a turn's answers count as one), the question before it, at most 120 characters, and its `SessionSearchLocation`). It
 filters by kind, copies an artifact as written through `clipboard:write` and opens its answer
 through `revealChatLocation`. It reads again when the chat's `lastAssistantFinalAt` or
 `lastTurnEndAt` moves, not when history pages load.
