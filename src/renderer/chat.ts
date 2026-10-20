@@ -6295,8 +6295,10 @@ function placeTurnLines(rows: HTMLElement[], workedSeconds: ReadonlyMap<number, 
   // the running turn answers, so it keeps its own worked line and the live one stays off it.
   const live = working && timelineReachesEnd();
   // The turn open now folds once it ends, whichever line shows it while it runs (the live one, or
-  // none in developer mode).
-  const open = openTurnId(events) !== null && timelineReachesEnd() ? asks.at(-1) : undefined;
+  // none in developer mode). A turn the recording left open (the page closed mid-turn) has ended once
+  // the chat reports no turn: the status line says so, and in developer mode the controls read.
+  const runs = status ? working : openTurnId(events) !== null && !(selectedId !== null && chatKnownIdle(selectedId));
+  const open = runs && timelineReachesEnd() ? asks.at(-1) : undefined;
   runningTurnAsked = open ? String(open.asked) : null;
   if (runningTurnAsked) liveTurnAsked = runningTurnAsked;
   const used = new Set<string>();

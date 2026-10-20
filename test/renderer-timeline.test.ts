@@ -3512,6 +3512,23 @@ describe('the work log', () => {
     expect(log.classList.contains('is-folded')).toBe(true);
   });
 
+  it.each([false, true])('folds a turn the recording left open once the chat reports no turn (developer mode: %s)', async developerMode => {
+    const at = Date.now() - 60_000;
+    const { w, append } = await boot([
+      { seq: 1, time: at, source: 'extension', kind: 'turn_start', turnId: 'held-turn' },
+      { kind: 'user_message', seq: 2, origin: 2, time: at + 100, source: 'extension', turnId: 'held-turn', messageId: 'q', message: text('Add cursor pagination') },
+      { kind: 'assistant_message', seq: 3, time: at + 2_000, source: 'extension', turnId: 'held-turn', messageId: 'say', message: text('I will start with the route.'), final: false },
+      { ...toolCall(4, 'read-route'), time: at + 3_000, turnId: 'held-turn' } as SessionEvent,
+      { ...toolCall(5, 'read-query'), time: at + 4_000, turnId: 'held-turn' } as SessionEvent
+    ], true, [], [], { developerMode });
+    // The page closed after the answer: no turn end is ever recorded, and the chat reports no turn.
+    finished(w);
+    await append([{ kind: 'assistant_message', seq: 6, time: at + 50_000, source: 'extension', turnId: 'held-turn', messageId: 'answer', message: text('Done.'), final: true, state: 'final' }]);
+    const line = w.document.querySelector<HTMLElement>('#timeline .turn-worked.is-foldable')!;
+    expect(line.getAttribute('aria-expanded')).toBe('false');
+    expect(w.document.querySelector('#timeline .work-log')!.classList.contains('is-folded')).toBe(true);
+  });
+
   it('keeps a folded turn open when its question pages out and back in while its work is on screen', async () => {
     // 162 events: once the oldest page is in, the next newer page drops exactly the turn's start and question.
     const later = Array.from({ length: 155 }, (_, i): SessionEvent => ({ seq: i + 8, time: T0 + 200_000 + i,
