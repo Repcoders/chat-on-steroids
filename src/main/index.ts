@@ -9,6 +9,7 @@ import { requestSessionFinishGoal, setFinishNotifier } from './session/finish.js
 import path from 'node:path';
 import { app, Notification, BrowserWindow, Menu, Tray, nativeImage, nativeTheme, powerMonitor, powerSaveBlocker, screen, session } from 'electron';
 import { createKeepAwake, installKeepAwake } from './keep-awake.js';
+import { createTaskbarProgress, installTaskbarProgress, repaintTaskbarProgress, runningTitle } from './taskbar-progress.js';
 import { getConfig, initConfigPath, loadConfig } from './config.js';
 import { initConnectorProofPath, loadConnectorProof, notePluginInstalled } from './connector-proof.js';
 import { initWorkerArchivePath, loadWorkerArchive, queueWorkerArchives } from './worker-archive.js';
@@ -193,6 +194,9 @@ function createWindow(): void {
 
   if (process.platform === 'win32') window.removeMenu();
   const owner = window;
+  // The main process owns the title, so "(2 running)" survives a renderer reload.
+  window.on('page-title-updated', event => event.preventDefault());
+  repaintTaskbarProgress();
 
   // First use discovers the account once. A restored catalog is immediately usable;
   // showing the window again may observe an existing page, never open another browser attempt.
@@ -475,6 +479,22 @@ void app.whenReady().then(async () => {
   onSessionChange(() => void keepAwake.refresh());
   setInterval(() => void keepAwake.refresh(), 60_000).unref();
   void keepAwake.refresh();
+  // While chats work: taskbar progress and "(2 running)" in the title; on macOS the Dock badge.
+  const taskbarProgress = createTaskbarProgress({
+    sessions: async () => (await listSessions()).map(summary => ({ ...summary, activityExpiresAt: sessionActivityExpiresAt(summary) })),
+    enabled: () => getConfig().ui.taskbarProgress === true,
+    show: count => {
+      if (process.platform === 'darwin') app.dock?.setBadge(count > 0 ? String(count) : '');
+      if (!window || window.isDestroyed()) return;
+      window.setTitle(runningTitle(count));
+      if (process.platform !== 'darwin') window.setProgressBar(count > 0 ? 2 : -1, { mode: count > 0 ? 'indeterminate' : 'none' });
+    }
+  });
+  installTaskbarProgress(taskbarProgress);
+  onSessionChange(() => void taskbarProgress.refresh());
+  onMainTextsChange(() => void taskbarProgress.repaint());
+  setInterval(() => void taskbarProgress.refresh(), 60_000).unref();
+  void taskbarProgress.refresh();
   // Codex's turn-completion notifications: a finished answer in a background window.
   const turnNotifier = createTurnNotifier({
     getSession,

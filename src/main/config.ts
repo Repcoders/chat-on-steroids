@@ -376,6 +376,7 @@ const configSchema = z.object({
     localAppUsage: z.boolean().optional().default(true),
     keepAwake: z.boolean().optional().default(true),
     keepScreenAwake: z.boolean().optional().default(false),
+    taskbarProgress: z.boolean().optional().default(false),
     privacyScreenshots: z.boolean().optional().default(false),
     // Dark is the design the app is drawn for, and a config written before the theme
     // existed has no stored answer to override — so it is the default rather than the

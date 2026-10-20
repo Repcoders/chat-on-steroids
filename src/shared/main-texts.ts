@@ -63,7 +63,9 @@ export const MAIN_TEXTS = [
   'Keep checkout',
   'Remove checkout; preserve Git branch',
   // The turn-completion notice when an answer has no text to show.
-  'ChatGPT finished.'
+  'ChatGPT finished.',
+  // The window title while chats work, with Taskbar progress on: "(2 running) Chat On Steroids".
+  '{0} running'
 ] as const;
 
 export type MainText = typeof MAIN_TEXTS[number];

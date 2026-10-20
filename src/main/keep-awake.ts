@@ -10,16 +10,24 @@ import { sessionWorkingAt } from '../shared/session-activity.js';
  * chat that died mid-turn cannot keep the computer awake. The screen may still turn off.
  */
 
-/** Whether any chat is working now, and when the earliest one's activity runs out. */
-export function keepAwakeState(sessions: readonly SessionSummary[], now: number): { awake: boolean; nextAt: number | null } {
+/** How many chats are working now, and when the earliest one's activity runs out. */
+export function workingChats(sessions: readonly SessionSummary[], now: number): { count: number; nextAt: number | null } {
+  let count = 0;
   let nextAt: number | null = null;
   for (const session of sessions) {
     if (!sessionWorkingAt(session, now)) continue;
+    count += 1;
     const until = session.activityExpiresAt;
     if (typeof until === 'number') nextAt = nextAt === null ? until : Math.min(nextAt, until);
     else nextAt ??= now + 60_000;
   }
-  return { awake: nextAt !== null, nextAt };
+  return { count, nextAt };
+}
+
+/** Whether any chat is working now, and when the earliest one's activity runs out. */
+export function keepAwakeState(sessions: readonly SessionSummary[], now: number): { awake: boolean; nextAt: number | null } {
+  const { count, nextAt } = workingChats(sessions, now);
+  return { awake: count > 0, nextAt };
 }
 
 /** `screen` also keeps the display on: some Windows laptops (Modern Standby) sleep once it turns off. */
