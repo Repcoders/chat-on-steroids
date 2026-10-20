@@ -46,7 +46,8 @@ export function workLogRows(chats: readonly SessionSummary[], deps: Pick<WorkLog
     if (chat.origin?.kind === 'worker' || chat.origin?.kind === 'helper') continue;
     if (!chat.conversationId && chat.origin?.kind !== 'desktop') continue;
     const endedAt = chat.lastTurnEndAt ?? chat.lastAssistantFinalAt ?? null;
-    if (!chat.lastTurnOutcome || endedAt === null) continue;
+    // A time past what a Date can hold has no day or clock time to show (and toISOString throws).
+    if (!chat.lastTurnOutcome || endedAt === null || Number.isNaN(new Date(endedAt).getTime())) continue;
     rows.push({ id: chat.id, title: deps.title(chat), endedAt, outcome: chat.lastTurnOutcome, project: deps.project(chat) });
   }
   return rows.sort((a, b) => b.endedAt - a.endedAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));

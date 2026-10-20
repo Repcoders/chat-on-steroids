@@ -155,6 +155,15 @@ it('keeps keyboard focus on its row and an unchanged project list in place when 
   expect([...view.select('Project').options]).toEqual(options);
 });
 
+it("leaves out a chat whose end time is past what a date can hold, so the log still opens", async () => {
+  const view = await mount([
+    chat({ title: 'Beyond any date', lastTurnEndAt: 9e15 }),
+    chat({ title: 'Finished', lastTurnEndAt: at(19, 9) })
+  ]);
+  view.log.open();
+  expect(view.days()).toEqual([['Today', [[time(at(19, 9)), 'Completed', 'Finished', null]]]]);
+});
+
 it("names the days in the app's language, with the year once it differs", async () => {
   await mount([]);
   const { setLanguage } = await import('../src/renderer/i18n.js');
