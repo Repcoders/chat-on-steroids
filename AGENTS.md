@@ -3788,6 +3788,8 @@ it must not invent an unrelated project just to keep generating.
 
 **Repeating Goal.** Goal sees answers, not tool results. When the last three rounds of a Goal chat end in the same visible answer (case, punctuation and spacing ignored), a `continue` decision is not sent: `pauseRepeatingGoal` switches Goal off for that chat, records a timeline note naming the answer, and shows the translated `Goal paused` desktop notice (`STOP_NOTICE_TEXTS`). Loop is exempt.
 
+**Loop limits.** Loop never decides that it is done; two optional Settings limits end a run instead: `goal.loopMaxPasses` (automatic messages) and `goal.loopMaxMinutes` (minutes since Loop was switched on), both 0 = no limit. The run lives in `goal-switches` as `loopRuns` rows (`passes`, `since`, `last`): switching Loop on starts one, anything that ends Loop deletes it, master Off clears all of them, Compact & Resume moves it with the switch, and a chat on the app-wide Loop starts one at its first check. An acknowledged ready Loop draft counts one pass per source turn; a queued automatic finish follow-up counts one per input id. Before the next Loop decision is asked for, `stopLoopAtLimit` switches Loop off for that chat, records a timeline note, shows the translated `Loop stopped` notice and settles the turn as no-reply; at a finish boundary it releases the hold instead. A user-requested finish follow-up neither counts nor stops.
+
 `goal.ts` owns objectives, chat switches, reply obligations, helper roles and decision attempts.
 `shared/goal.ts` owns bounded prompt/contracts; `goal.ts` projects applicability and the outbox
 owns actual delivery. An objective, an enabled mode, an unfinished reply obligation,

@@ -14,7 +14,9 @@ export const STOP_NOTICE_TEXTS = [
   'ChatGPT is waiting for your approval',
   'A chat is paused until you allow or deny a tool call in ChatGPT. Click to answer it in the app.',
   'Goal paused',
-  'ChatGPT gave the same answer three times in a row, so Goal stopped asking. Open the chat to continue.'
+  'ChatGPT gave the same answer three times in a row, so Goal stopped asking. Open the chat to continue.',
+  'Loop stopped',
+  'Loop reached the limit set in Settings and switched itself off. Open the chat to continue.'
 ] as const;
 
 export type StopNoticeText = typeof STOP_NOTICE_TEXTS[number];

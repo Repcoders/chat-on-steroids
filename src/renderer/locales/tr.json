@@ -2822,5 +2822,18 @@
   "Chats sit under their project folders.": "Sohbetler proje klasörlerinin altında durur.",
   "All chats in one list, active ones on top.": "Tüm sohbetler tek listede, etkin olanlar üstte.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Bir sohbetin aynı anda çalıştırabileceği en fazla yardımcı ajan sohbeti sayısı. Bağlı tarayıcı eklentisi gerekir.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Uzun işler, bir araç sonucundan hemen sonra otomatik Devam ile yeni bir turda sürer. Kısa turlar daha az kesilir. Hedef ve Döngü sohbetlerinde de kullanılır; Pro modellerde ve yardımcı ajanların kendi sohbetlerinde kullanılmaz."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Uzun işler, bir araç sonucundan hemen sonra otomatik Devam ile yeni bir turda sürer. Kısa turlar daha az kesilir. Hedef ve Döngü sohbetlerinde de kullanılır; Pro modellerde ve yardımcı ajanların kendi sohbetlerinde kullanılmaz.",
+  "Stop Loop after": "Döngüyü şundan sonra durdur",
+  "Loop switches itself off in a chat after this many automatic messages. Off keeps it going until you turn it off.": "Döngü, bir sohbette bu kadar otomatik mesajdan sonra kendini kapatır. Kapalı seçilirse siz kapatana kadar devam eder.",
+  "3 messages": "3 mesaj",
+  "5 messages": "5 mesaj",
+  "10 messages": "10 mesaj",
+  "25 messages": "25 mesaj",
+  "Loop time limit": "Döngü süre sınırı",
+  "Loop switches itself off in a chat once it has run this long since you turned it on. Off keeps it going until you turn it off.": "Döngü, açtığınızdan beri bu kadar süre çalıştığında bir sohbette kendini kapatır. Kapalı seçilirse siz kapatana kadar devam eder.",
+  "2 hours": "2 saat",
+  "4 hours": "4 saat",
+  "8 hours": "8 saat",
+  "Loop stopped": "Döngü durdu",
+  "Loop reached the limit set in Settings and switched itself off. Open the chat to continue.": "Döngü, Ayarlar'da belirlenen sınıra ulaştı ve kendini kapattı. Devam etmek için sohbeti açın."
 }

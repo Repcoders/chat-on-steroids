@@ -2867,5 +2867,18 @@
   "Chats sit under their project folders.": "Los chats aparecen bajo las carpetas de sus proyectos.",
   "All chats in one list, active ones on top.": "Todos los chats en una lista, los activos arriba.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "El máximo de chats de subagentes que un chat puede tener a la vez. Necesita la extensión del navegador conectada.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "El trabajo largo sigue en un turno nuevo con un Continuar automático, justo después de un resultado de herramienta. Los turnos cortos se cortan menos. También en los chats con Objetivo y Bucle; no con modelos Pro ni en los chats de los subagentes."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "El trabajo largo sigue en un turno nuevo con un Continuar automático, justo después de un resultado de herramienta. Los turnos cortos se cortan menos. También en los chats con Objetivo y Bucle; no con modelos Pro ni en los chats de los subagentes.",
+  "Stop Loop after": "Detener el bucle tras",
+  "Loop switches itself off in a chat after this many automatic messages. Off keeps it going until you turn it off.": "El bucle se desactiva solo en un chat tras este número de mensajes automáticos. Con «Desactivado» sigue hasta que lo desactives tú.",
+  "3 messages": "3 mensajes",
+  "5 messages": "5 mensajes",
+  "10 messages": "10 mensajes",
+  "25 messages": "25 mensajes",
+  "Loop time limit": "Límite de tiempo del bucle",
+  "Loop switches itself off in a chat once it has run this long since you turned it on. Off keeps it going until you turn it off.": "El bucle se desactiva solo en un chat cuando lleva este tiempo funcionando desde que lo activaste. Con «Desactivado» sigue hasta que lo desactives tú.",
+  "2 hours": "2 horas",
+  "4 hours": "4 horas",
+  "8 hours": "8 horas",
+  "Loop stopped": "Bucle detenido",
+  "Loop reached the limit set in Settings and switched itself off. Open the chat to continue.": "El bucle alcanzó el límite fijado en Ajustes y se desactivó solo. Abre el chat para continuar."
 }

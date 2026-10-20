@@ -2777,5 +2777,18 @@
   "Chats sit under their project folders.": "チャットはプロジェクトのフォルダーの下に並びます。",
   "All chats in one list, active ones on top.": "すべてのチャットを 1 つのリストに。作業中のものが上に来ます。",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "1 つのチャットが同時に実行できるサブエージェントのチャットの上限。ブラウザー拡張機能の接続が必要です。",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "長い作業はツール結果の直後に、自動の「続ける」で新しいターンに引き継がれます。短いターンほど途切れにくくなります。ゴールとループのチャットでも使われます。Pro モデルとサブエージェント自身のチャットでは使われません。"
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "長い作業はツール結果の直後に、自動の「続ける」で新しいターンに引き継がれます。短いターンほど途切れにくくなります。ゴールとループのチャットでも使われます。Pro モデルとサブエージェント自身のチャットでは使われません。",
+  "Stop Loop after": "ループを停止するまで",
+  "Loop switches itself off in a chat after this many automatic messages. Off keeps it going until you turn it off.": "チャットで自動メッセージがこの数に達すると、ループは自動的にオフになります。「オフ」の場合は、あなたがオフにするまで続きます。",
+  "3 messages": "3 件のメッセージ",
+  "5 messages": "5 件のメッセージ",
+  "10 messages": "10 件のメッセージ",
+  "25 messages": "25 件のメッセージ",
+  "Loop time limit": "ループの制限時間",
+  "Loop switches itself off in a chat once it has run this long since you turned it on. Off keeps it going until you turn it off.": "オンにしてからこの時間が経つと、チャットのループは自動的にオフになります。「オフ」の場合は、あなたがオフにするまで続きます。",
+  "2 hours": "2 時間",
+  "4 hours": "4 時間",
+  "8 hours": "8 時間",
+  "Loop stopped": "ループを停止しました",
+  "Loop reached the limit set in Settings and switched itself off. Open the chat to continue.": "ループが設定の上限に達したため、自動的にオフになりました。続けるにはチャットを開いてください。"
 }

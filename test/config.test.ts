@@ -844,6 +844,8 @@ describe('the goal loop settings', () => {
     expect((await loadConfig()).goal).toEqual({
       backend: 'chatgpt',
       loopBackend: 'chatgpt',
+      loopMaxPasses: 0,
+      loopMaxMinutes: 0,
       includeToolCalls: false,
       impulseMinutes: 0,
       helperModel: 'gpt-6',
@@ -991,6 +993,8 @@ describe('the goal loop settings', () => {
     expect((await loadConfig()).goal).toEqual({
       backend: 'chatgpt',
       loopBackend: 'chatgpt',
+      loopMaxPasses: 0,
+      loopMaxMinutes: 0,
       includeToolCalls: false,
       impulseMinutes: 0,
       helperModel: 'gpt-6',
@@ -1004,6 +1008,13 @@ describe('the goal loop settings', () => {
       objectivePrompt: defaultConfig().goal.objectivePrompt,
       loopPrompt: defaultConfig().goal.loopPrompt
     });
+  });
+
+  it('keeps the Loop limits and repairs an unreadable one to no limit', async () => {
+    const config = defaultConfig();
+    await fs.writeFile(path.join(dir, 'config.json'),
+      JSON.stringify({ ...config, goal: { ...config.goal, loopMaxPasses: 3, loopMaxMinutes: -5 } }), 'utf8');
+    expect((await loadConfig()).goal).toMatchObject({ loopMaxPasses: 3, loopMaxMinutes: 0 });
   });
 
   /**

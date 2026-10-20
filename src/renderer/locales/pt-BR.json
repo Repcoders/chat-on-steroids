@@ -2867,5 +2867,18 @@
   "Chats sit under their project folders.": "Os chats ficam sob as pastas dos projetos.",
   "All chats in one list, active ones on top.": "Todos os chats em uma lista, os ativos no topo.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "O máximo de chats de subagentes que um chat pode ter ao mesmo tempo. Requer a extensão do navegador conectada.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Um trabalho longo continua em um novo turno com um Continuar automático, logo após um resultado de ferramenta. Turnos mais curtos falham menos. Também em chats com Goal e Loop; não com modelos Pro nem nos chats dos subagentes."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Um trabalho longo continua em um novo turno com um Continuar automático, logo após um resultado de ferramenta. Turnos mais curtos falham menos. Também em chats com Goal e Loop; não com modelos Pro nem nos chats dos subagentes.",
+  "Stop Loop after": "Parar o Loop após",
+  "Loop switches itself off in a chat after this many automatic messages. Off keeps it going until you turn it off.": "O Loop se desliga sozinho em um chat depois desse número de mensagens automáticas. Com Desativado, ele continua até você desligá-lo.",
+  "3 messages": "3 mensagens",
+  "5 messages": "5 mensagens",
+  "10 messages": "10 mensagens",
+  "25 messages": "25 mensagens",
+  "Loop time limit": "Limite de tempo do Loop",
+  "Loop switches itself off in a chat once it has run this long since you turned it on. Off keeps it going until you turn it off.": "O Loop se desliga sozinho em um chat quando estiver rodando por esse tempo desde que você o ligou. Com Desativado, ele continua até você desligá-lo.",
+  "2 hours": "2 horas",
+  "4 hours": "4 horas",
+  "8 hours": "8 horas",
+  "Loop stopped": "Loop parado",
+  "Loop reached the limit set in Settings and switched itself off. Open the chat to continue.": "O Loop atingiu o limite definido em Configurações e se desligou sozinho. Abra o chat para continuar."
 }

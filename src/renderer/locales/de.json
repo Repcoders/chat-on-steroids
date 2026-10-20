@@ -2822,5 +2822,18 @@
   "Chats sit under their project folders.": "Chats stehen unter ihren Projektordnern.",
   "All chats in one list, active ones on top.": "Alle Chats in einer Liste, aktive oben.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Wie viele Unteragenten-Chats ein Chat höchstens gleichzeitig ausführen darf. Benötigt die verbundene Browser-Erweiterung.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Lange Arbeit läuft direkt nach einem Tool-Ergebnis in einem neuen Durchlauf mit automatischem Weiter weiter. Kürzere Durchläufe brechen seltener ab. Auch in Goal- und Loop-Chats; nicht bei Pro-Modellen und nicht in den Chats von Unteragenten."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Lange Arbeit läuft direkt nach einem Tool-Ergebnis in einem neuen Durchlauf mit automatischem Weiter weiter. Kürzere Durchläufe brechen seltener ab. Auch in Goal- und Loop-Chats; nicht bei Pro-Modellen und nicht in den Chats von Unteragenten.",
+  "Stop Loop after": "Loop beenden nach",
+  "Loop switches itself off in a chat after this many automatic messages. Off keeps it going until you turn it off.": "Loop schaltet sich in einem Chat nach so vielen automatischen Nachrichten selbst aus. Bei „Aus“ läuft Loop weiter, bis du es ausschaltest.",
+  "3 messages": "3 Nachrichten",
+  "5 messages": "5 Nachrichten",
+  "10 messages": "10 Nachrichten",
+  "25 messages": "25 Nachrichten",
+  "Loop time limit": "Zeitlimit für Loop",
+  "Loop switches itself off in a chat once it has run this long since you turned it on. Off keeps it going until you turn it off.": "Loop schaltet sich in einem Chat selbst aus, wenn es so lange gelaufen ist, seit du es eingeschaltet hast. Bei „Aus“ läuft Loop weiter, bis du es ausschaltest.",
+  "2 hours": "2 Stunden",
+  "4 hours": "4 Stunden",
+  "8 hours": "8 Stunden",
+  "Loop stopped": "Loop beendet",
+  "Loop reached the limit set in Settings and switched itself off. Open the chat to continue.": "Loop hat das in den Einstellungen festgelegte Limit erreicht und sich selbst ausgeschaltet. Öffne den Chat, um weiterzumachen."
 }

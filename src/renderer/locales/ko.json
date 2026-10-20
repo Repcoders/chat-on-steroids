@@ -2777,5 +2777,18 @@
   "Chats sit under their project folders.": "채팅이 프로젝트 폴더 아래에 놓입니다.",
   "All chats in one list, active ones on top.": "모든 채팅을 한 목록에, 활성 채팅은 맨 위에.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "한 채팅이 동시에 실행할 수 있는 서브에이전트 채팅의 최대 수. 연결된 브라우저 확장 프로그램이 필요합니다.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "긴 작업은 도구 결과 직후 자동 계속으로 새 턴에서 이어집니다. 턴이 짧을수록 덜 끊깁니다. Goal 및 Loop 채팅에서도 사용됩니다. Pro 모델과 서브에이전트 자체 채팅에서는 사용되지 않습니다."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "긴 작업은 도구 결과 직후 자동 계속으로 새 턴에서 이어집니다. 턴이 짧을수록 덜 끊깁니다. Goal 및 Loop 채팅에서도 사용됩니다. Pro 모델과 서브에이전트 자체 채팅에서는 사용되지 않습니다.",
+  "Stop Loop after": "Loop 중지 기준",
+  "Loop switches itself off in a chat after this many automatic messages. Off keeps it going until you turn it off.": "채팅에서 자동 메시지가 이 수에 이르면 Loop가 스스로 꺼집니다. 꺼짐이면 직접 끌 때까지 계속됩니다.",
+  "3 messages": "메시지 3개",
+  "5 messages": "메시지 5개",
+  "10 messages": "메시지 10개",
+  "25 messages": "메시지 25개",
+  "Loop time limit": "Loop 시간 제한",
+  "Loop switches itself off in a chat once it has run this long since you turned it on. Off keeps it going until you turn it off.": "켠 뒤 이 시간만큼 실행되면 채팅의 Loop가 스스로 꺼집니다. 꺼짐이면 직접 끌 때까지 계속됩니다.",
+  "2 hours": "2시간",
+  "4 hours": "4시간",
+  "8 hours": "8시간",
+  "Loop stopped": "Loop 중지됨",
+  "Loop reached the limit set in Settings and switched itself off. Open the chat to continue.": "Loop가 설정에서 정한 한도에 도달해 스스로 꺼졌습니다. 계속하려면 채팅을 여세요."
 }

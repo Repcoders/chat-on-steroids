@@ -2777,5 +2777,18 @@
   "Chats sit under their project folders.": "聊天顯示在各自的專案資料夾下。",
   "All chats in one list, active ones on top.": "所有聊天在同一清單中，進行中的排在最前。",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "一個聊天可同時執行的子代理聊天上限。需要已連線的瀏覽器擴充功能。",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "長時間的工作會在工具結果之後，透過自動「繼續」在新回合中接著進行。回合越短越不容易中斷。也用於目標和循環聊天；不用於 Pro 模型或子代理自己的聊天。"
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "長時間的工作會在工具結果之後，透過自動「繼續」在新回合中接著進行。回合越短越不容易中斷。也用於目標和循環聊天；不用於 Pro 模型或子代理自己的聊天。",
+  "Stop Loop after": "循環停止條件",
+  "Loop switches itself off in a chat after this many automatic messages. Off keeps it going until you turn it off.": "聊天中的自動訊息達到此數量後，循環會自動關閉。選擇「關閉」則一直執行，直到你手動關閉。",
+  "3 messages": "3 則訊息",
+  "5 messages": "5 則訊息",
+  "10 messages": "10 則訊息",
+  "25 messages": "25 則訊息",
+  "Loop time limit": "循環時間限制",
+  "Loop switches itself off in a chat once it has run this long since you turned it on. Off keeps it going until you turn it off.": "從你開啟起執行達到此時長後，聊天中的循環會自動關閉。選擇「關閉」則一直執行，直到你手動關閉。",
+  "2 hours": "2 小時",
+  "4 hours": "4 小時",
+  "8 hours": "8 小時",
+  "Loop stopped": "循環已停止",
+  "Loop reached the limit set in Settings and switched itself off. Open the chat to continue.": "循環已達到設定中的限制並自動關閉。開啟聊天以繼續。"
 }

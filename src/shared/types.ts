@@ -323,6 +323,10 @@ export interface GoalSettings {
   helperReasoning?: ReasoningEffort;
   backend?: GoalBackend;
   loopBackend?: 'api' | 'chatgpt';
+  /** Loop switches itself off in a chat after this many automatic messages since it was turned on. 0 = no limit. */
+  loopMaxPasses?: number;
+  /** Loop switches itself off in a chat this many minutes after it was turned on. 0 = no limit. */
+  loopMaxMinutes?: number;
   enabled: boolean;
   /**
    * `goal` stops when the job is done; `loop` never stops on its own.
