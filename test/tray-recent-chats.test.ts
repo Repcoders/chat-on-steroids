@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { expect, it, vi } from 'vitest';
 import type { SessionSummary } from '../src/shared/session.js';
 
@@ -8,7 +9,7 @@ vi.mock('electron', () => ({
   webUtils: { getPathForFile: vi.fn() }
 }));
 
-import { sameTrayRecentChats, trayChatItems, trayChatLabel, trayRecentChats } from '../src/main/tray-recent-chats.js';
+import { openTrayChat, readTrayRecentChats, sameTrayRecentChats, trayChatItems, trayChatLabel, trayRecentChats } from '../src/main/tray-recent-chats.js';
 
 const chat = (id: string, updatedAt: number, extra: Partial<SessionSummary> = {}): SessionSummary =>
   ({ id, title: `Chat ${id}`, conversationId: `conv-${id}`, origin: { kind: 'desktop' }, updatedAt, ...extra }) as SessionSummary;
@@ -23,6 +24,13 @@ it('lists the five newest chats the sidebar shows, without sub-agents, helpers o
   ];
   expect(trayRecentChats(sessions).map(row => row.id)).toEqual(['opening', 'b', 'f', 'd', 'c']);
   expect(trayRecentChats(sessions, 2).map(row => row.label)).toEqual(['Chat opening', 'Chat b']);
+});
+
+it('reads only the page the sidebar loads first, so a picked chat is one the window has', async () => {
+  const listPage = vi.fn(async (_options: { limit: number }) => ({ sessions: [chat('a', 1)] }));
+  expect(await readTrayRecentChats(listPage)).toEqual([{ id: 'a', label: 'Chat a' }]);
+  const sidebarPage = Number(/const SESSION_PAGE_SIZE = (\d+);/.exec(readFileSync('src/renderer/chat.ts', 'utf8'))![1]);
+  expect(listPage).toHaveBeenCalledWith({ limit: sidebarPage });
 });
 
 it('puts a title on one clipped line and keeps a literal ampersand', () => {
@@ -68,4 +76,26 @@ it('hands the tray choice to the renderer over chat:open', async () => {
   expect(listener.mock.calls).toEqual([['session-a'], [null]]);
   stop();
   expect(removeListener).toHaveBeenCalledWith('chat:open', wrapped);
+});
+
+it('opens nothing once quit has begun, also when the page finishes loading after it', () => {
+  const send = vi.fn();
+  let loaded: (() => void) | undefined;
+  let loading = false;
+  const target = { isDestroyed: () => false, isLoadingMainFrame: () => loading, once: (_name: string, fn: () => void) => { loaded = fn; }, send };
+  let allowed = true;
+  const show = vi.fn();
+  const window = { allowed: () => allowed, show, contents: () => target as never };
+
+  openTrayChat(window, 'session-a');
+  expect(show).toHaveBeenCalledTimes(1);
+  expect(send).toHaveBeenCalledWith('chat:open', 'session-a');
+
+  loading = true;
+  openTrayChat(window, null);
+  allowed = false;
+  loaded!();
+  openTrayChat(window, 'session-b');
+  expect(show).toHaveBeenCalledTimes(2);
+  expect(send).toHaveBeenCalledTimes(1);
 });

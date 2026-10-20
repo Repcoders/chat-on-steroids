@@ -39,7 +39,7 @@ import { executableFingerprint, initKeychainNotice } from './keychain-notice.js'
 import { pluginManager } from './plugins/manager.js';
 import { sessionActivityExpiresAt, setBrowserOpener, setBrowserWorkArea, shutdownBridge, startBridge } from './bridge.js';
 import { setStuckNotifier } from './stuck-notice.js';
-import { flushSessions, getSession, initSessionStore, listSessions, readRecentEvents, setRecordingStorageLimit } from './session/store.js';
+import { flushSessions, getSession, initSessionStore, listSessionPage, listSessions, readRecentEvents, setRecordingStorageLimit } from './session/store.js';
 import { createTurnNotifier } from './turn-notifications.js';
 import { DEFAULT_RECORDING_STORAGE_GIB } from '../shared/session.js';
 import { initSkillsPath } from './skills.js';
@@ -121,7 +121,7 @@ import {
   shouldQuitOnWindowAllClosed
 } from './window-lifecycle.js';
 import { trayGuidArgsForPlatform, trayImageSpec } from './tray-image.js';
-import { sameTrayRecentChats, trayChatItems, trayRecentChats, type TrayRecentChat } from './tray-recent-chats.js';
+import { openTrayChat, readTrayRecentChats, sameTrayRecentChats, trayChatItems, type TrayRecentChat } from './tray-recent-chats.js';
 import { browserWindowIconPath } from './window-icon.js';
 import { editContextMenuTemplate } from './edit-context-menu.js';
 import { showConnectionLossNotice } from './connection-loss-notice.js';
@@ -364,19 +364,18 @@ function trayIcon(running: boolean): Electron.NativeImage {
   return image;
 }
 
-/** Shows the window and opens a chat in it: a session id, or `null` for New chat. */
+/** Through the same activation gate as the tray's Open: nothing opens once quit has begun. */
 function openChatFromTray(sessionId: string | null): void {
-  showWindow();
-  if (!window) return;
-  const target = window.webContents;
-  const open = (): void => { if (!target.isDestroyed()) target.send('chat:open', sessionId); };
-  if (target.isLoadingMainFrame()) target.once('did-finish-load', open); else open();
+  openTrayChat({
+    allowed: () => !quitting && !windowActivation.isDisabled(),
+    show: windowActivation.request,
+    contents: () => window?.webContents ?? null
+  }, sessionId);
 }
 
 /** Session writes arrive many times a turn; the menu is rebuilt only when its chats change. */
 function refreshTrayChats(): void {
-  void listSessions().then(sessions => {
-    const next = trayRecentChats(sessions);
+  void readTrayRecentChats(listSessionPage).then(next => {
     if (sameTrayRecentChats(next, trayChats)) return;
     trayChats = next;
     refreshTray();
