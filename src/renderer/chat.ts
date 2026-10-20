@@ -2310,6 +2310,8 @@ export async function openAnswerLink(link: AnswerLink): Promise<void> {
   let summary = sessions.find(row => row.id === link.sessionId);
   if (!summary) {
     const reply = await api.getSession(link.sessionId, { limit: 1 });
+    // Only a chat the store does not have is removed; any other failed read says what it was.
+    if (!reply.ok && reply.error !== 'Session not found') { toast(t(reply.error)); return; }
     const found = reply.ok ? reply.data.summary : null;
     if (!found) { toast(t('The chat this link points to was removed')); return; }
     summary = found;

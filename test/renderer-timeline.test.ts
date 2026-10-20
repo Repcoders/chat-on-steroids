@@ -6360,6 +6360,10 @@ describe('answer links', () => {
     openAnswerLink({ sessionId: '2026-10-17-removed1', messageId: replyId }); await settle();
     expect(w.document.querySelector('.toast')?.textContent).toContain('The chat this link points to was removed');
     expect(w.document.querySelector('.sess.is-sel')).toBeNull();
+    // A read that failed for another reason says that reason, not that the chat is gone.
+    api.getSession = vi.fn(async () => ({ ok: false, error: 'Disk read failed' }));
+    openAnswerLink({ sessionId: '2026-10-17-unread01', messageId: replyId }); await settle();
+    expect(w.document.querySelector('.toast')?.textContent).toContain('Disk read failed');
     api.locateMessage = vi.fn(async () => ({ ok: true, data: null }));
     openAnswerLink({ sessionId: summary([]).id, messageId: replyId }); await settle();
     expect(w.document.querySelector(`.sess.is-sel[data-id="${summary([]).id}"]`)).not.toBeNull();
