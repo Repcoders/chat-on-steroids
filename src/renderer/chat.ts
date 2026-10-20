@@ -4045,8 +4045,9 @@ const readingPositions = new Map<string, ReadingPosition>();
 const MAX_READING_POSITIONS = 50;
 /** The selection that opens at its reading position once its first page has painted. */
 let readingReturn: { session: string; selection: number; saved: ReadingPosition } | null = null;
-/** Where "New since you read" goes in the open chat: above its first message from this cursor on. */
-let newSince: { session: string; from: number } | null = null;
+/** Where "New since you read" goes in the open chat: above its first message from this cursor on.
+ * Seen once the reader has had it on screen; until then a new note keeps this cursor. */
+let newSince: { session: string; from: number; seen?: boolean } | null = null;
 /** The chat whose reading position is still being restored: leaving it meanwhile keeps its note. */
 let restoringReading: { session: string; selection: number } | null = null;
 const newSinceDivider = el('div', 'new-since-read');
@@ -4074,8 +4075,7 @@ function rememberReading(): void {
     if (rect.height <= 0 || rect.bottom <= edge) continue;
     if (rect.top >= edge + pane.clientHeight) return;
     // What arrived while they were away stays new until they have scrolled down to it.
-    const unread = newSince?.session === id &&
-      (!newSinceDivider.isConnected || newSinceDivider.getBoundingClientRect().top >= edge + pane.clientHeight);
+    const unread = newSince?.session === id && !newSince.seen;
     readingPositions.set(id, { offset: rect.top - edge, from: unread ? newSince!.from : detailCursor,
       location: { seq: event.seq, kind: event.kind, messageId: event.messageId ?? null, position: residenceOf(event) } });
     if (readingPositions.size > MAX_READING_POSITIONS) readingPositions.delete(readingPositions.keys().next().value!);
@@ -4100,6 +4100,14 @@ async function returnToReading(id: string, saved: ReadingPosition): Promise<void
   const pane = $('chatBody');
   pane.scrollTop += row.getBoundingClientRect().top - pane.getBoundingClientRect().top - saved.offset;
   paintJumpLatest();
+}
+
+/** Notes that "New since you read" reached the view, once the reading position has landed. */
+function noteNewSinceSeen(): void {
+  if (!newSince || newSince.seen || newSince.session !== selectedId || !newSinceDivider.isConnected || !timelineShown() ||
+    readingReturn || restoringReading) return;
+  const pane = $('chatBody');
+  if (newSinceDivider.getBoundingClientRect().top < pane.getBoundingClientRect().top + pane.clientHeight) newSince.seen = true;
 }
 
 /** Draws "New since you read" above the first message that arrived after the reader left. */
@@ -8490,6 +8498,7 @@ export function initChat(next: Deps): void {
         if (sendAnchor) { sendAnchor = null; readingAfterSend = true; }
         if (readingAfterSend && distanceFromTail() <= 1) readingAfterSend = false;
       }
+      noteNewSinceSeen();
       paintJumpLatest();
     }, { passive: true });
     // Keep a smooth/inertial gesture through its final position, then retire its authority.

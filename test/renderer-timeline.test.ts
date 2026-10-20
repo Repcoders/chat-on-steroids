@@ -5003,6 +5003,15 @@ describe('reading position memory', () => {
     await select(first.id);
     expect(onTop()).toEqual(left);
     expect(timeline.querySelector('.new-since-read')?.nextElementSibling?.textContent).toContain('Question asked meanwhile');
+    // Once the reader has scrolled down to it, it is read, even after going back up.
+    const back = pane.scrollTop;
+    readTo(2450);
+    expect(timeline.querySelector('.new-since-read')!.getBoundingClientRect().top).toBeLessThan(400);
+    readTo(back);
+    await select(second.id);
+    await select(first.id);
+    expect(onTop()).toEqual(left);
+    expect(timeline.querySelector('.new-since-read')).toBeNull();
     // Live output while reading there does not take the reader to the end.
     await append([{ seq: 33, time: T0 + 33, source: 'extension', kind: 'user_message', messageId: 'reading-later', message: text('Later question') }]);
     expect(onTop()).toEqual(left);
