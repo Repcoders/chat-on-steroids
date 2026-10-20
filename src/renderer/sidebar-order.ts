@@ -1,7 +1,13 @@
 /** Sidebar order is a local presentation preference; session/project ownership never changes. */
 const STORAGE_KEY = 'chat-on-steroids.sidebar-order';
+const SORT_KEY = 'chat-on-steroids.sidebar-sort';
 const MAX_IDS = 5000;
 export const SIDEBAR_PROJECT_SCOPE = ':projects';
+/** How the project tree is ordered: the hand order, latest activity first, or by name. */
+export const SIDEBAR_SORTS = ['manual', 'recent', 'name'] as const;
+export type SidebarSort = typeof SIDEBAR_SORTS[number];
+/** What a row is sorted by outside the hand order. */
+export type SortKeys<T> = { recent: (row: T) => number; name: (row: T) => string };
 type Entry = { id: string; scope: string };
 
 export function createSidebarOrder(list: HTMLElement, entries: () => Entry[], repaint: () => void) {
@@ -19,11 +25,38 @@ export function createSidebarOrder(list: HTMLElement, entries: () => Entry[], re
       orders.set(scope, valid); count += valid.length;
     }
   } catch { /* Unavailable/corrupt layout storage must not prevent opening chats. */ }
+  let mode: SidebarSort = 'manual';
+  try {
+    const saved = window.localStorage.getItem(SORT_KEY);
+    if (SIDEBAR_SORTS.includes(saved as SidebarSort)) mode = saved as SidebarSort;
+  } catch { /* The hand order is the default. */ }
+  list.classList.toggle('is-auto-sorted', mode !== 'manual');
+  // Names compare in the app language, built once per language rather than on every repaint.
+  let collator: { lang: string; compare: (a: string, b: string) => number } | undefined;
 
-  function ordered<T extends { id: string }>(scope: string, rows: T[]): T[] {
+  /**
+   * Rows in the hand order or, given `keys`, in the chosen sort. Equal keys keep the hand order, and
+   * a sort never rewrites it: switching back to Manual finds it intact.
+   */
+  function ordered<T extends { id: string }>(scope: string, rows: T[], keys?: SortKeys<T>): T[] {
     const rank = new Map((orders.get(scope) ?? []).map((id, index) => [id, index]));
     // Newly encountered chats precede the saved sequence, preserving their native order.
-    return [...rows].sort((a, b) => (rank.get(a.id) ?? -1) - (rank.get(b.id) ?? -1));
+    const manual = [...rows].sort((a, b) => (rank.get(a.id) ?? -1) - (rank.get(b.id) ?? -1));
+    if (!keys || mode === 'manual') return manual;
+    if (mode === 'recent') return manual.sort((a, b) => keys.recent(b) - keys.recent(a));
+    const lang = document.documentElement.lang;
+    if (collator?.lang !== lang) collator = { lang, compare: new Intl.Collator(lang || undefined, { numeric: true, sensitivity: 'base' }).compare };
+    const compare = collator.compare;
+    return manual.sort((a, b) => compare(keys.name(a), keys.name(b)));
+  }
+
+  function setMode(next: SidebarSort): void {
+    if (next === mode) return;
+    mode = next;
+    list.classList.toggle('is-auto-sorted', mode !== 'manual');
+    try { window.localStorage.setItem(SORT_KEY, mode); }
+    catch { /* Keep the choice in this window when layout storage is unavailable. */ }
+    repaint();
   }
 
   function move(id: string, target: string, after: boolean, scope: string): void {
@@ -76,7 +109,8 @@ export function createSidebarOrder(list: HTMLElement, entries: () => Entry[], re
   }
   list.addEventListener('pointerdown', event => {
     suppressClick = false;
-    if (event.button !== 0 || event.isPrimary === false || drag || (event.target as Element).closest('button, input, a')) return;
+    // A sorted list has no hand order to change: dragging is for Manual only.
+    if (mode !== 'manual' || event.button !== 0 || event.isPrimary === false || drag || (event.target as Element).closest('button, input, a')) return;
     const row = (event.target as Element).closest<HTMLElement>('[data-sort-scope]');
     const id = row && rowId(row);
     if (!row || !id || !list.contains(row) || !handle(row).contains(event.target as Node)) return;
@@ -116,7 +150,7 @@ export function createSidebarOrder(list: HTMLElement, entries: () => Entry[], re
     if (suppressClick) { suppressClick = false; event.preventDefault(); event.stopImmediatePropagation(); }
   }, true);
   list.addEventListener('keydown', event => {
-    if (!event.altKey || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+    if (mode !== 'manual' || !event.altKey || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
     const row = (event.target as Element).closest<HTMLElement>('[data-sort-scope]');
     const id = row && rowId(row);
     if (!row || !id || event.target !== handle(row)) return;
@@ -131,5 +165,5 @@ export function createSidebarOrder(list: HTMLElement, entries: () => Entry[], re
       .find(next => rowId(next) === id && next.dataset.sortScope === row.dataset.sortScope);
     if (replacement) handle(replacement).focus({ preventScroll: true });
   });
-  return { ordered, get interacting() { return drag !== null; } };
+  return { ordered, setMode, get mode() { return mode; }, get interacting() { return drag !== null; } };
 }

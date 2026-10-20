@@ -22,7 +22,7 @@ import { renderGoalReasoning } from './goal-reasoning.js';
 import { MAX_TASK_REQUEST_CHARS, taskRequestProblem } from '../shared/task-progress.js';
 import { shownSessionTitle } from './session-title.js';
 import { preserveTimelineViewport, ROUNDING_PX } from './timeline-scroll.js';
-import { createSidebarOrder, SIDEBAR_PROJECT_SCOPE } from './sidebar-order.js';
+import { createSidebarOrder, SIDEBAR_PROJECT_SCOPE, SIDEBAR_SORTS, type SidebarSort, type SortKeys } from './sidebar-order.js';
 import { createSidebarPins, pinnedSortScope } from './sidebar-pins.js';
 import { createSidebarCompletionState } from './sidebar-completion.js';
 import { toolResultText } from './tool-result.js';
@@ -1947,19 +1947,30 @@ function paintSessions(): void {
     if (group) group.push(entry);
     else scoped.set(scope, [entry]);
   }
+  // Outside the hand order (the Sort button): a chat's activity counts its busy sub-agents', as in the inbox.
+  const chatKeys: SortKeys<SessionSummary> = {
+    recent: entry => inboxActiveAt(entry, busyWorkers(children.get(entry.id) ?? [])), name: shownSessionTitle
+  };
   const orderedSessions = [...scoped].flatMap(([scope, members]) => {
     const ordered = (pinned: boolean) => {
       const rows = members.filter(entry => pinnedChat(entry) === pinned);
-      return sidebarOrder ? sidebarOrder.ordered(pinnedSortScope(scope, pinned), rows) : rows;
+      return sidebarOrder ? sidebarOrder.ordered(pinnedSortScope(scope, pinned), rows, chatKeys) : rows;
     };
     return [...ordered(true), ...ordered(false)];
   });
+  // A project's activity is its latest shown chat's. Below the newest page of all history only
+  // expanded projects have chats here, so an older time cannot outrank a project not yet read:
+  // both are quiet and keep the hand order.
+  const quietBefore = sessionPageCursor?.updatedAt ?? 0;
+  const projectActive = new Map<string, number>();
   for (const entry of orderedSessions) {
     if (entry.origin?.kind === 'worker') continue;
     if (!entry.conversationId && entry.origin?.kind !== 'desktop') { diagnostics.push(entry); continue; }
     const projectId = groupOf(entry.projectId);
     const workers = children.get(entry.id);
     if (projectId) {
+      const activeAt = chatKeys.recent(entry);
+      if (activeAt >= quietBefore) projectActive.set(projectId, Math.max(projectActive.get(projectId) ?? 0, activeAt));
       const tasks = projectRows.get(projectId) ?? [];
       tasks.push({ entry, workers, selected: entry.id === selectedId || workers?.some(worker => worker.id === selectedId) === true });
       projectRows.set(projectId, tasks);
@@ -1972,7 +1983,9 @@ function paintSessions(): void {
   const history = workerHistory(children.get('other-workers') ?? []);
   if (history) rows.push(history);
   const projectEntries = projectSortEntries(groupOf);
-  const orderedProjects = sidebarOrder?.ordered(SIDEBAR_PROJECT_SCOPE, projectEntries) ?? projectEntries;
+  const orderedProjects = sidebarOrder?.ordered(SIDEBAR_PROJECT_SCOPE, projectEntries, {
+    recent: ({ id }) => projectActive.get(id) ?? 0, name: ({ id }) => projects.find(row => row.id === id)?.name ?? ''
+  }) ?? projectEntries;
   const projectSections: HTMLElement[] = [];
   for (const { id } of orderedProjects) {
     const project = projects.find(row => row.id === id);
@@ -1982,7 +1995,7 @@ function paintSessions(): void {
     section.open = expandedProjects.has(id);
     const heading = el('summary', 'project-heading');
     heading.dataset.sortHandle = '';
-    heading.setAttribute('aria-keyshortcuts', 'Alt+ArrowUp Alt+ArrowDown');
+    if ((sidebarOrder?.mode ?? 'manual') === 'manual') heading.setAttribute('aria-keyshortcuts', 'Alt+ArrowUp Alt+ArrowDown');
     const label = el('span', 'project-name', () => project?.name ?? t("Unavailable project"));
     ui(heading, 'title', () => project?.path ?? t("Unavailable project"));
     heading.append(icon('i-folder'), label);
@@ -8284,6 +8297,17 @@ export function initChat(next: Deps): void {
         { action: 'add-local-project', label: () => t('Folder on this computer…'), icon: 'i-folder', run: () => void addLocalProject() },
         { action: 'add-ssh-project', label: () => t('Folder on a server (SSH)…'), icon: 'i-terminal', run: () => { sshDialogGeneration = selectionGeneration; sshProjectDialog.open(); } }
       ]
+    });
+  });
+  // The project tree's order: by hand (dragging), latest activity first, or by name. The inbox keeps its own.
+  const sortLabels: Record<SidebarSort, () => string> = { manual: () => t('Manual order'), recent: () => t('Recent activity'), name: () => t('Name') };
+  $('sidebarSort').addEventListener('click', event => {
+    event.preventDefault();
+    toggleRowMenu({
+      owner: 'sidebar-sort', anchor: () => document.getElementById('sidebarSort'), label: () => t('Sort projects and chats'),
+      items: () => SIDEBAR_SORTS.map(mode => ({
+        action: `sort-${mode}`, label: sortLabels[mode], checked: sidebarOrder?.mode === mode, run: () => sidebarOrder?.setMode(mode)
+      }))
     });
   });
   const composerMenus = [...document.querySelectorAll<HTMLDetailsElement>('.composer-menu, .session-controls')];

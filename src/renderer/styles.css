@@ -4120,6 +4120,8 @@ select option::checkmark { order: 1; margin-inline-start: auto; color: var(--ink
 .project-group > .sess, .project-group > .worker-group { margin-inline-start: 24px; }
 .project-show-more { margin-inline-start: 34px; color: var(--faint); font-size: calc(14px * var(--text-scale, 1)); padding: 6px 0; border: 0; background: transparent; }
 .sess[data-sort-scope] .sess-top { cursor: grab; user-select: none; }
+/* Sorted by activity or name, the rows cannot be dragged (sidebar-order.ts). */
+#sessionList.is-auto-sorted :is(.project-heading[data-sort-handle], .sess[data-sort-scope] .sess-top) { cursor: pointer; }
 .sess-top:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; border-radius: 5px; }
 #sessionList.is-sorting, #sessionList.is-sorting * { cursor: grabbing; user-select: none; }
 :is(.sess, .project-group).is-sorting { opacity: .45; }
