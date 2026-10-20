@@ -24,6 +24,7 @@ import { shownSessionTitle } from './session-title.js';
 import { preserveTimelineViewport, ROUNDING_PX } from './timeline-scroll.js';
 import { createSidebarOrder, SIDEBAR_PROJECT_SCOPE } from './sidebar-order.js';
 import { createSidebarPins, pinnedSortScope } from './sidebar-pins.js';
+import { archiveSurfaces, createSidebarArchive } from './sidebar-archive.js';
 import { createSidebarCompletionState } from './sidebar-completion.js';
 import { toolResultText } from './tool-result.js';
 import { renderEditCards } from './tool-artifacts.js';
@@ -306,6 +307,11 @@ let sidebarPins: ReturnType<typeof createSidebarPins> | undefined;
 /** Only a person's own recorded chats can be pinned; workers live inside their task's row. */
 const pinnable = (entry: SessionSummary): boolean => !!entry.conversationId && entry.origin?.kind !== 'worker';
 const pinnedChat = (entry: SessionSummary): boolean => pinnable(entry) && sidebarPins?.has(entry.id) === true;
+let sidebarArchive: ReturnType<typeof createSidebarArchive> | undefined;
+/** Whether the Archived group at the end of the sidebar is open. Window-local, like disclosure state. */
+let archiveShelfOpen = false;
+/** True while the Archived group draws its rows: their menus offer Unarchive, every other row's Archive. */
+let drawingShelf = false;
 let sidebarCompletion: ReturnType<typeof createSidebarCompletionState> | undefined;
 function draftKey(): string { return selectedId ?? (selectedProjectId ? `project:${selectedProjectId}` : 'new'); }
 let selectionGeneration = 0;
@@ -974,6 +980,33 @@ function sessionRow(summary: SessionSummary): HTMLElement {
       { action: 'copy-link', icon: 'i-copy', label: () => t('Copy link'), title: () => t("Copy this chat's ChatGPT link"),
         run: async () => { if (await run(api.writeClipboard(`https://chatgpt.com/c/${summary.conversationId}`))) toast(t('Link copied')); } }
     );
+    if (pinnable(summary)) {
+      // Local only: the chat leaves its list for the Archived group, and nothing changes in ChatGPT.
+      // An archived chat back in its list for what it needs is archived again with that need.
+      const archived = drawingShelf;
+      items.push({
+        action: 'archive', icon: archived ? 'i-unarchive' : 'i-archive',
+        label: () => archived ? t('Unarchive chat') : t('Archive chat'),
+        title: () => archived ? t('Bring this chat back to its list') : t('Move this chat to Archived at the end of the sidebar'),
+        run: () => {
+          if (archived) sidebarArchive?.unarchive(summary.id);
+          else sidebarArchive?.archive(summary.id, archiveNeeds(summary, workerChildren().get(summary.id)), summary.updatedAt);
+          paintSessions();
+          // The keyboard follows the chat to its new place, or to the heading of the closed group
+          // (Archived, or a project) it went behind.
+          const list = $('sessionList');
+          const rebuilt = [...list.querySelectorAll<HTMLElement>('.sess')].find(row => row.dataset.id === summary.id);
+          const hidden = rebuilt?.closest<HTMLDetailsElement>('details:not([open])');
+          if (rebuilt && !hidden) {
+            rebuilt.querySelector<HTMLElement>('.sess-top')?.focus({ preventScroll: true });
+            rowMenuButton(owner)?.focus({ preventScroll: true });
+          } else {
+            const project = [...list.querySelectorAll<HTMLElement>('.project-group')].find(group => group.dataset.projectId === summary.projectId);
+            (hidden ?? project ?? list.querySelector('.sidebar-archive'))?.querySelector<HTMLElement>(':scope > summary')?.focus({ preventScroll: true });
+          }
+        }
+      });
+    }
     // The stop this app can actually make. It does not touch the running ChatGPT turn — nothing
     // here can — it takes this chat's tools away, and a model whose every call is refused with
     // an instruction to stop finishes its turn on its own.
@@ -1480,6 +1513,52 @@ function inboxRank(summary: SessionSummary, busy: SessionSummary[] = []): number
   return rank;
 }
 
+/** What an archived chat needs from the person: its own attention, or a sub-agent's that needs it. */
+function archiveNeeds(summary: SessionSummary, workers: SessionSummary[] = []): string | null {
+  return chatAttention(summary) ?? (workers.some(worker => workerState(worker) === 'attention') ? 'worker' : null);
+}
+
+/**
+ * Whether a chat is on the archive shelf now. An archived chat that needs the person for something new
+ * (an approval, a stopped recovery, a block, a failure) is back in its list until that is handled.
+ */
+function shelved(summary: SessionSummary, workers?: SessionSummary[]): boolean {
+  const archived = pinnable(summary) ? sidebarArchive?.get(summary.id) : undefined;
+  if (!archived) return false;
+  const needs = archiveNeeds(summary, workers);
+  // What it was archived with is handled: the next need brings it back, even with no newer activity.
+  if (needs === null && archived.needs !== null) sidebarArchive?.settle(summary.id);
+  return !archiveSurfaces(archived, needs, summary.updatedAt);
+}
+
+/** The archived chats, most recent first, in one group at the end of the sidebar, closed until opened. */
+function archiveShelf(entries: SessionSummary[], draw: (entry: SessionSummary) => HTMLElement,
+  children: Map<string, SessionSummary[]>): HTMLElement | null {
+  if (!entries.length) return null;
+  const box = document.createElement('details');
+  box.className = 'sidebar-archive';
+  box.open = archiveShelfOpen;
+  const heading = el('summary', 'inbox-settled-heading');
+  heading.dataset.inboxControl = 'archived';
+  heading.append(disclosureChevron(), el('span', '', () => t('Archived')), el('span', 'inbox-count', () => String(entries.length)));
+  const rows: HTMLElement[] = [];
+  drawingShelf = true;
+  try {
+    for (const entry of [...entries].sort((a, b) => b.updatedAt - a.updatedAt)) {
+      const row = draw(entry); rows.push(row);
+      const workers = children.get(entry.id); if (workers) workerGroup(entry.id, workers, row, rows);
+    }
+  } finally { drawingShelf = false; }
+  box.append(heading, ...rows);
+  // As the project folders do: a repaint may replace this node before the native toggle arrives.
+  heading.addEventListener('click', event => {
+    event.preventDefault();
+    archiveShelfOpen = !archiveShelfOpen;
+    box.open = archiveShelfOpen;
+  });
+  return box;
+}
+
 /** The project's folder in its sidebar color, as the project tree draws it. */
 function projectMark(project: LocalProject | undefined): HTMLElement {
   const mark = icon('i-folder', 'ico project-mark');
@@ -1634,7 +1713,10 @@ function paintInbox(): void {
   const busy = new Map([...children].map(([key, workers]) => [key, busyWorkers(workers)]));
   const inProject = (entry: SessionSummary) => !inboxProject || projectGroup(entry.projectId) === inboxProject;
   const attributed = (entry: SessionSummary) => !!entry.conversationId || entry.origin?.kind === 'desktop';
-  const shown = sessions.filter(entry => entry.origin?.kind !== 'worker' && attributed(entry) && inProject(entry));
+  const chatsHere = sessions.filter(entry => entry.origin?.kind !== 'worker' && attributed(entry) && inProject(entry));
+  const shelf = chatsHere.filter(entry => shelved(entry, children.get(entry.id)));
+  const onShelf = new Set(shelf);
+  const shown = chatsHere.filter(entry => !onShelf.has(entry));
   // What the tree puts under "Unattributed activity", under the same disclosure here.
   const diagnostics = sessions.filter(entry => entry.origin?.kind !== 'worker' && !attributed(entry) && inProject(entry));
   const settles = new Set(shown.filter(entry => inboxSettled(entry, busy.get(entry.id))));
@@ -1752,7 +1834,9 @@ function paintInbox(): void {
   if (history) rows.push(history);
   const unattributed = unattributedActivity(diagnostics);
   if (unattributed) rows.push(unattributed);
-  if (!chats.length && !diagnostics.length) rows.push(inboxEmpty(id));
+  const archive = archiveShelf(shelf, inboxSettledRow, children);
+  if (archive) rows.push(archive);
+  if (!chats.length && !diagnostics.length && !shelf.length) rows.push(inboxEmpty(id));
   $('projectList').replaceChildren();
   list.replaceChildren(...rows);
   restoreRowFocus(); restoreControlFocus();
@@ -1931,8 +2015,8 @@ function paintSessions(): void {
   // Store lightweight owners until the visible page is known. Creating DOM for
   // hundreds of older, off-page project tasks on every activity push stalls the renderer
   // even though those nodes are immediately discarded by the project page limit.
-  const projectRows = new Map<string, Array<{ entry: SessionSummary; workers?: SessionSummary[]; selected: boolean }>>();
-  const diagnostics: SessionSummary[] = [];
+  const projectRows = new Map<string, Array<{ entry: SessionSummary; workers?: SessionSummary[]; selected: boolean; surfaced: boolean }>>();
+  const diagnostics: SessionSummary[] = [], shelf: SessionSummary[] = [];
   // Pinned chats lead their own list (#1133). Resolve project membership once for
   // this paint: scanning all sessions for each project and then searching the project
   // catalog for every comparison used to multiply work on frequent activity pushes.
@@ -1959,9 +2043,12 @@ function paintSessions(): void {
     if (!entry.conversationId && entry.origin?.kind !== 'desktop') { diagnostics.push(entry); continue; }
     const projectId = groupOf(entry.projectId);
     const workers = children.get(entry.id);
+    if (shelved(entry, workers)) { shelf.push(entry); continue; }
     if (projectId) {
       const tasks = projectRows.get(projectId) ?? [];
-      tasks.push({ entry, workers, selected: entry.id === selectedId || workers?.some(worker => worker.id === selectedId) === true });
+      tasks.push({ entry, workers, selected: entry.id === selectedId || workers?.some(worker => worker.id === selectedId) === true,
+        // Back from Archived for what it needs: drawn past the page limit too.
+        surfaced: sidebarArchive?.get(entry.id) !== undefined });
       projectRows.set(projectId, tasks);
     } else {
       const row = sessionRow(entry); rows.push(row);
@@ -2017,7 +2104,7 @@ function paintSessions(): void {
     }
     const tasks = projectRows.get(id) ?? [];
     const count = projectVisibleCounts.get(id) ?? PROJECT_TASK_PAGE_SIZE;
-    const shown = tasks.filter((task, index) => index < count || task.selected);
+    const shown = tasks.filter((task, index) => index < count || task.selected || task.surfaced);
     const shownRows: HTMLElement[] = [];
     for (const task of shown) {
       const row = sessionRow(task.entry);
@@ -2042,6 +2129,8 @@ function paintSessions(): void {
   }
   const unattributed = unattributedActivity(diagnostics);
   if (unattributed) rows.push(unattributed);
+  const archive = archiveShelf(shelf, sessionRow, children);
+  if (archive) rows.push(archive);
   // A new node is not :hover until the pointer moves again: the row under it would lose its hover
   // look for a moment, and a sub-agent arrow would jump back to the menu's column and slide out again.
   // The row under the pointer is born pointed (until the pointer leaves), keeps its tooltip, and an
@@ -7933,6 +8022,7 @@ function selectNewChat(projectId: string | null = null, branch: typeof newChatBr
 export function initChat(next: Deps): void {
   sidebarCompletion = createSidebarCompletionState();
   sidebarPins = createSidebarPins();
+  sidebarArchive = createSidebarArchive();
   sidebarOrder = createSidebarOrder($('sessionList'), () => [
     ...projectSortEntries(),
     ...sessions.filter(entry => (entry.conversationId || entry.origin?.kind === 'desktop') && entry.origin?.kind !== 'worker')

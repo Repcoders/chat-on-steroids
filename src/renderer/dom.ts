@@ -15,6 +15,7 @@ import { currentLanguage, t, ui } from './i18n.js';
  */
 const ICONS: Readonly<Record<string, string>> = {
   'i-agents': 'robot',
+  'i-archive': 'archive',
   'i-arrow-down': 'arrow-down',
   'i-arrow-up': 'arrow-up',
   'i-arrow-left': 'arrow-left',
@@ -76,6 +77,7 @@ const ICONS: Readonly<Record<string, string>> = {
   'i-zoom-out': 'magnifying-glass-minus',
   'i-zoom-reset': 'arrow-counter-clockwise',
   'i-trash': 'trash',
+  'i-unarchive': 'tray-arrow-up',
   'i-warning': 'warning',
   'i-x': 'x'
 };

@@ -925,7 +925,7 @@ submenus beside their item, and is keyboard-driven (arrows, Right/Left for subme
 focus back to the button). A project's menu: New chat in this project (`data-new-project`, which
 also shows the chat screen), Color (a submenu: None and the palette as radio items, each calling
 the same `projects:color` owner; choices wait while a save is pending) and Remove. A chat's
-menu: Rename and Open in browser, Block/Release and, in strict mode, Trust/Untrust, then Remove;
+menu: Rename and Open in browser, Archive/Unarchive, Block/Release and, in strict mode, Trust/Untrust, then Remove;
 the Unattributed row offers only its app-wide Block/Allow (never in strict mode) and Remove.
 Choosing an item gives focus back to the row's button before the action runs, so a color save's
 repaint keeps it there unless the user moved focus meanwhile; an action that moves focus
@@ -4109,6 +4109,19 @@ unpinned groups and a drag never crosses between them. Only recorded chats are p
 workers or unattributed activity. Pinned rows carry a quiet pin mark at rest (it makes way for the
 row's "⋯" on hover, focus or while its menu is open), and Pin chat/Unpin chat is the first item of
 the chat's row menu, keeping keyboard focus on the rebuilt row's menu button.
+`renderer/sidebar-archive.ts` keeps archived chats the same way (1000 ids, the oldest gives way), each
+with what it needed from the person (`archiveNeeds`: its `chatAttention`, or `worker` for a sub-agent
+needing it) and its `updatedAt` when archived. It is local only: nothing reaches ChatGPT's archive
+(`worker-archive.ts` is for retired workers) or the session store. An archived chat leaves its list,
+in the tree and the Inbox, for one closed Archived group (`.sidebar-archive`, window-local open
+state) at the end of the chat list, most recent first, its workers under it. Only pinnable chats can
+be archived. One that needs something it did not when archived, or the same need again after newer
+activity (`archiveSurfaces`), is drawn in its list until that is handled, past its project's page
+limit too. Once what it was archived with is handled (`settle`), any later need brings it back. Its
+menu there offers Archive again, which records the need it has now; only rows in the Archived group
+offer Unarchive. The group's open state changes on the summary's click, as project folders do, and
+focus follows the chat or goes to the heading of the closed group it went behind. Tests:
+`test/sidebar-archive.test.ts` and the archive tests in `test/renderer-state.test.ts`.
 The worker drawer is a read-only split view of the selected worker's own recorded conversation;
 opening it never switches the prime composer. Its cards show the scoped worker id, task, observed
 current-conversation model and broker status when known, falling back to recorded session activity.

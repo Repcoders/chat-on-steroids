@@ -38,6 +38,7 @@
 
 
 .ph.ph-activity::before { content: '\e000'; }
+.ph.ph-archive::before { content: '\e00c'; }
 .ph.ph-arrow-clockwise::before { content: '\e036'; }
 .ph.ph-arrow-counter-clockwise::before { content: '\e038'; }
 .ph.ph-arrow-down::before { content: '\e03e'; }
@@ -105,6 +106,7 @@
 .ph.ph-target::before { content: '\e47c'; }
 .ph.ph-terminal-window::before { content: '\eae8'; }
 .ph.ph-trash::before { content: '\e4a6'; }
+.ph.ph-tray-arrow-up::before { content: '\ee52'; }
 .ph.ph-warning::before { content: '\e4e0'; }
 .ph.ph-x::before { content: '\e4f6'; }
 
