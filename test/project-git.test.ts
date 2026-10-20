@@ -7,7 +7,7 @@ import { EventEmitter } from 'node:events';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { defaultConfig, initConfigPath, saveConfig } from '../src/main/config.js';
 import { initDurableStore, resetDurableForTests } from '../src/main/durable.js';
-import { gitExecutable, ProjectGitWatchSet, readProjectGitDiff, readProjectGitSnapshot } from '../src/main/project-git.js';
+import { gitExecutable, ProjectGitWatchSet, readProjectGitBlame, readProjectGitDiff, readProjectGitSnapshot } from '../src/main/project-git.js';
 import { addProject } from '../src/main/projects.js';
 import { validateNewRoot } from '../src/main/sandbox.js';
 
@@ -338,4 +338,63 @@ it('shows a file renamed differently on both sides as conflicts, even with no wo
   expect(byPath['moved.txt']).toBe('C');
   // Deleted on both sides: no working file and no HEAD version, still a readable (empty) diff.
   expect(await readProjectGitDiff(id, 'moved.txt', undefined, snapshot.revision)).toMatchObject({ status: 'C', currentText: '' });
+});
+
+it('blames the shown text against HEAD line by line and marks the rest not committed yet', async () => {
+  const { root, id } = await committedProject();
+  await fs.writeFile(path.join(root, 'blamed.ts'), 'one\ntwo\nthree\n');
+  await git(root, 'add', 'blamed.ts');
+  await git(root, 'commit', '-m', 'Add the blamed file', '--date=2026-01-02T03:04:05Z');
+  await fs.writeFile(path.join(root, 'blamed.ts'), 'one\nTWO\nthree\n');
+  await git(root, '-c', 'user.name=Second Author', 'commit', '-am', 'Shout the second line');
+
+  // The editor's unsaved text is what is annotated, not the file on disk.
+  const shown = 'one\nTWO\nthree, edited\nfour\n';
+  const blame = await readProjectGitBlame(id, 'blamed.ts', shown);
+  expect(blame.state).toBe('ready');
+  const byLine = blame.lines.map(index => blame.commits[index]!);
+  expect(byLine).toHaveLength(4);
+  expect(byLine[0]).toMatchObject({ author: 'CoS Test', summary: 'Add the blamed file', authorTime: Date.parse('2026-01-02T03:04:05Z') / 1000 });
+  expect(byLine[0]!.oid).toMatch(/^[0-9a-f]{40,64}$/);
+  expect(byLine[1]).toMatchObject({ author: 'Second Author', summary: 'Shout the second line' });
+  expect(byLine[2]).toEqual({ oid: null, author: '', authorTime: 0, summary: '' });
+  expect(byLine[3]!.oid).toBeNull();
+  expect(new Set(blame.lines).size).toBe(3);
+
+  // Cached by HEAD, path and text; a commit is a new HEAD and is read again.
+  expect(await readProjectGitBlame(id, 'blamed.ts', shown)).toBe(blame);
+  await fs.writeFile(path.join(root, 'blamed.ts'), shown);
+  await git(root, 'commit', '-am', 'Edit and extend');
+  const committed = await readProjectGitBlame(id, 'blamed.ts', shown);
+  expect(committed.lines.map(index => committed.commits[index]!.summary))
+    .toEqual(['Add the blamed file', 'Shout the second line', 'Edit and extend', 'Edit and extend']);
+
+  // A file HEAD does not have, staged or not, is all uncommitted.
+  await fs.writeFile(path.join(root, 'fresh.ts'), 'a\nb');
+  expect(await readProjectGitBlame(id, 'fresh.ts', 'a\nb')).toMatchObject({ state: 'ready', commits: [{ oid: null }], lines: [0, 0] });
+  await git(root, 'add', 'fresh.ts');
+  expect(await readProjectGitBlame(id, 'fresh.ts', 'a\nb')).toMatchObject({ state: 'ready', lines: [0, 0] });
+
+  expect(await readProjectGitBlame(id, '../outside.ts', 'x\n')).toMatchObject({ state: 'unavailable', lines: [] });
+  const plainRoot = path.join(approved, 'plain');
+  await fs.mkdir(plainRoot);
+  await fs.writeFile(path.join(plainRoot, 'notes.txt'), 'x\n');
+  expect(await readProjectGitBlame((await addProject(plainRoot)).id, 'notes.txt', 'x\n')).toMatchObject({ state: 'not-repository' });
+});
+
+it('blames a file of a Local Project nested inside its repository', async () => {
+  const root = path.join(approved, 'blame-monorepo');
+  const nested = path.join(root, 'packages', 'app');
+  await fs.mkdir(path.join(nested, 'src'), { recursive: true });
+  await git(root, 'init');
+  await git(root, 'config', 'user.email', 'test@example.com');
+  await git(root, 'config', 'user.name', 'CoS Test');
+  await fs.writeFile(path.join(nested, 'src', 'inside.ts'), 'first\nsecond\n');
+  await git(root, 'add', '.'); await git(root, 'commit', '-m', 'Nested baseline');
+  const project = await addProject(nested);
+
+  const blame = await readProjectGitBlame(project.id, 'src/inside.ts', 'first\nchanged\n');
+  expect(blame.state).toBe('ready');
+  expect(blame.lines.map(index => blame.commits[index]!.summary)).toEqual(['Nested baseline', '']);
+  expect(blame.commits[blame.lines[1]!]!.oid).toBeNull();
 });

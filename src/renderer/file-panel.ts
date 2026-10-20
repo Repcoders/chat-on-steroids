@@ -2,7 +2,7 @@ import type { InputAttachment } from '../shared/input.js';
 import type { LocalProject } from '../shared/projects.js';
 import type { ToolEditReview } from '../shared/session.js';
 import type { ProjectDirectoryListing, ProjectFileEntry, ProjectFileKind, ProjectFilePreview, ProjectFilesChanged } from '../shared/project-files.js';
-import type { ProjectGitChange, ProjectGitChanged, ProjectGitDiff, ProjectGitSnapshot, ProjectGitStatus } from '../shared/project-git.js';
+import type { ProjectGitBlame, ProjectGitChange, ProjectGitChanged, ProjectGitDiff, ProjectGitSnapshot, ProjectGitStatus } from '../shared/project-git.js';
 import { safeExternalLink } from '../shared/external-link.js';
 import { marked } from 'marked';
 import { currentLanguage, onLanguageChange, t, tn, ui } from './i18n.js';
@@ -10,7 +10,7 @@ import { disclosureChevron, el, icon, run, toast } from './dom.js';
 import { attachWorkPanelResize } from './work-panel-resize.js';
 import { createSearchPopup } from './search-popup.js';
 import { sanitizeHtmlTree } from './sanitize-html.js';
-import type { ProjectCodeEditor, ProjectDiffViewer } from './file-code-editor.js';
+import type { BlameAnnotation, ProjectCodeEditor, ProjectDiffViewer } from './file-code-editor.js';
 import type { ProjectPdfViewer } from './file-pdf-viewer.js';
 
 interface FilePanelOptions {
@@ -33,6 +33,7 @@ interface Selection {
 
 const PREVIEW_HEIGHT_KEY = 'chat-on-steroids.file-preview-height';
 const PREVIEW_MIN_HEIGHT = 140;
+const BLAME_KEY = 'chat-on-steroids.file-blame';
 const MARKDOWN_TAGS = new Set([
   'A', 'BLOCKQUOTE', 'BR', 'CODE', 'DEL', 'EM', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
   'HR', 'KBD', 'LI', 'OL', 'P', 'PRE', 'S', 'STRONG', 'TABLE', 'TBODY', 'TD', 'TFOOT',
@@ -320,6 +321,10 @@ export function createFilePanel(options: FilePanelOptions) {
   let reviewGeneration = 0;
   let gitSnapshot: ProjectGitSnapshot | null = null;
   let selectedBaseRef: string | null = null;
+  let blameOn = false;
+  try { blameOn = window.localStorage.getItem(BLAME_KEY) === '1'; } catch { /* optional */ }
+  let blameToken = 0;
+  let blameToggle: HTMLButtonElement | null = null;
   const branchPopup = createSearchPopup({
     trigger: () => branchTrigger, className: 'file-branch',
     label: () => t('Compare branches'), placeholder: () => t('Search branches…'), empty: () => t('No branches found'),
@@ -394,7 +399,58 @@ export function createFilePanel(options: FilePanelOptions) {
     preview.replaceChildren(previewResize, ...nodes);
   }
 
+  function blameButton(): HTMLButtonElement[] {
+    // Blame reads the project's Git on this computer; a project on a server has none here.
+    if (project?.remote) return [];
+    const button = actionButton(() => t('Blame'), 'i-blame', () => setBlame(!blameOn));
+    button.classList.add('file-preview-blame');
+    button.setAttribute('aria-pressed', String(blameOn));
+    blameToggle = button;
+    return [button];
+  }
+
+  function setBlame(on: boolean, remember = true): void {
+    blameOn = on;
+    blameToggle?.setAttribute('aria-pressed', String(on));
+    if (remember) {
+      try { window.localStorage.setItem(BLAME_KEY, on ? '1' : '0'); } catch { /* optional */ }
+    }
+    void showBlame();
+  }
+
+  function blameAnnotations(value: ProjectGitBlame): { lines: BlameAnnotation[]; uncommitted: BlameAnnotation } {
+    const uncommitted: BlameAnnotation = { key: '', label: t('Not committed yet'), title: t('Not committed yet'), uncommitted: true };
+    const day = new Intl.DateTimeFormat(currentLanguage(), { dateStyle: 'medium' });
+    const moment = new Intl.DateTimeFormat(currentLanguage(), { dateStyle: 'medium', timeStyle: 'short' });
+    const commits = value.commits.map(commit => commit.oid === null ? uncommitted : {
+      key: commit.oid,
+      label: `${commit.author} · ${day.format(commit.authorTime * 1000)}`,
+      title: `${commit.author} · ${moment.format(commit.authorTime * 1000)}\n${commit.summary}\n${commit.oid.slice(0, 8)}`,
+      uncommitted: false
+    });
+    return { lines: value.lines.map(index => commits[index] ?? uncommitted), uncommitted };
+  }
+
+  /** Shows (or clears) the blame gutter on the open viewer or editor, for the text it shows now. */
+  async function showBlame(): Promise<void> {
+    const token = ++blameToken;
+    const surface = codeEditor ?? codeViewer, current = project, path = previewPath;
+    if (!surface || !current || !path) return;
+    if (!blameOn) { surface.clearBlame(); return; }
+    const request = surface.blame();
+    const value = await run(window.api.getProjectGitBlame(current.id, path, request.text));
+    if (token !== blameToken || !blameOn || project?.id !== current.id || previewPath !== path || (codeEditor ?? codeViewer) !== surface) return;
+    if (value?.state !== 'ready') {
+      if (value) toast(value.state === 'not-repository' ? t('This folder is not a Git repository.') : t('Blame is unavailable for this file.'));
+      setBlame(false, false);
+      return;
+    }
+    const { lines, uncommitted } = blameAnnotations(value);
+    request.apply(lines, uncommitted);
+  }
+
   function destroyCodeEditor(): void {
+    blameToken++;
     editorMountToken++;
     codeEditor?.destroy();
     codeEditor = null;
@@ -404,6 +460,7 @@ export function createFilePanel(options: FilePanelOptions) {
   }
 
   function destroyCodeViewer(): void {
+    blameToken++;
     pendingCodePreview = null;
     renderedPreview = null;
     viewerMountToken++;
@@ -864,6 +921,7 @@ export function createFilePanel(options: FilePanelOptions) {
       if (!editorDirty) clearEditorState();
       toast(t('Saved {0}', [saved.preview.name]));
       renderPreview();
+      if (blameOn) void showBlame();
       await reloadDirectory(parentPath(saved.preview.path));
       await reconcileGitChanges(true);
     } finally {
@@ -900,7 +958,7 @@ export function createFilePanel(options: FilePanelOptions) {
     save.disabled = true;
     editorSaveButton = save;
     const view = actionButton(() => t('View'), 'i-eye', stopEditing);
-    actions.append(save, view, previewTreeButton(), previewCloseButton());
+    actions.append(save, view, previewTreeButton(), ...blameButton(), previewCloseButton());
     head.append(titleWrap, actions);
 
     const languageLabel = el('span', 'file-editor-language', () => t('Detecting language…'));
@@ -931,6 +989,7 @@ export function createFilePanel(options: FilePanelOptions) {
     languageLabel.textContent = created.language;
     updateEditorDirtyState();
     created.focus();
+    if (blameOn) void showBlame();
   }
 
   async function mountCodeViewer(value: ProjectFilePreview & { text: string }, host: HTMLElement, languageLabel: HTMLElement, publish: () => void): Promise<void> {
@@ -951,6 +1010,7 @@ export function createFilePanel(options: FilePanelOptions) {
     languageLabel.textContent = created.language;
     publish();
     codeViewer = created;
+    if (blameOn) void showBlame();
   }
 
   async function mountPdfViewer(value: ProjectFilePreview & { pdfDataBase64: string }, host: HTMLElement, revision: string): Promise<void> {
@@ -1022,6 +1082,7 @@ export function createFilePanel(options: FilePanelOptions) {
       viewerHost = el('div', 'file-code-editor-host file-code-viewer-host');
       surfaceClass = 'has-code-viewer';
       content = viewerHost;
+      head.querySelector('.file-preview-close')?.before(...blameButton());
     }
     const publish = (): void => {
       destroyCodeViewer(); destroyPdfViewer();
@@ -1315,6 +1376,8 @@ export function createFilePanel(options: FilePanelOptions) {
       gitReconcileTimer = null;
       if (!pane.isConnected || pane.hidden) return;
       void reconcileGitChanges(Boolean(gitDiffPath));
+      // A commit or checkout changes what HEAD says about the open file's lines.
+      if (blameOn) void showBlame();
     }, 120);
   }
 

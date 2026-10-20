@@ -1,14 +1,32 @@
 import { basicSetup, EditorView } from 'codemirror';
-import { EditorState } from '@codemirror/state';
+import { ChangeSet, Compartment, EditorState, MapMode, RangeSet, RangeValue, StateEffect, StateField, type Text } from '@codemirror/state';
+import { gutter, GutterMarker } from '@codemirror/view';
 import { HighlightStyle, LanguageDescription, syntaxHighlighting } from '@codemirror/language';
 import { languages } from '@codemirror/language-data';
 import { tags } from '@lezer/highlight';
+
+/** What the blame gutter shows for one line; `key` groups consecutive lines of one commit. */
+export interface BlameAnnotation {
+  key: string;
+  label: string;
+  title: string;
+  uncommitted: boolean;
+}
+
+/** A blame read of the editor's current text. `apply` places it even after later edits. */
+export interface BlameRequest {
+  text: string;
+  apply(lines: readonly BlameAnnotation[], uncommitted: BlameAnnotation): void;
+}
 
 export interface ProjectCodeEditor {
   view: EditorView;
   language: string;
   getValue(): string;
   focus(): void;
+  /** Starts a blame read; until it is applied or cleared, edits are remembered for it. */
+  blame(): BlameRequest;
+  clearBlame(): void;
   destroy(): void;
 }
 
@@ -46,6 +64,18 @@ const editorTheme = EditorView.theme({
     borderRight: '1px solid var(--line)'
   },
   '.cm-lineNumbers .cm-gutterElement': { padding: '0 8px 0 10px', minWidth: '30px' },
+  '.cm-blame-gutter': { borderRight: '1px solid var(--line)' },
+  '.cm-blame-gutter .cm-gutterElement': {
+    width: '150px',
+    boxSizing: 'border-box',
+    padding: '0 8px 0 10px',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontFamily: 'var(--ui-font, system-ui, sans-serif)',
+    fontSize: 'calc(11px * var(--text-scale, 1))'
+  },
+  '.cm-blame.is-uncommitted': { color: 'var(--accent)' },
   '.cm-activeLineGutter': { backgroundColor: 'var(--hover)', color: 'var(--soft)' },
   '.cm-activeLine': { backgroundColor: 'color-mix(in srgb, var(--hover) 62%, transparent)' },
   '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--ink)' },
@@ -87,6 +117,89 @@ const syntaxTheme = HighlightStyle.define([
   { tag: tags.invalid, color: 'var(--red)', textDecoration: 'underline wavy' }
 ]);
 
+class BlameGutterMarker extends GutterMarker {
+  constructor(readonly annotation: BlameAnnotation, readonly first: boolean) { super(); }
+  override eq(other: GutterMarker): boolean {
+    return other instanceof BlameGutterMarker && other.annotation === this.annotation && other.first === this.first;
+  }
+  override toDOM(): Node {
+    const node = document.createElement('span');
+    node.className = this.annotation.uncommitted ? 'cm-blame is-uncommitted' : 'cm-blame';
+    // Only the first line of a run of one commit is labelled; the rest keep the tooltip.
+    if (this.first) node.textContent = this.annotation.label;
+    node.title = this.annotation.title;
+    return node;
+  }
+}
+
+/** One line's annotation, anchored at the line start and moved with the text after it. */
+class BlameMark extends RangeValue {
+  readonly first: BlameGutterMarker;
+  readonly rest: BlameGutterMarker;
+  constructor(readonly annotation: BlameAnnotation) {
+    super();
+    this.first = new BlameGutterMarker(annotation, true);
+    this.rest = new BlameGutterMarker(annotation, false);
+  }
+}
+BlameMark.prototype.point = true;
+BlameMark.prototype.startSide = BlameMark.prototype.endSide = 1;
+BlameMark.prototype.mapMode = MapMode.TrackAfter;
+
+interface BlameState { marks: RangeSet<BlameMark>; uncommitted: BlameMark; }
+
+const setBlame = StateEffect.define<BlameState | null>();
+
+/** Marks the lines `changes` rewrote as not committed; lines it only moved keep their commit. */
+function markChanged(state: BlameState, changes: ChangeSet, before: Text, after: Text): BlameState {
+  let marks = state.marks;
+  changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
+    let first = after.lineAt(fromB).number, last = after.lineAt(toB).number;
+    const startsWithBreak = inserted.lines > 1 && inserted.line(1).length === 0;
+    const endsWithBreak = inserted.lines > 1 && inserted.line(inserted.lines).length === 0;
+    if (!inserted.length && before.lineAt(fromA).from === fromA && before.lineAt(toA).from === toA) return;
+    if (fromA === toA && startsWithBreak && before.lineAt(fromA).to === fromA) first++;
+    if (endsWithBreak && before.lineAt(toA).from === toA) last--;
+    if (first > last) return;
+    const added = [];
+    for (let number = first; number <= last; number++) added.push(state.uncommitted.range(after.line(number).from));
+    marks = marks.update({ filter: () => false, filterFrom: after.line(first).from, filterTo: after.line(last).to, add: added });
+  });
+  return { marks, uncommitted: state.uncommitted };
+}
+
+const blameField = StateField.define<BlameState | null>({
+  create: () => null,
+  update(value, transaction) {
+    for (const effect of transaction.effects) if (effect.is(setBlame)) return effect.value;
+    if (!value || !transaction.docChanged) return value;
+    return markChanged({ marks: value.marks.map(transaction.changes), uncommitted: value.uncommitted },
+      transaction.changes, transaction.startState.doc, transaction.newDoc);
+  }
+});
+
+function markAt(marks: RangeSet<BlameMark>, position: number): BlameMark | null {
+  let found = null as BlameMark | null;
+  marks.between(position, position, (from, _to, value) => {
+    if (from !== position) return;
+    found = value;
+    return false;
+  });
+  return found;
+}
+
+const blameGutter = gutter({
+  class: 'cm-blame-gutter',
+  lineMarker(view, line) {
+    const value = view.state.field(blameField, false);
+    const mark = value ? markAt(value.marks, line.from) : null;
+    if (!value || !mark) return null;
+    const previous = line.from > 0 ? markAt(value.marks, view.state.doc.lineAt(line.from - 1).from) : null;
+    return previous?.annotation.key === mark.annotation.key ? mark.rest : mark.first;
+  },
+  lineMarkerChange: update => update.startState.field(blameField, false) !== update.state.field(blameField, false)
+});
+
 /**
  * Creates the shared code surface used by both the read-only preview and edit mode. Language
  * packages are loaded lazily from CodeMirror's catalogue so Files does not pay parser cost at
@@ -106,20 +219,27 @@ export async function createProjectCodeEditor(options: {
     catch { /* An unavailable parser falls back to plain text without blocking editing. */ }
   }
 
+  // The edits made while a blame read is out, so its answer can be mapped onto the newer text.
+  let pendingBlame: { doc: Text; changes: ChangeSet } | null = null;
+  const blameGutterSlot = new Compartment();
   const view = new EditorView({
     doc: options.text,
     parent: options.parent,
     extensions: [
+      blameGutterSlot.of([]),
       basicSetup,
       editorTheme,
       syntaxHighlighting(syntaxTheme),
       EditorView.lineWrapping,
       EditorState.lineSeparator.of(options.text.includes('\r\n') ? '\r\n' : '\n'),
       EditorState.changeFilter.of(transaction => transaction.newDoc.length <= 256 * 1024),
+      blameField,
       ...(support ? [support] : []),
       ...(options.readOnly ? [EditorView.editable.of(false), EditorState.readOnly.of(true)] : []),
       EditorView.updateListener.of(update => {
-        if (update.docChanged) options.onChange?.(update.state.sliceDoc());
+        if (!update.docChanged) return;
+        if (pendingBlame) pendingBlame.changes = pendingBlame.changes.compose(update.changes);
+        options.onChange?.(update.state.sliceDoc());
       })
     ]
   });
@@ -129,6 +249,31 @@ export async function createProjectCodeEditor(options: {
     language: description?.name ?? 'Plain text',
     getValue: () => view.state.sliceDoc(),
     focus: () => view.focus(),
+    blame: () => {
+      const doc = view.state.doc;
+      const request = { doc, changes: ChangeSet.empty(doc.length) };
+      pendingBlame = request;
+      return {
+        text: view.state.sliceDoc(),
+        apply: (lines, uncommitted) => {
+          if (pendingBlame !== request) return;
+          pendingBlame = null;
+          const notCommitted = new BlameMark(uncommitted);
+          const shared = new Map<BlameAnnotation, BlameMark>([[uncommitted, notCommitted]]);
+          const marks = RangeSet.of(lines.slice(0, doc.lines).map((annotation, index) => {
+            let mark = shared.get(annotation);
+            if (!mark) shared.set(annotation, mark = new BlameMark(annotation));
+            return mark.range(doc.line(index + 1).from);
+          }));
+          const value = markChanged({ marks: marks.map(request.changes), uncommitted: notCommitted }, request.changes, doc, view.state.doc);
+          view.dispatch({ effects: [blameGutterSlot.reconfigure(blameGutter), setBlame.of(value)] });
+        }
+      };
+    },
+    clearBlame: () => {
+      pendingBlame = null;
+      view.dispatch({ effects: [blameGutterSlot.reconfigure([]), setBlame.of(null)] });
+    },
     destroy: () => view.destroy()
   };
 }

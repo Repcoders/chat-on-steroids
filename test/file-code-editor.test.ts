@@ -89,3 +89,35 @@ it('preserves CRLF and the final newline when editing and bounds retained text',
   expect(editor.getValue()).toBe('\uFEFFthree\r\ntwo\r\n');
   editor.destroy();
 });
+
+it('shows a blame gutter that labels each commit once and marks lines rewritten after the read as not committed', async () => {
+  const parent = document.getElementById('editor')!;
+  const editor = await createProjectCodeEditor({ parent, filename: 'main.ts', text: 'one\ntwo\nthree\nfour\n' });
+  const ada = { key: 'a'.repeat(40), label: 'Ada · Jan 2, 2026', title: 'Ada\nFirst', uncommitted: false };
+  const bo = { key: 'b'.repeat(40), label: 'Bo · Jan 3, 2026', title: 'Bo\nSecond', uncommitted: false };
+  const none = { key: '', label: 'Not committed yet', title: 'Not committed yet', uncommitted: true };
+  const cells = () => [...parent.querySelectorAll('.cm-blame-gutter .cm-gutterElement')].map(cell => cell.textContent);
+
+  const stale = editor.blame();
+  const request = editor.blame();
+  expect(request.text).toBe('one\ntwo\nthree\nfour\n');
+  // Typed while the read was out: it lands on the newer text, with that line not committed.
+  editor.view.dispatch({ changes: { from: 4, to: 7, insert: 'TWO' } });
+  stale.apply([none, none, none, none], none);
+  expect(parent.querySelector('.cm-blame-gutter')).toBeNull();
+  request.apply([ada, ada, bo, bo], none);
+  expect(cells()).toEqual(['Ada · Jan 2, 2026', 'Not committed yet', 'Bo · Jan 3, 2026', '']);
+  expect(parent.querySelectorAll<HTMLElement>('.cm-blame')[3]!.title).toBe('Bo\nSecond');
+  expect(parent.querySelector('.cm-blame-gutter + .cm-lineNumbers, .cm-blame-gutter ~ .cm-lineNumbers')).not.toBeNull();
+
+  // A line break at the end of a line adds a new line; the line it was typed on keeps its commit.
+  editor.view.dispatch({ changes: { from: editor.view.state.doc.line(3).to, insert: '\n' } });
+  expect(cells()).toEqual(['Ada · Jan 2, 2026', 'Not committed yet', 'Bo · Jan 3, 2026', 'Not committed yet', 'Bo · Jan 3, 2026']);
+  // Removing a whole line leaves the lines around it as they were.
+  editor.view.dispatch({ changes: { from: 0, to: editor.view.state.doc.line(2).from } });
+  expect(cells()).toEqual(['Not committed yet', 'Bo · Jan 3, 2026', 'Not committed yet', 'Bo · Jan 3, 2026']);
+
+  editor.clearBlame();
+  expect(parent.querySelector('.cm-blame-gutter')).toBeNull();
+  editor.destroy();
+});

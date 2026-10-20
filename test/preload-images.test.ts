@@ -34,4 +34,6 @@ it('keeps disk paths batched while transporting pathless clipboard bytes one at 
   expect(invoke).toHaveBeenNthCalledWith(3, 'sessions:toolEditReview', {
     sessionId: 'session-id', callId: '00000000-0000-4000-8000-000000000000', changeIndex: 1
   });
+  await api.getProjectGitBlame('project-id', 'src/main.ts', 'one\n');
+  expect(invoke).toHaveBeenNthCalledWith(4, 'projectGit:blame', { projectId: 'project-id', path: 'src/main.ts', contents: 'one\n' });
 });
