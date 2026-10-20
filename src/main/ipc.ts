@@ -136,7 +136,7 @@ import {
 import { forgetSession, notifyChanged, onSessionChange } from './session/recorder.js';
 import { findInSession, locateMessage, locateSearchMatch, searchSessions } from './session/search.js';
 import { readSessionEvents, readSessionList, sessionListCursorSchema } from './session/read-model.js';
-import { exportSessionMarkdown } from './session/markdown-export.js';
+import { exportSessionMarkdown, quoteCandidates } from './session/markdown-export.js';
 import { blockedChatIds, setChatsBlocked } from './session/blocked-chats.js';
 import { setChatsTrusted, trustedChatIds } from './session/trusted-chats.js';
 import {
@@ -1285,6 +1285,14 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
       target: z.enum(['clipboard', 'file'])
     }).parse(payload);
     return exportSessionMarkdown(request, getWindow());
+  });
+  // The composer's @ menu: the latest answer of the project's other recent chats and workers, whole.
+  handle('sessions:quoteCandidates', async (payload) => {
+    const { projectId, excludeId } = z.object({
+      projectId: z.string().regex(/^[a-f0-9-]{36}$/i),
+      excludeId: z.string().min(8).max(64).regex(/^[0-9a-z-]+$/i).optional()
+    }).parse(payload);
+    return quoteCandidates(projectId, excludeId);
   });
 
   // The Install button. The renderer decides nothing about what is installed - it cannot

@@ -17,6 +17,7 @@ import type { PetLibraryState, PetOverlayControlState, PetRuntimeAsset } from '.
 import type { SkillSummary, ManagedSkill, GitHubSkillUpdateCheck, SkillLibrary, SkillsDraftScope } from '../shared/skills.js';
 import type { RunningToolActivity, SessionChange, SessionSearchReply, SessionSearchLocation, ToolEditReview } from '../shared/session.js';
 import type { TurnTrace } from '../shared/turn-trace.js';
+import type { QuoteCandidate } from '../shared/markdown-export.js';
 import type { RunningExecProcess } from '../shared/background-exec.js';
 import type { PluginSnapshot, PluginInstallRequest, PluginConfigPatch } from '../shared/plugins.js';
 /**
@@ -257,6 +258,8 @@ const api = {
   writeClipboard: (text: string) => call<boolean>('clipboard:write', { text }),
   exportMarkdown: (request: { id: string; scope: 'answer' | 'session'; turnId?: string; messageId?: string; target: 'clipboard' | 'file' }) =>
     call<{ done: 'copied' } | { done: 'saved'; name: string } | { done: 'cancelled' }>('sessions:exportMarkdown', request),
+  quoteCandidates: (projectId: string, excludeId?: string) =>
+    call<QuoteCandidate[]>('sessions:quoteCandidates', { projectId, ...(excludeId ? { excludeId } : {}) }),
   // `external`: the system's own browser even for a page the CoS browser would open.
   openLink: (url: string, options: { external?: boolean } = {}) => call<boolean>('link:open', { url, ...(options.external ? { external: true } : {}) }),
   showCosBrowser: () => call<boolean>('cosBrowser:show'),

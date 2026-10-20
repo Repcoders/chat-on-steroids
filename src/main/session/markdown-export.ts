@@ -3,9 +3,11 @@ import path from 'node:path';
 import { app, clipboard, dialog, type BrowserWindow } from 'electron';
 import type { StoredText } from '../../shared/session.js';
 import {
-  answerMarkdown, completedTurnIds, markdownFileName, messageAnswerEntries, sessionMarkdown, transcriptEntries, turnAnswerEntries
+  answerMarkdown, completedTurnIds, latestAnswerEntries, markdownFileName, messageAnswerEntries, sessionMarkdown, transcriptEntries,
+  quotedAnswer, turnAnswerEntries, type QuoteCandidate
 } from '../../shared/markdown-export.js';
-import { getSession, readEvents, readOverflowText } from './store.js';
+import { getSession, listSessionPage, readEvents, readOverflowText } from './store.js';
+import { MAX_CHATGPT_MESSAGE_CHARS } from '../../shared/user-prompt.js';
 import { providerEntitiesAsMarkdown } from '../../shared/content-reference.js';
 import { dialogLabel, mainText } from '../main-texts.js';
 import { completedDilText } from '../../shared/dil-tables.js';
@@ -64,4 +66,25 @@ export async function exportSessionMarkdown(request: MarkdownExportRequest, owne
   if (result.canceled || !result.filePath) return { done: 'cancelled' };
   await fs.writeFile(result.filePath, markdown, 'utf8');
   return { done: 'saved', name: path.basename(result.filePath) };
+}
+
+/** How many of a project's most recent chats the @ menu reads an answer from: one journal read each. */
+const QUOTE_CHATS = 12;
+
+/**
+ * The latest answer of each of a project's most recent chats and workers, newest first, whole, for
+ * the composer's @ menu to quote. The chat being written in is left out, and so is an answer whose
+ * quote (its chat's name and a "> " on every line) would not fit in one message on its own.
+ */
+export async function quoteCandidates(projectId: string, excludeId?: string): Promise<QuoteCandidate[]> {
+  const page = await listSessionPage({ projectId, limit: QUOTE_CHATS + 1 });
+  const rows = await Promise.all(page.sessions.filter(summary => summary.id !== excludeId).slice(0, QUOTE_CHATS).map(async summary => {
+    try {
+      const entries = latestAnswerEntries(await readEvents(summary.id, { kinds: ['assistant_message', 'turn_end'] }));
+      const text = entries.length ? answerMarkdown(await Promise.all(entries.map(entry => fullText(summary.id, entry.stored, entry.html)))).trim() : '';
+      if (!text || quotedAnswer(summary.title, text).length > MAX_CHATGPT_MESSAGE_CHARS) return null;
+      return { sessionId: summary.id, title: summary.title, worker: summary.origin?.kind === 'worker', text };
+    } catch { return null; } // One unreadable chat leaves the others on offer.
+  }));
+  return rows.filter((row): row is QuoteCandidate => row !== null);
 }

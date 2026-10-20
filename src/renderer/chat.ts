@@ -8200,6 +8200,12 @@ export function initChat(next: Deps): void {
     draft: () => inputDrafts.get(draftKey()), saveDraft: text => inputDrafts.set(draftKey(), text),
     list: scope => api.skillLibrary(scope), command: runComposerCommand,
     commandAvailable: name => !CHAT_COMMANDS.has(name) || openChatSummary() !== null,
+    sizeHost: $('composerDraftSize'),
+    listQuotes: async projectId => {
+      const result = await api.quoteCandidates(projectId, selectedId ?? undefined);
+      if (!result.ok) throw new Error(result.error);
+      return result.data;
+    },
     listFiles: async (projectId, directory) => {
       const result = await api.listProjectFiles(projectId, directory);
       if (!result.ok) throw new Error(result.error);
