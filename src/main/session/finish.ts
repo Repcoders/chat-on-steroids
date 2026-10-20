@@ -7,7 +7,7 @@ import { isChatBlocked } from './blocked-chats.js';
 // The one worker-wait rule, owned where worker state lives: the page asks the same question
 // over HTTP for `/goal/draft`, and the two must not be able to disagree about it.
 import { waitingForSubAgents } from '../agents.js';
-import { draftFastFollowup, conversationMessages, automaticFinishEnabled, countLoopPass, goalDrivingMode, goalObjectiveFor, goalProgressFor, onGoalChange, stopLoopAtLimit } from '../goal.js';
+import { draftFastFollowup, conversationMessages, automaticFinishEnabled, goalDrivingMode, goalObjectiveFor, goalProgressFor, onGoalChange, stopLoopAtLimit } from '../goal.js';
 import { hasEligibleToolInput, finishNeedsBrowserInput, onInputChange, listInputs, enqueueInput } from './input.js';
 
 import { logWarn } from '../logger.js';
@@ -179,7 +179,6 @@ async function prepareNotice(sessionId: string, summary: string, userRequested =
           const id = `${hash.slice(0,8)}-${hash.slice(8,12)}-5${hash.slice(13,16)}-8${hash.slice(17,20)}-${hash.slice(20,32)}`;
           await enqueueInput({ id, sessionId, text: reply, mode: 'auto', dueAt: Date.now(), model: null, reasoningEffort: null },
             { turnId, periodic: false, mode, ...(userRequested ? { userRequested: true } : {}) });
-          if (mode === 'loop' && !userRequested) countLoopPass(session.conversationId!, `finish:${id}`);
           result = `${notification} An automatic Goal instruction is queued once. ${REMAINING}`;
         }
       } else if (mode === 'goal') {

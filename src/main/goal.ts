@@ -79,7 +79,7 @@ export function loopAfterTurnFor(conversationId: string): boolean {
   return control.enabled && (control.afterTurn || getConfig().ui.finishTool !== true);
 }
 import { resumeBootstrapMatches, resumeBootstrapText } from './session/handoff.js';
-import { noteAutomaticReply } from './session/automatic-replies.js';
+import { noteAutomaticReply, onLoopReplyDelivered } from './session/automatic-replies.js';
 import {
   GOAL_LOOP_STOP_REFUSED,
   GOAL_LOOP_TRAILER,
@@ -1004,10 +1004,10 @@ type GoalSwitchRow = { enabled: boolean; mode: GoalMode; afterTurn?: boolean; at
   context?: { count: number; hash: string; instructions: string } };
 const goalSwitches = new Map<string, GoalSwitchRow>();
 /**
- * One chat's Loop run since it was switched on: automatic messages written and when it began.
- * `last` names the last counted message, so a retried acknowledgement counts once.
+ * One chat's Loop run since it was switched on: after-turn Loop messages that arrived in the
+ * chat, and when the run began. Finish follow-ups are counted from their delivered inputs.
  */
-type LoopRun = { passes: number; since: number; last?: string };
+type LoopRun = { passes: number; since: number };
 const loopRuns = new Map<string, LoopRun>();
 let goalSwitchWrites: Promise<unknown> = Promise.resolve();
 function serialGoalSwitch<T>(work: () => Promise<T>): Promise<T> {
@@ -1062,8 +1062,7 @@ export function restoreGoalSwitches(snapshot: GoalSwitchesSnapshot | null): void
   for (const raw of Array.isArray(snapshot.loopRuns) ? snapshot.loopRuns.slice(0, MAX_GOAL_SWITCHES) : []) {
     if (!raw || typeof raw.conversationId !== 'string' || !/^[0-9a-z-]{8,256}$/i.test(raw.conversationId)) continue;
     if (!Number.isSafeInteger(raw.passes) || raw.passes < 0 || !Number.isSafeInteger(raw.since) || raw.since <= 0) continue;
-    loopRuns.set(raw.conversationId, { passes: raw.passes, since: Math.min(raw.since, Date.now()),
-      ...(typeof raw.last === 'string' ? { last: raw.last.slice(0, 300) } : {}) });
+    loopRuns.set(raw.conversationId, { passes: raw.passes, since: Math.min(raw.since, Date.now()) });
   }
   for (const raw of snapshot.switches) {
     if (!raw || typeof raw.conversationId !== 'string' || !/^[0-9a-z-]{8,256}$/i.test(raw.conversationId)) continue;
@@ -1375,7 +1374,6 @@ export function ackGoalDraft(conversationId: string, token: string, clientId?: s
   // be recorded as an answer. Retiring the row on `auth_rejected` meant the user fixing their
   // key found the turn it was owed for silently gone.
   if (draft.stage === 'ready' || draft.stage === 'no-reply') handleGoalReply(conversationId, draft.turnId);
-  if (draft.stage === 'ready' && draft.mode === 'loop') countLoopPass(conversationId, `turn:${draft.turnId}`);
   notifyGoalChange();
   return true;
 }
@@ -2050,7 +2048,7 @@ async function run(draft: GoalDraft): Promise<void> {
     draft.reply = draft.backend === 'templates' ? humanReply(decision.reply.slice(0, -GOAL_MARKER_INSTRUCTION.length)) + GOAL_MARKER_INSTRUCTION : humanReply(decision.reply);
     logInfo(`goal: drafted ${decision.reply.length} characters for ${draft.conversationId} with ${draft.model}`);
     // Its page types it: the message it comes back as is marked the app's (#1655).
-    noteAutomaticReply(draft.conversationId, draft.reply);
+    noteAutomaticReply(draft.conversationId, draft.reply, Date.now(), draft.mode === 'loop');
     settle(draft, 'ready');
   } catch (err) {
     const detail = (err as Error).message;
@@ -2571,31 +2569,53 @@ function loopRunFor(conversationId: string): LoopRun {
   return run;
 }
 
-/** Counts one automatic Loop message toward the limits in Settings. `key` names that message. */
-export function countLoopPass(conversationId: string, key: string): void {
+function loopRunning(conversationId: string): boolean {
+  const held = goalSwitchFor(conversationId);
+  return held.enabled && held.mode === 'loop';
+}
+
+/** The recorder saw a Loop follow-up arrive in this chat: one pass toward the limits in Settings. */
+onLoopReplyDelivered(conversationId => {
+  if (!loopRunning(conversationId)) return;
   const run = loopRunFor(conversationId);
-  if (run.last === key) return;
   run.passes += 1;
-  run.last = key.slice(0, 300);
-  logInfo(`goal: Loop sent automatic message ${run.passes} in ${conversationId}`);
+  logInfo(`goal: Loop message ${run.passes} arrived in ${conversationId}`);
   persistGoalSwitches();
+});
+
+/**
+ * Drops the runs of chats no longer in Loop. A chat on the app-wide switch has no switch of its
+ * own to end its run, so a settings change that takes the app out of Loop calls this.
+ */
+export function pruneLoopRuns(): void {
+  let dropped = false;
+  for (const conversationId of [...loopRuns.keys()]) {
+    if (!loopRunning(conversationId)) dropped = loopRuns.delete(conversationId) || dropped;
+  }
+  if (dropped) persistGoalSwitches();
 }
 
 /**
  * Loop never decides by itself that it is done. The optional limits in Settings end a run
- * instead: after this many automatic messages, or this many minutes after Loop was switched on.
- * Checked before the next message is asked for; reaching one switches Loop off with a note.
+ * instead: after this many automatic messages arrived, or this many minutes after Loop was
+ * switched on. Checked before the next message is asked for; reaching one switches Loop off
+ * with a note. A failed switch save throws, so nothing reports a stop that did not happen.
  */
 export async function stopLoopAtLimit(conversationId: string, sessionId: string): Promise<boolean> {
   const { loopMaxPasses = 0, loopMaxMinutes = 0 } = getConfig().goal;
   if (!loopMaxPasses && !loopMaxMinutes) return false;
   const run = loopRunFor(conversationId);
-  const reached = loopMaxPasses > 0 && run.passes >= loopMaxPasses
-    ? `after ${run.passes} automatic ${run.passes === 1 ? 'message' : 'messages'}`
+  const { listInputs } = await import('./session/input.js');
+  // Finish follow-ups go through the outbox; one counts once ChatGPT has it.
+  const finished = (await listInputs()).filter(entry => entry.sessionId === sessionId && entry.finishOwner?.mode === 'loop' &&
+    !entry.finishOwner.userRequested && (entry.state === 'tool' || entry.state === 'sent') && entry.createdAt >= run.since).length;
+  const passes = run.passes + finished;
+  const reached = loopMaxPasses > 0 && passes >= loopMaxPasses
+    ? `after ${passes} automatic ${passes === 1 ? 'message' : 'messages'}`
     : loopMaxMinutes > 0 && Date.now() - run.since >= loopMaxMinutes * 60_000 ? `after ${loopMaxMinutes} minutes` : null;
   if (!reached) return false;
+  await setGoalSwitchNow(conversationId, 'loop', false);
   logInfo(`goal: Loop stopped ${reached} in ${conversationId}, the limit set in Settings`);
-  await setGoalSwitchNow(conversationId, 'loop', false).catch(() => undefined);
   const { recordNote } = await import('./session/recorder.js');
   await recordNote(sessionId, `Loop stopped ${reached}, the limit set in Settings. Switch Loop back on to keep going.`).catch(() => undefined);
   const { noticeChatStopped } = await import('./stuck-notice.js');
