@@ -4,6 +4,8 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
+import { randomBytes } from 'node:crypto';
+import sharp from 'sharp';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { defaultConfig, initConfigPath, saveConfig } from '../src/main/config.js';
 import { initDurableStore, resetDurableForTests } from '../src/main/durable.js';
@@ -92,6 +94,42 @@ it('reconciles modified, untracked, deleted, renamed, binary and large changes f
   await git(root, 'add', 'added.ts');
   const afterAdd = await readProjectGitSnapshot(id);
   expect(afterAdd.changes.find(change => change.path === 'added.ts')).toMatchObject({ status: 'A', additions: 1 });
+});
+
+it('shows a changed image or PDF as its base and current previews, not a binary placeholder', async () => {
+  const { root, id } = await committedProject();
+  const square = (red: number) => sharp({ create: { width: 8, height: 8, channels: 3, background: { r: red, g: 0, b: 0 } } }).png().toBuffer();
+  // Random pixels keep this PNG above the 512 KiB text budget.
+  const noise = () => sharp(randomBytes(600 * 600 * 3), { raw: { width: 600, height: 600, channels: 3 } }).png().toBuffer();
+  const pdf = (text: string) => Buffer.from(`%PDF-1.4\n${text}\n%%EOF\n`, 'latin1');
+  await fs.writeFile(path.join(root, 'logo.png'), await square(255));
+  await fs.writeFile(path.join(root, 'photo.png'), await noise());
+  await fs.writeFile(path.join(root, 'paper.pdf'), pdf('first'));
+  await fs.writeFile(path.join(root, 'broken.png'), Buffer.from([0, 1, 2, 3]));
+  await git(root, 'add', '.'); await git(root, 'commit', '-m', 'media');
+  await fs.writeFile(path.join(root, 'logo.png'), await square(10));
+  const photo = await noise();
+  expect(photo.length).toBeGreaterThan(512 * 1024);
+  await fs.writeFile(path.join(root, 'photo.png'), photo);
+  await fs.writeFile(path.join(root, 'paper.pdf'), pdf('second'));
+  await fs.writeFile(path.join(root, 'broken.png'), Buffer.from([0, 9, 8, 7]));
+  await fs.writeFile(path.join(root, 'new.png'), await square(99));
+
+  const logo = await readProjectGitDiff(id, 'logo.png');
+  expect(logo).toMatchObject({ binary: true, tooLarge: false, baseText: null, currentText: null, media: { kind: 'image' } });
+  expect(logo.note).toBeUndefined();
+  expect(logo.media!.base).toMatch(/^data:image\/png;base64,/);
+  expect(logo.media!.current).toMatch(/^data:image\/png;base64,/);
+  expect(logo.media!.base).not.toBe(logo.media!.current);
+  const large = await readProjectGitDiff(id, 'photo.png');
+  expect(large).toMatchObject({ tooLarge: false, media: { kind: 'image' } });
+  const paper = await readProjectGitDiff(id, 'paper.pdf');
+  expect(paper.media).toEqual({ kind: 'pdf', base: pdf('first').toString('base64'), current: pdf('second').toString('base64') });
+  const added = await readProjectGitDiff(id, 'new.png');
+  expect(added.media).toMatchObject({ kind: 'image', base: null, current: expect.stringMatching(/^data:image\/png;base64,/) });
+  const broken = await readProjectGitDiff(id, 'broken.png');
+  expect(broken).toMatchObject({ binary: true, note: 'Binary diff · preview unavailable' });
+  expect(broken.media).toBeUndefined();
 });
 
 it('reports a clean repository and a non-repository without inventing changes', async () => {

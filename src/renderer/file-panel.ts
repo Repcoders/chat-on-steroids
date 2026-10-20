@@ -298,6 +298,8 @@ export function createFilePanel(options: FilePanelOptions) {
   let codeEditor: ProjectCodeEditor | null = null;
   let codeViewer: ProjectCodeEditor | null = null;
   let diffViewer: ProjectDiffViewer | null = null;
+  let diffPdfViewers: ProjectPdfViewer[] = [];
+  let diffPdfAbort: AbortController | null = null;
   let pdfViewer: ProjectPdfViewer | null = null;
   let pdfAbort: AbortController | null = null;
   let pdfSurfaceRevision: string | null = null;
@@ -416,6 +418,9 @@ export function createFilePanel(options: FilePanelOptions) {
     diffMountToken++;
     diffViewer?.destroy();
     diffViewer = null;
+    diffPdfAbort?.abort(); diffPdfAbort = null;
+    for (const viewer of diffPdfViewers) viewer.destroy();
+    diffPdfViewers = [];
   }
 
   function destroyPdfViewer(): void {
@@ -1192,6 +1197,45 @@ export function createFilePanel(options: FilePanelOptions) {
     language.textContent = created.language;
   }
 
+  async function mountDiffPdf(host: HTMLElement, filename: string, dataBase64: string, revision: string, signal: AbortSignal): Promise<void> {
+    const token = diffMountToken;
+    const module = await import('./file-pdf-viewer.js');
+    if (token !== diffMountToken || revision !== renderedGitDiffRevision) return;
+    const created = await module.createProjectPdfViewer({ parent: host, filename, dataBase64, signal });
+    if (token !== diffMountToken || revision !== renderedGitDiffRevision) { created.destroy(); return; }
+    diffPdfViewers.push(created);
+  }
+
+  /** A changed image or PDF: base and current side by side, in the same viewers Files uses. */
+  function mediaDiff(value: ProjectGitDiff & { media: NonNullable<ProjectGitDiff['media']> }, revision: string): HTMLElement {
+    const sides = el('div', 'file-diff-media');
+    const controller = new AbortController(); diffPdfAbort = controller;
+    const name = baseName(value.path);
+    const versions: Array<[() => string, string | null]> = [[() => t('Before'), value.media.base], [() => t('After'), value.media.current]];
+    for (const [label, data] of versions) {
+      const side = el('section', 'file-diff-media-side');
+      side.append(el('h4', 'file-diff-media-label', label));
+      if (data === null) {
+        side.append(el('p', 'file-preview-empty', () => t('Not in this version')));
+      } else if (value.media.kind === 'image') {
+        const wrap = el('div', 'file-preview-image-wrap');
+        const image = document.createElement('img');
+        image.className = 'file-preview-image';
+        image.src = data;
+        image.alt = `${name} · ${label()}`;
+        image.decoding = 'async';
+        wrap.append(image);
+        side.append(wrap);
+      } else {
+        const pdfHost = el('div', 'file-pdf-viewer-host');
+        side.append(pdfHost);
+        void mountDiffPdf(pdfHost, name, data, revision, controller.signal);
+      }
+      sides.append(side);
+    }
+    return sides;
+  }
+
   function renderGitDiff(): void {
     const historical = mode === 'review';
     const path = historical ? reviewValue?.path ?? t('Review edit') : gitDiffPath;
@@ -1227,6 +1271,8 @@ export function createFilePanel(options: FilePanelOptions) {
     actions.append(actionButton(() => t('Close preview'), 'i-x', historical ? leaveReview : closeGitDiff));
     head.append(title, actions);
     if (!value) {
+      // Not a rendered diff: the reply must still replace this, even when it has no viewer to mount.
+      renderedGitDiffRevision = null;
       replacePreview(head, el('p', 'file-preview-empty', () => t('Loading diff…')));
       preview.hidden = false;
       return;
@@ -1239,14 +1285,24 @@ export function createFilePanel(options: FilePanelOptions) {
         ? `${gitStatusLabel(value.status)} · ${value.previousPath} → ${value.path}`
         : `${gitStatusLabel((value as ProjectGitDiff).status)} · ${value.path}`;
     meta.append(el('span', '', status), language);
+    if ('media' in value && value.media) {
+      language.remove();
+      preview.classList.remove('is-editing', 'has-code-viewer', 'has-diff-viewer', 'has-pdf-viewer');
+      preview.classList.add('has-media-diff');
+      const sides = mediaDiff(value as ProjectGitDiff & { media: NonNullable<ProjectGitDiff['media']> }, revision);
+      replacePreview(head, meta, sides);
+      preview.hidden = false;
+      return;
+    }
     if (('binary' in value && (value.binary || value.tooLarge)) || value.baseText === null || value.currentText === null) {
       language.remove();
+      preview.classList.remove('has-media-diff');
       replacePreview(head, meta, el('p', 'file-preview-empty', () => 'note' in value && value.note ? t(value.note) : t('Diff preview unavailable')));
       preview.hidden = false;
       return;
     }
     const host = el('div', 'file-code-editor-host file-diff-viewer-host');
-    preview.classList.remove('is-editing', 'has-pdf-viewer');
+    preview.classList.remove('is-editing', 'has-pdf-viewer', 'has-media-diff');
     preview.classList.add('has-code-viewer', 'has-diff-viewer');
     replacePreview(head, meta, host);
     preview.hidden = false;
@@ -1402,7 +1458,7 @@ export function createFilePanel(options: FilePanelOptions) {
       if (!pane.hidden) renderGitDiff();
     } else if (!pane.hidden) {
       destroyDiffViewer();
-      preview.classList.remove('has-diff-viewer');
+      preview.classList.remove('has-diff-viewer', 'has-media-diff');
       renderPreview();
     }
     updateChangesButton();
