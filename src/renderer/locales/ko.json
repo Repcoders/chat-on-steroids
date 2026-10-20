@@ -2781,5 +2781,5 @@
   "Note to {0}": "{0}에게 메모",
   "Send note": "메모 보내기",
   "Also tell the main chat": "메인 채팅에도 알리기",
-  "I sent {0} this note directly: {1}": "{0}에게 이 메모를 직접 보냈습니다: {1}"
+  "I am telling {0} directly: {1}": "{0}에게 직접 전하고 있습니다: {1}"
 }

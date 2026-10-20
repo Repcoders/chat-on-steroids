@@ -2781,5 +2781,5 @@
   "Note to {0}": "Ghi chú cho {0}",
   "Send note": "Gửi ghi chú",
   "Also tell the main chat": "Cũng báo cho cuộc trò chuyện chính",
-  "I sent {0} this note directly: {1}": "Tôi đã gửi trực tiếp ghi chú này cho {0}: {1}"
+  "I am telling {0} directly: {1}": "Tôi đang nói trực tiếp với {0}: {1}"
 }

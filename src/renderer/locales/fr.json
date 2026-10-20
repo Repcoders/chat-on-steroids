@@ -2871,5 +2871,5 @@
   "Note to {0}": "Note pour {0}",
   "Send note": "Envoyer la note",
   "Also tell the main chat": "Le dire aussi au chat principal",
-  "I sent {0} this note directly: {1}": "J’ai envoyé cette note directement à {0} : {1}"
+  "I am telling {0} directly: {1}": "Je dis directement à {0} : {1}"
 }

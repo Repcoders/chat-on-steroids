@@ -2826,5 +2826,5 @@
   "Note to {0}": "Notiz an {0}",
   "Send note": "Notiz senden",
   "Also tell the main chat": "Auch dem Hauptchat sagen",
-  "I sent {0} this note directly: {1}": "Ich habe {0} diese Notiz direkt geschickt: {1}"
+  "I am telling {0} directly: {1}": "Ich sage {0} direkt: {1}"
 }

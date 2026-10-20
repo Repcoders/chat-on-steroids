@@ -2826,5 +2826,5 @@
   "Note to {0}": "{0} için not",
   "Send note": "Notu gönder",
   "Also tell the main chat": "Ana sohbete de söyle",
-  "I sent {0} this note directly: {1}": "Bu notu doğrudan {0} adlı ajana gönderdim: {1}"
+  "I am telling {0} directly: {1}": "Bunu doğrudan {0} adlı ajana söylüyorum: {1}"
 }

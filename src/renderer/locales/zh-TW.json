@@ -2781,5 +2781,5 @@
   "Note to {0}": "給{0}的備註",
   "Send note": "傳送備註",
   "Also tell the main chat": "同時告訴主聊天",
-  "I sent {0} this note directly: {1}": "我直接給{0}傳了這則備註：{1}"
+  "I am telling {0} directly: {1}": "我正在直接告訴{0}：{1}"
 }

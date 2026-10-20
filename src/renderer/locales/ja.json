@@ -2781,5 +2781,5 @@
   "Note to {0}": "{0}へのメモ",
   "Send note": "メモを送信",
   "Also tell the main chat": "メインチャットにも伝える",
-  "I sent {0} this note directly: {1}": "{0}にこのメモを直接送りました: {1}"
+  "I am telling {0} directly: {1}": "{0}に直接伝えています: {1}"
 }

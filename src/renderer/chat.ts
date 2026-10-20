@@ -10,7 +10,7 @@ import { imageStorageButton } from './image-storage.js';
 import { applyChatModels, applyComposerSessionModel, initChatModels, confirmedComposerModel, composerSendModel, ensureComposerModel, chatModelName } from './chat-models.js';
 import { marked, Marked, type TokenizerAndRendererExtension } from 'marked';
 import { safeExternalLink } from '../shared/external-link.js';
-import { AGENT_STATE_WORDS, createAgentPanel, workerName, workerNoteMessages } from './agent-panel.js';
+import { AGENT_STATE_WORDS, createAgentPanel, sendWorkerNote, workerName, workerNoteMessages } from './agent-panel.js';
 import { KIND_ICON } from './agent-activity.js';
 import { createFilePanel } from './file-panel.js';
 import { renderAgentPlan } from './agent-plan.js';
@@ -7930,19 +7930,17 @@ export function initChat(next: Deps): void {
     loadActivity: async id => (await run(api.getSession(id, { limit: 400, actions: true })))?.events ?? null,
     openMain: selectSession, working: sessionWorking,
     modelLabel: chatModelName,
-    // The composer's own Send, Automatic model: the worker's chat gets it like a typed message.
+    // The composer's own Send, Automatic model: the worker's chat gets it like a typed message. The
+    // copy to the prime follows its Follow-up behavior, as Send in the prime's composer would.
     sendNote: async ({ sessionId, identity, text, copy }) => {
       const worker = sessions.find(row => row.id === sessionId);
       if (!worker) return false;
       const prime = sessions.find(row => row.id === worker.origin?.fromSessionId) ?? null;
-      let accepted = false;
-      for (const message of workerNoteMessages({ worker, prime, identity, text, copy })) {
-        const sent = await run(api.sendInput({ id: crypto.randomUUID(), ...message, mode: 'auto', dueAt: Date.now(), model: null, reasoningEffort: null }));
-        if (!sent) break;
-        accepted = true;
-      }
+      const primeMode = prime && followUpQueues() && sessionWorking(prime) ? 'after-turn' as const : 'auto' as const;
+      const queued = await sendWorkerNote(workerNoteMessages({ worker, prime, identity, text, copy, primeMode }),
+        message => run(api.sendInput({ id: crypto.randomUUID(), ...message, dueAt: Date.now(), model: null, reasoningEffort: null })));
       void refreshInputQueue();
-      return accepted;
+      return queued;
     },
     agent: worker => [...(swarm?.agents ?? []), ...(swarm?.retainedWorkers ?? [])].find(entry => entry.role === 'worker' && entry.id === worker.origin?.agentId &&
       !!entry.conversationId && entry.conversationId === worker.conversationId) ?? null,

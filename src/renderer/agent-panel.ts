@@ -26,16 +26,36 @@ export const AGENT_STATE_WORDS: Readonly<Record<string, string>> = {
   active: 'Working', invited: 'Opening', waking: 'Waking', detached: 'No tab', sleeping: 'Idle', failed: 'Failed', finished: 'Finished'
 };
 
+/** One message of a worker note, as `sessions:send` takes it. */
+export type WorkerNoteMessage = { sessionId: string; projectId: string | null; text: string; mode: 'auto' | 'after-turn'; authoredSource?: 'none' };
+
 /**
- * A note typed in a working worker's row (#59): the message its own chat gets, and with the copy
- * on, the ordinary message its prime gets saying so, in the prime's chat and project.
+ * A note typed in a working worker's row (#59): the message its own chat gets, joining its running
+ * turn, and with the copy on, an ordinary message to its prime saying what the worker is told. The
+ * copy is the app's wording, not typed text (`authoredSource: 'none'`), and is sent the way the
+ * prime's Follow-up behavior sends a message (`primeMode`).
  */
 export function workerNoteMessages(note: { worker: Pick<SessionSummary, 'id' | 'projectId'>; prime?: Pick<SessionSummary, 'id' | 'projectId'> | null;
-  identity: string; text: string; copy: boolean }): Array<{ sessionId: string; projectId: string | null; text: string }> {
-  const messages = [{ sessionId: note.worker.id, projectId: note.worker.projectId ?? null, text: note.text }];
-  if (note.copy && note.prime) messages.push({ sessionId: note.prime.id, projectId: note.prime.projectId ?? null,
-    text: t('I sent {0} this note directly: {1}', [note.identity, note.text]) });
+  identity: string; text: string; copy: boolean; primeMode: WorkerNoteMessage['mode'] }): WorkerNoteMessage[] {
+  const messages: WorkerNoteMessage[] = [{ sessionId: note.worker.id, projectId: note.worker.projectId ?? null, text: note.text, mode: 'auto' }];
+  if (note.copy && note.prime) messages.push({ sessionId: note.prime.id, projectId: note.prime.projectId ?? null, mode: note.primeMode,
+    authoredSource: 'none', text: t('I am telling {0} directly: {1}', [note.identity, note.text]) });
   return messages;
+}
+
+/**
+ * Sends a note's messages in order; true once the worker's own message is in the outbox. A message
+ * the outbox already refused (failed or cancelled) stops the rest, so the prime never hears of it.
+ */
+export async function sendWorkerNote(messages: readonly WorkerNoteMessage[],
+  send: (message: WorkerNoteMessage) => Promise<{ state: string } | null | undefined>): Promise<boolean> {
+  let queued = false;
+  for (const message of messages) {
+    const entry = await send(message);
+    if (!entry || entry.state === 'failed' || entry.state === 'cancelled') break;
+    queued = true;
+  }
+  return queued;
 }
 
 /** How long a round's workers glow as the panel opens on them (`agent-arrive` in styles.css). */
@@ -57,7 +77,7 @@ export function createAgentPanel(options: {
   agent?: (summary: SessionSummary) => (Pick<AgentInfo, 'state' | 'task'> & Partial<Pick<AgentInfo, 'label'>> & { conversationId?: string | null }) | null;
   /** The model as the composer names it ("GPT-6 Sol · Instant"); the raw id without a catalog. */
   modelLabel?: (model: string, reasoningEffort: string | undefined) => string;
-  /** Sends a note typed in a working worker's row; true once its own chat accepted it. Without it rows take no notes. */
+  /** Sends a note typed in a working worker's row; true once the worker's message is in the outbox. Without it rows take no notes. */
   sendNote?: (note: { sessionId: string; identity: string; text: string; copy: boolean }) => Promise<boolean>;
 }) {
   const pane = el('aside', 'agent-panel'); pane.hidden = true;
@@ -105,6 +125,8 @@ export function createAgentPanel(options: {
   // Every worker update repaints the list, so a note being typed lives here, not in its field.
   const notes = new Map<string, string>(), sendingNotes = new Set<string>();
   let noteCopy = false;
+  // A repaint would replace a field mid-composition and lose the IME's unfinished conversion; it waits.
+  let composing = false, repaintAfterComposition = false;
   function paintNote(form: HTMLElement): void {
     const id = form.dataset.workerSession!;
     const input = form.querySelector<HTMLInputElement>('.agent-note-input')!;
@@ -123,7 +145,7 @@ export function createAgentPanel(options: {
     try { sent = await options.sendNote({ sessionId: id, identity, text, copy: noteCopy }); }
     finally {
       sendingNotes.delete(id);
-      // Sent: the field empties for the next note. Refused: the words stay to send again.
+      // Queued: the field empties for the next note. Refused: the words stay to send again.
       if (sent && notes.get(id)?.trim() === text) notes.delete(id);
       paint();
     }
@@ -133,6 +155,11 @@ export function createAgentPanel(options: {
     const input = el('input', 'agent-note-input') as HTMLInputElement; input.type = 'text';
     ui(input, 'placeholder', () => t('Note to {0}', [name])); ui(input, 'aria-label', () => t('Note to {0}', [name]));
     input.oninput = () => { if (input.value) notes.set(id, input.value); else notes.delete(id); };
+    input.addEventListener('compositionstart', () => { composing = true; });
+    input.addEventListener('compositionend', () => {
+      composing = false;
+      if (repaintAfterComposition) { repaintAfterComposition = false; if (!selected && !pane.hidden) list(); }
+    });
     const copy = el('label', 'agent-note-copy');
     const box = el('input', 'agent-note-copy-box') as HTMLInputElement; box.type = 'checkbox';
     box.onchange = () => { noteCopy = box.checked; };
@@ -144,7 +171,7 @@ export function createAgentPanel(options: {
     return form;
   }
   function hide(): void {
-    generation++; selected = null; highlighted.clear(); pane.hidden = true;
+    generation++; selected = null; highlighted.clear(); pane.hidden = true; composing = repaintAfterComposition = false;
     if (!options.mount) options.host.classList.remove('has-agent-panel');
     options.toggle?.setAttribute('aria-expanded', 'false');
   }
@@ -164,6 +191,7 @@ export function createAgentPanel(options: {
     return { identity, task, name: workerName(identity, owner?.label ?? saved?.label) };
   }
   function list(): void {
+    if (composing && !selected) { repaintAfterComposition = true; return; }
     // A note field being typed in keeps focus and caret through the repaint.
     const active = document.activeElement as HTMLInputElement | null;
     const typing = active && body.contains(active) ? active.closest<HTMLElement>('.agent-note') : null;
