@@ -2,6 +2,7 @@ import { registerWorkspaceTerminalIpc } from './workspace-terminal-ipc.js';
 import { forgetSurfaceTokens } from './mcp/persistent-paths.js';
 import { firefoxAddonUrl } from '../shared/firefox-addon.js';
 import { approvalCardView, requestApprovalAnswer } from './approval-wait.js';
+import { answerSpawnReview, configureSpawnReview } from './spawn-review.js';
 import { registerDictationIpc } from './dictation.js';
 import { CONNECTOR_SUFFIX_MAX, CONNECTOR_SUFFIX_PATTERN } from '../shared/connector-names.js';
 import { setStopNoticeTranslations } from './stuck-notice.js';
@@ -282,7 +283,8 @@ const settingsPatch = z.object({
     waitForSubAgents: z.boolean().optional(),
     autoWorktrees: z.boolean().optional(),
     endSleepingWorkerProcesses: z.boolean().optional(),
-    archiveWorkerChats: z.boolean().optional()
+    archiveWorkerChats: z.boolean().optional(),
+    reviewSpawns: z.boolean().optional()
   }),
   mcp: z.object({ instructions: z.string().trim().max(MAX_MCP_INSTRUCTIONS_CHARS), persistentUrls: z.boolean().optional() }).strict().optional(),
   controlApi: z.object({ enabled: z.boolean(), allowActions: z.boolean().optional() }).strict().optional(),
@@ -514,6 +516,11 @@ function mergeSettings(current: Config, base: SettingsSnapshot, wanted: Settings
         current.multiAgent.archiveWorkerChats ?? false,
         base.multiAgent.archiveWorkerChats ?? false,
         wanted.multiAgent.archiveWorkerChats ?? false
+      ),
+      reviewSpawns: pick(
+        current.multiAgent.reviewSpawns ?? false,
+        base.multiAgent.reviewSpawns ?? false,
+        wanted.multiAgent.reviewSpawns ?? false
       )
     },
     goal: {
@@ -1564,6 +1571,38 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
       return { ok: true as const };
     }
     return answer;
+  });
+
+  // A spawn of several workers shown before admission (spawn-review.ts). The window comes to the
+  // front: the prime's call is waiting on the person.
+  configureSpawnReview({
+    show: request => {
+      const target = getWindow();
+      if (!target || target.isDestroyed()) return false;
+      if (target.isMinimized()) target.restore();
+      target.show();
+      target.focus();
+      const contents = target.webContents;
+      const send = (): void => { if (!contents.isDestroyed()) contents.send('spawnReview:show', request); };
+      if (contents.isLoadingMainFrame()) contents.once('did-finish-load', send); else send();
+      return true;
+    },
+    close: id => {
+      const target = getWindow();
+      if (target && !target.isDestroyed()) target.webContents.send('spawnReview:close', id);
+    }
+  });
+  handle('spawnReview:answer', async (payload) => {
+    const { id, kept } = z.object({
+      id: z.string().uuid(),
+      kept: z.array(z.object({
+        index: z.number().int().min(0).max(7),
+        task: z.string().trim().min(1).max(4000),
+        model: z.string().max(80),
+        reasoningEffort: z.enum(['', ...REASONING_EFFORTS])
+      }).strict()).max(8).nullable()
+    }).strict().parse(payload);
+    return answerSpawnReview(id, kept);
   });
 
   // Selecting a chat in the app selects its tab in the Background chats window (#1249). Only

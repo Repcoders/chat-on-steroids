@@ -1095,6 +1095,14 @@
 
                   <label class="setting">
                     <span class="setting-text">
+                      <b>Review workers before they start</b>
+                      <em>When a chat starts more than one worker at once, show them here first so you can change each task, model and reasoning, or drop some. The chat waits up to 2 minutes for your answer; without one, no worker starts.</em>
+                    </span>
+                    <input id="reviewSpawns" type="checkbox" />
+                  </label>
+
+                  <label class="setting">
+                    <span class="setting-text">
                       <b>Isolate new workers in Git worktrees</b>
                       <em>When a worker is started for a Git project, give it a separate approved workspace and branch. Requires an approved parent folder. Existing workers are unaffected; integration into your branch requires review.</em>
                     </span>
@@ -1520,6 +1528,15 @@
         <label class="plugin-field" for="sshProjectFolder"><span>Folder on the server</span><input id="sshProjectFolder" required autocomplete="off" spellcheck="false" placeholder="/srv/app or ~/app" /></label>
         <p id="sshProjectError" class="plugin-error" role="alert" hidden></p>
         <div class="pet-delete-actions"><button class="btn" id="sshProjectCancel" type="button">Cancel</button><button class="btn btn-solid" id="sshProjectSubmit" type="submit">Test and add</button></div>
+      </form>
+    </dialog>
+    <dialog class="plugin-dialog spawn-review-dialog" id="spawnReviewDialog" aria-labelledby="spawnReviewTitle">
+      <div class="plugin-dialog-head"><h2 id="spawnReviewTitle">Review these workers</h2></div>
+      <form id="spawnReviewForm" class="plugin-dialog-body">
+        <p>A chat asked to start these workers. Change or drop any of them before they start. <span id="spawnReviewDeadline"></span></p>
+        <details id="spawnReviewContextBox" class="spawn-review-context" hidden><summary>Shared instructions</summary><p id="spawnReviewContext" translate="no"></p></details>
+        <div id="spawnReviewWorkers"></div>
+        <div class="pet-delete-actions"><button class="btn" id="spawnReviewCancel" type="button">Start none</button><button class="btn btn-solid" id="spawnReviewSubmit" type="submit">Start</button></div>
       </form>
     </dialog>
     <dialog class="search-dialog" id="searchDialog" aria-label="Search chats">

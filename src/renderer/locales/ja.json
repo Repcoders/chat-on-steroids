@@ -2777,5 +2777,17 @@
   "Chats sit under their project folders.": "チャットはプロジェクトのフォルダーの下に並びます。",
   "All chats in one list, active ones on top.": "すべてのチャットを 1 つのリストに。作業中のものが上に来ます。",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "1 つのチャットが同時に実行できるサブエージェントのチャットの上限。ブラウザー拡張機能の接続が必要です。",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "長い作業はツール結果の直後に、自動の「続ける」で新しいターンに引き継がれます。短いターンほど途切れにくくなります。ゴールとループのチャットでも使われます。Pro モデルとサブエージェント自身のチャットでは使われません。"
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "長い作業はツール結果の直後に、自動の「続ける」で新しいターンに引き継がれます。短いターンほど途切れにくくなります。ゴールとループのチャットでも使われます。Pro モデルとサブエージェント自身のチャットでは使われません。",
+  "Review these workers": "これらのワーカーを確認",
+  "A chat asked to start these workers. Change or drop any of them before they start.": "チャットがこれらのワーカーの開始を求めています。開始する前に、どれでも変更または除外できます。",
+  "If you don't answer by {0}, none of them starts.": "{0} までに応答がない場合、どれも開始されません。",
+  "Shared instructions": "共通の指示",
+  "Drop": "除外",
+  "Keep": "残す",
+  "App default": "アプリの既定",
+  "Start {0} of {1}": "{1} 件中 {0} 件を開始",
+  "Start none": "どれも開始しない",
+  "Start": "開始",
+  "Review workers before they start": "開始前にワーカーを確認する",
+  "When a chat starts more than one worker at once, show them here first so you can change each task, model and reasoning, or drop some. The chat waits up to 2 minutes for your answer; without one, no worker starts.": "チャットが一度に複数のワーカーを開始するとき、まずここに表示し、それぞれのタスク、モデル、推論強度を変更したり、一部を除外したりできるようにします。チャットは最大 2 分間応答を待ち、応答がなければどのワーカーも開始されません。"
 }

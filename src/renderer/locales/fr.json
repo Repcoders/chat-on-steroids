@@ -2867,5 +2867,17 @@
   "Chats sit under their project folders.": "Les chats se rangent sous le dossier de leur projet.",
   "All chats in one list, active ones on top.": "Tous les chats dans une seule liste, les actifs en haut.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Le nombre maximal de chats de sous-agents qu’un chat peut lancer en même temps. Nécessite l'extension du navigateur connectée.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Un long travail continue dans un nouveau tour avec un Continuer automatique, juste après un résultat d’outil. Les tours plus courts s’interrompent moins souvent. Aussi dans les chats avec Goal et Loop ; pas avec les modèles Pro ni dans les chats des sous-agents."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Un long travail continue dans un nouveau tour avec un Continuer automatique, juste après un résultat d’outil. Les tours plus courts s’interrompent moins souvent. Aussi dans les chats avec Goal et Loop ; pas avec les modèles Pro ni dans les chats des sous-agents.",
+  "Review these workers": "Vérifier ces workers",
+  "A chat asked to start these workers. Change or drop any of them before they start.": "Un chat a demandé à démarrer ces workers. Modifiez ou retirez-en avant leur démarrage.",
+  "If you don't answer by {0}, none of them starts.": "Sans réponse de votre part avant {0}, aucun ne démarre.",
+  "Shared instructions": "Instructions communes",
+  "Drop": "Retirer",
+  "Keep": "Garder",
+  "App default": "Valeur par défaut de l’app",
+  "Start {0} of {1}": "Démarrer {0} sur {1}",
+  "Start none": "N’en démarrer aucun",
+  "Start": "Démarrer",
+  "Review workers before they start": "Vérifier les workers avant leur démarrage",
+  "When a chat starts more than one worker at once, show them here first so you can change each task, model and reasoning, or drop some. The chat waits up to 2 minutes for your answer; without one, no worker starts.": "Quand un chat démarre plusieurs workers à la fois, ils s’affichent d’abord ici pour que vous puissiez modifier la tâche, le modèle et le raisonnement de chacun, ou en retirer. Le chat attend votre réponse jusqu’à 2 minutes ; sans réponse, aucun worker ne démarre."
 }

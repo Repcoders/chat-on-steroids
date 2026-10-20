@@ -2822,5 +2822,17 @@
   "Chats sit under their project folders.": "Sohbetler proje klasörlerinin altında durur.",
   "All chats in one list, active ones on top.": "Tüm sohbetler tek listede, etkin olanlar üstte.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Bir sohbetin aynı anda çalıştırabileceği en fazla yardımcı ajan sohbeti sayısı. Bağlı tarayıcı eklentisi gerekir.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Uzun işler, bir araç sonucundan hemen sonra otomatik Devam ile yeni bir turda sürer. Kısa turlar daha az kesilir. Hedef ve Döngü sohbetlerinde de kullanılır; Pro modellerde ve yardımcı ajanların kendi sohbetlerinde kullanılmaz."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Uzun işler, bir araç sonucundan hemen sonra otomatik Devam ile yeni bir turda sürer. Kısa turlar daha az kesilir. Hedef ve Döngü sohbetlerinde de kullanılır; Pro modellerde ve yardımcı ajanların kendi sohbetlerinde kullanılmaz.",
+  "Review these workers": "Bu yardımcı ajanları gözden geçir",
+  "A chat asked to start these workers. Change or drop any of them before they start.": "Bir sohbet bu yardımcı ajanları başlatmak istedi. Başlamadan önce herhangi birini değiştirin veya çıkarın.",
+  "If you don't answer by {0}, none of them starts.": "{0} saatine kadar yanıt vermezseniz hiçbiri başlamaz.",
+  "Shared instructions": "Ortak talimatlar",
+  "Drop": "Çıkar",
+  "Keep": "Tut",
+  "App default": "Uygulama varsayılanı",
+  "Start {0} of {1}": "{1} içinden {0} başlat",
+  "Start none": "Hiçbirini başlatma",
+  "Start": "Başlat",
+  "Review workers before they start": "Yardımcı ajanları başlamadan önce gözden geçir",
+  "When a chat starts more than one worker at once, show them here first so you can change each task, model and reasoning, or drop some. The chat waits up to 2 minutes for your answer; without one, no worker starts.": "Bir sohbet aynı anda birden fazla yardımcı ajan başlattığında, her birinin görevini, modelini ve akıl yürütmesini değiştirebilmeniz ya da bazılarını çıkarabilmeniz için önce burada gösterilirler. Sohbet yanıtınızı en fazla 2 dakika bekler; yanıt yoksa hiçbir yardımcı ajan başlamaz."
 }

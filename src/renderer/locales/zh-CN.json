@@ -2777,5 +2777,17 @@
   "Chats sit under their project folders.": "聊天显示在各自的项目文件夹下。",
   "All chats in one list, active ones on top.": "所有聊天在同一列表中，进行中的排在最前。",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "一个聊天可同时运行的子智能体聊天上限。需要已连接的浏览器扩展。",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "长时间的工作会在工具结果之后，通过自动“继续”在新轮次中接着进行。轮次越短越不容易中断。也用于目标和循环聊天；不用于 Pro 模型或子智能体自己的聊天。"
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "长时间的工作会在工具结果之后，通过自动“继续”在新轮次中接着进行。轮次越短越不容易中断。也用于目标和循环聊天；不用于 Pro 模型或子智能体自己的聊天。",
+  "Review these workers": "检查这些子智能体",
+  "A chat asked to start these workers. Change or drop any of them before they start.": "一个聊天请求启动这些子智能体。在它们启动前，你可以修改或移除其中任意一个。",
+  "If you don't answer by {0}, none of them starts.": "如果你在 {0} 前没有回应，它们都不会启动。",
+  "Shared instructions": "共享说明",
+  "Drop": "移除",
+  "Keep": "保留",
+  "App default": "应用默认",
+  "Start {0} of {1}": "启动 {1} 个中的 {0} 个",
+  "Start none": "全部不启动",
+  "Start": "启动",
+  "Review workers before they start": "启动前检查子智能体",
+  "When a chat starts more than one worker at once, show them here first so you can change each task, model and reasoning, or drop some. The chat waits up to 2 minutes for your answer; without one, no worker starts.": "当一个聊天一次启动多个子智能体时，先在这里显示它们，让你修改每个的任务、模型和推理强度，或移除其中一些。聊天最多等待你 2 分钟；没有回应时，不会启动任何子智能体。"
 }

@@ -2867,5 +2867,17 @@
   "Chats sit under their project folders.": "Os chats ficam sob as pastas dos projetos.",
   "All chats in one list, active ones on top.": "Todos os chats numa só lista, os ativos no topo.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "O máximo de chats de subagentes que um chat pode ter ao mesmo tempo. Requer a extensão do navegador ligada.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Um trabalho longo continua num novo turno com um Continuar automático, logo após um resultado de ferramenta. Turnos mais curtos falham menos. Também em chats com Goal e Loop; não com modelos Pro nem nos chats dos subagentes."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Um trabalho longo continua num novo turno com um Continuar automático, logo após um resultado de ferramenta. Turnos mais curtos falham menos. Também em chats com Goal e Loop; não com modelos Pro nem nos chats dos subagentes.",
+  "Review these workers": "Rever estes workers",
+  "A chat asked to start these workers. Change or drop any of them before they start.": "Um chat pediu para iniciar estes workers. Altere ou remova qualquer um antes de começarem.",
+  "If you don't answer by {0}, none of them starts.": "Se não responder até às {0}, nenhum deles é iniciado.",
+  "Shared instructions": "Instruções partilhadas",
+  "Drop": "Remover",
+  "Keep": "Manter",
+  "App default": "Predefinição da app",
+  "Start {0} of {1}": "Iniciar {0} de {1}",
+  "Start none": "Não iniciar nenhum",
+  "Start": "Iniciar",
+  "Review workers before they start": "Rever workers antes de iniciarem",
+  "When a chat starts more than one worker at once, show them here first so you can change each task, model and reasoning, or drop some. The chat waits up to 2 minutes for your answer; without one, no worker starts.": "Quando um chat inicia mais do que um worker de uma vez, estes aparecem primeiro aqui para que possa alterar a tarefa, o modelo e o raciocínio de cada um, ou remover alguns. O chat espera pela sua resposta até 2 minutos; sem ela, nenhum worker é iniciado."
 }

@@ -1,5 +1,6 @@
 import type { WorkspaceTerminalEvent, WorkspaceTerminalInfo } from '../shared/workspace-terminal.js';
 import type { ApprovalCardView } from '../shared/approval-wait.js';
+import type { SpawnReviewKept, SpawnReviewRequest } from '../shared/spawn-review.js';
 import type { DictationEvent } from '../shared/dictation.js';
 import type { ChatModelCatalog } from '../shared/chat-models.js';
 import type { GoalModel } from '../shared/goal-reasoning.js';
@@ -368,6 +369,20 @@ const api = {
   /** The person's answer to that exact card; the page presses it only if the card still stands. */
   answerApproval: (id: string, cardId: string, choice: 'allow' | 'deny') =>
     call<{ ok: true } | { ok: false; error: string }>('sessions:answerApproval', { id, cardId, choice }),
+  /** A spawn of several workers waiting for the person (`multiAgent.reviewSpawns`). */
+  onSpawnReview: (listener: (request: SpawnReviewRequest) => void): (() => void) => {
+    const wrapped = (_event: unknown, request: SpawnReviewRequest): void => listener(request);
+    ipcRenderer.on('spawnReview:show', wrapped);
+    return () => ipcRenderer.removeListener('spawnReview:show', wrapped);
+  },
+  /** A review nobody answered in time; nothing was spawned. */
+  onSpawnReviewClosed: (listener: (id: string) => void): (() => void) => {
+    const wrapped = (_event: unknown, id: string): void => listener(id);
+    ipcRenderer.on('spawnReview:close', wrapped);
+    return () => ipcRenderer.removeListener('spawnReview:close', wrapped);
+  },
+  /** The workers to start, each by its position in the request; null starts none. */
+  answerSpawnReview: (id: string, kept: SpawnReviewKept[] | null) => call<boolean>('spawnReview:answer', { id, kept }),
   followSessionTab: (id: string) => call<boolean>('sessions:followTab', { id }),
   // Stops a chat this app cannot stop in the page: every tool call it has already been proved
   // to own is refused until it is released. Returns the whole blocked set, so one press
