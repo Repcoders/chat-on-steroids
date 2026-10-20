@@ -53,7 +53,11 @@ export function readAloudAvailable(): boolean {
   return readAloudVoices().length > 0 && typeof window.SpeechSynthesisUtterance === 'function';
 }
 
-let current: { key: string; state: 'reading' | 'paused'; generation: number } | null = null;
+/**
+ * The answer reading now. It holds its utterances: Chromium can collect one nothing in the page
+ * holds before its end event fires, and the reading would then never end.
+ */
+let current: { key: string; state: 'reading' | 'paused'; generation: number; utterances: SpeechSynthesisUtterance[] } | null = null;
 let generation = 0;
 const listeners = new Set<() => void>();
 let watchingVoices = false;
@@ -109,10 +113,12 @@ export function startReadAloud(key: string, markdown: string, prefs: ReadAloudPr
   if (!chunks.length) return;
   const voice = readAloudVoices().find(entry => entry.voiceURI === prefs.voice);
   const mine = ++generation;
-  current = { key, state: 'reading', generation: mine };
+  current = { key, state: 'reading', generation: mine, utterances: [] };
+  const held = current.utterances;
   const finish = () => { if (current?.generation === mine) { current = null; changed(); } };
   chunks.forEach((chunk, index) => {
     const utterance = new window.SpeechSynthesisUtterance(chunk);
+    held.push(utterance);
     if (voice) { utterance.voice = voice; utterance.lang = voice.lang; }
     utterance.rate = prefs.rate ?? 1;
     if (index === chunks.length - 1) utterance.addEventListener('end', finish);

@@ -1,3 +1,5 @@
+import v8 from 'node:v8';
+import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /** The window's speechSynthesis as Chromium runs it: a queue that cancel() fails as interrupted. */
@@ -101,6 +103,26 @@ describe('the reader', () => {
     reader.startReadAloud('code', '```py\nprint(1)\n```');
     expect(queue).toEqual([]);
     expect(reader.readAloudState('code')).toBe('idle');
+  });
+
+  it('holds every queued utterance until the reading ends, so Chromium cannot collect one first', async () => {
+    // Chromium's engine does not keep an utterance alive for the page: one nothing holds can be
+    // collected before its end event, and the reading would never end.
+    v8.setFlagsFromString('--expose-gc');
+    const gc = runInNewContext('gc') as () => void;
+    const queued: Array<WeakRef<FakeUtterance>> = [];
+    const speech = Object.assign(new EventTarget(), {
+      paused: false, getVoices: () => [{ voiceURI: 'urn:voice:one', name: 'Voice One', lang: 'en-US' }],
+      speak: (utterance: FakeUtterance) => { queued.push(new WeakRef(utterance)); },
+      cancel: () => undefined, pause: () => undefined, resume: () => undefined
+    });
+    const reader = await load(speech);
+    reader.startReadAloud('long', 'First line.\nSecond line.\nThird line.');
+    expect(queued).toHaveLength(3);
+    for (let round = 0; round < 3; round++) { await new Promise(resolve => setTimeout(resolve, 0)); gc(); }
+    expect(queued.every(ref => ref.deref() !== undefined)).toBe(true);
+    queued.at(-1)!.deref()!.dispatchEvent(new Event('end'));
+    expect(reader.readAloudState('long')).toBe('idle');
   });
 
   it('tells its listeners when the system\'s voices arrive', async () => {
