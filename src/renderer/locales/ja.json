@@ -2777,5 +2777,21 @@
   "Chats sit under their project folders.": "チャットはプロジェクトのフォルダーの下に並びます。",
   "All chats in one list, active ones on top.": "すべてのチャットを 1 つのリストに。作業中のものが上に来ます。",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "1 つのチャットが同時に実行できるサブエージェントのチャットの上限。ブラウザー拡張機能の接続が必要です。",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "長い作業はツール結果の直後に、自動の「続ける」で新しいターンに引き継がれます。短いターンほど途切れにくくなります。ゴールとループのチャットでも使われます。Pro モデルとサブエージェント自身のチャットでは使われません。"
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "長い作業はツール結果の直後に、自動の「続ける」で新しいターンに引き継がれます。短いターンほど途切れにくくなります。ゴールとループのチャットでも使われます。Pro モデルとサブエージェント自身のチャットでは使われません。",
+  "Search this project": "このプロジェクトを検索",
+  "Match case": "大文字と小文字を区別",
+  "Use regular expression": "正規表現を使用",
+  "Files to include": "対象のファイル",
+  "Folders to exclude": "除外するフォルダー",
+  "Search results": "検索結果",
+  "Search stopped.": "検索を停止しました。",
+  "Showing the first {0} matches. Narrow the search to see the rest.": "最初の {0} 件を表示しています。残りを見るには検索を絞り込んでください。",
+  "The search ran out of time. Narrow it to see the rest.": "検索が時間切れになりました。残りを見るには絞り込んでください。",
+  "Searching…": "検索中…",
+  "The search failed. Check the regular expression.": "検索に失敗しました。正規表現を確認してください。",
+  "Open a project to search its files": "ファイルを検索するにはプロジェクトを開いてください",
+  "{0} matches": "{0} 件",
+  "{0} files": "{0} ファイル",
+  "One file pattern, such as *.ts or src/**": "ファイルのパターン 1 つ（例: *.ts、src/**）",
+  "Folder names, separated by commas": "フォルダー名（コンマ区切り）"
 }

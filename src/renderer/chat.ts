@@ -13,6 +13,7 @@ import { safeExternalLink } from '../shared/external-link.js';
 import { AGENT_STATE_WORDS, createAgentPanel, workerName } from './agent-panel.js';
 import { KIND_ICON } from './agent-activity.js';
 import { createFilePanel } from './file-panel.js';
+import { createProjectSearchPanel } from './project-search.js';
 import { renderAgentPlan } from './agent-plan.js';
 import { userPromptText } from '../shared/user-prompt.js';
 import { messageReaction, withoutMessageReaction } from '../shared/message-reaction.js';
@@ -326,6 +327,7 @@ let pendingNewInput: { id: string; generation: number } | null = null;
 let agentPanel: ReturnType<typeof createAgentPanel> | null = null;
 let filePanel: ReturnType<typeof createFilePanel> | null = null;
 let reviewPanel: ReturnType<typeof createFilePanel> | null = null;
+let searchPanel: ReturnType<typeof createProjectSearchPanel> | null = null;
 const expandedWorkers = new Set<string>();
 const inputDrafts = new Map<string, string>();
 const newChatTasks = new Map<string, { objective: string; automation: string; loopDelivery: string }>();
@@ -2074,6 +2076,7 @@ function syncSelectedWorkspace(): void {
   agentPanel?.update(selectedId, workers);
   filePanel?.update(selectedLocalProject());
   reviewPanel?.update(selectedLocalProject());
+  searchPanel?.update(selectedLocalProject());
   workspaceDocks?.sync();
   workspaceTerminal?.update(selectedLocalProject());
   rightWorkspaceTerminal?.update(selectedLocalProject());
@@ -8133,6 +8136,13 @@ export function initChat(next: Deps): void {
     onEscape: () => { docks.setOpen(false); docks.rightToggle.focus(); }
   });
   reviewPanel.update(selectedLocalProject());
+  searchPanel = createProjectSearchPanel({
+    mount: docks.body,
+    onShow: () => docks.adopt('search'),
+    onOpen: (projectId, path, line) => void filePanel?.openFile(projectId, path, line),
+    onEscape: () => { docks.setOpen(false); docks.rightToggle.focus(); }
+  });
+  searchPanel.update(selectedLocalProject());
   workspaceTerminal = createWorkspaceTerminal(() => docks.toggleBottomTerminal(), docks.bottomBody,
     { onEmpty: () => docks.setBottomOpen(false), onClosePanel: () => docks.setBottomOpen(false) });
   workspaceTerminal.update(selectedLocalProject());
@@ -8156,6 +8166,9 @@ export function initChat(next: Deps): void {
     filePanel?.mountAt(mount); void filePanel?.show();
   }, () => filePanel?.hide(), () => selectedLocalProject() !== null);
   docks.register('agents', 'Sub-agents', 'i-agents', () => agentPanel?.show(), () => agentPanel?.hide(), () => selectedId !== null);
+  docks.register('search', 'Search', 'i-search', mount => {
+    searchPanel?.mountAt(mount); searchPanel?.show();
+  }, () => searchPanel?.hide(), () => selectedLocalProject() !== null);
   $('attachImages').addEventListener('click', async () => {
     const owner = composerDraftOwner();
     appendImages(owner, await run(api.chooseFiles()));

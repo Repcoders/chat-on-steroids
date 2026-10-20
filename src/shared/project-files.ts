@@ -55,3 +55,30 @@ export interface ProjectFilesChanged {
   /** The native handle was lost; re-admit the visible directories through the sandbox. */
   watchLost?: boolean;
 }
+
+/** One Search panel query over a project on this computer. */
+export interface ProjectSearchQuery {
+  projectId: string;
+  query: string;
+  /** One file glob such as `*.ts`; empty searches every file. */
+  include: string;
+  /** Folder names skipped on top of the usual build and dependency folders. */
+  excludeFolders: string[];
+  caseSensitive: boolean;
+  regex: boolean;
+}
+
+export interface ProjectSearchHit {
+  /** Project-relative POSIX path. */
+  path: string;
+  line: number;
+  text: string;
+}
+
+export interface ProjectSearchResult {
+  projectId: string;
+  hits: ProjectSearchHit[];
+  filesScanned: number;
+  /** Why the search ended before the whole project was read, if it did. */
+  stoppedBecause: 'limit' | 'time' | 'files' | 'size' | 'cancelled' | null;
+}

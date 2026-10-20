@@ -243,7 +243,7 @@ Paths in this section are repository-relative. Most mechanisms have `main`, `sha
 | Terminal custody | `src/main/codex/{manager,ownership,unified-exec,unified-exec-constants,shell,command-batch,head-tail-buffer,truncate,exec-output}.ts`. |
 | Patching/images | `src/main/codex/apply-patch/*`, `codex/{filesystem,read-backend,view-image}.ts`. |
 | Projects/cwd | `src/main/projects.ts`, `workspace.ts`, `src/shared/projects.ts`: explicit local folder catalog, session binding, inherited/learned workspaces. |
-| Project Files UI | `src/main/project-files.ts`, `project-file-watcher.ts`, `src/shared/project-files.ts`, `src/renderer/{file-panel,file-code-editor,file-pdf-viewer,work-panel-resize}.ts`: bounded project views, revision-checked saves and renderer-owned drafts. |
+| Project Files UI | `src/main/project-files.ts`, `project-file-watcher.ts`, `project-search.ts`, `src/shared/project-files.ts`, `src/renderer/{file-panel,file-code-editor,file-pdf-viewer,project-search,work-panel-resize}.ts`: bounded project views, project text search, revision-checked saves and renderer-owned drafts. |
 | Durable history | `src/main/session/{store,recorder,correlation,summarize,progress}.ts`, `src/shared/{session,chronology}.ts`: canonical messages, tool truth, chronology and indexes. |
 | Input | `src/main/session/{input,start-input,input-history,input-attachments,input-images,prompt}.ts`, `src/shared/{input,user-prompt}.ts`: outbox, native files, prompt frame and receipts. |
 | Finish/planning | `src/main/session/finish.ts`, `task-request.ts`, `goal.ts`, `src/shared/{finish,task-progress}.ts`: held turn, decision/plan invocation and cancellation. |
@@ -4555,6 +4555,17 @@ checkout or push authority. Review projects `M/A/D/R/U`, plus `C` for every unme
 file missing from the worktree diffs as empty. It also projects ancestor-folder markers and
 bounded unified diffs; Files may open it from its toolbar. Files and Review are alternate right
 tabs; Review does not add a second file watcher or expose file-write actions.
+Search (`project-search.ts` both sides, fifth right-dock action, Ctrl+Shift+5) is a read-only text
+search over the selected project on this computer. `projectFiles:search` takes the project UUID,
+the query, one include glob, extra folder names to exclude and the case/regex switches, resolves
+the root through `projectFileTarget` and runs the shared `search()` with the bundled ripgrep:
+`DEFAULT_EXCLUDES`, the tree's `.gitignore`/`.ignore` files (`respectIgnore`, no Git repository
+required; the JS fallback without ripgrep cannot read them), no link following, 500 hits, the
+usual 10 s budget. One search runs at a time; a new query or `projectFiles:cancelSearch` aborts the
+running one, which answers with its hits so far and `stoppedBecause: 'cancelled'`. Hits are
+project-relative paths and 1-based lines. Opening one calls Files' `openFile`, which unfolds its
+folders, previews the file through the normal `projectFiles:preview` route and selects that line.
+A project in a server folder is refused, as `projectFileTarget` refuses it.
 Review also identifies the checked-out branch and offers a searchable, read-only comparison
 against locally known branch refs. Selecting a ref never switches branches or fetches remote
 data. The comparison shows committed changes from the selected ref's merge base to current

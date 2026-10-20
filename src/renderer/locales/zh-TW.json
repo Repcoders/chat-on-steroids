@@ -2777,5 +2777,21 @@
   "Chats sit under their project folders.": "聊天顯示在各自的專案資料夾下。",
   "All chats in one list, active ones on top.": "所有聊天在同一清單中，進行中的排在最前。",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "一個聊天可同時執行的子代理聊天上限。需要已連線的瀏覽器擴充功能。",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "長時間的工作會在工具結果之後，透過自動「繼續」在新回合中接著進行。回合越短越不容易中斷。也用於目標和循環聊天；不用於 Pro 模型或子代理自己的聊天。"
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "長時間的工作會在工具結果之後，透過自動「繼續」在新回合中接著進行。回合越短越不容易中斷。也用於目標和循環聊天；不用於 Pro 模型或子代理自己的聊天。",
+  "Search this project": "搜尋此專案",
+  "Match case": "大小寫須相符",
+  "Use regular expression": "使用規則運算式",
+  "Files to include": "要包含的檔案",
+  "Folders to exclude": "要排除的資料夾",
+  "Search results": "搜尋結果",
+  "Search stopped.": "已停止搜尋。",
+  "Showing the first {0} matches. Narrow the search to see the rest.": "正在顯示前 {0} 個相符項目。縮小搜尋範圍以查看其餘結果。",
+  "The search ran out of time. Narrow it to see the rest.": "搜尋逾時。縮小範圍以查看其餘結果。",
+  "Searching…": "正在搜尋…",
+  "The search failed. Check the regular expression.": "搜尋失敗。請檢查規則運算式。",
+  "Open a project to search its files": "開啟專案以搜尋其檔案",
+  "{0} matches": "{0} 個相符項目",
+  "{0} files": "{0} 個檔案",
+  "One file pattern, such as *.ts or src/**": "一個檔案模式，例如 *.ts 或 src/**",
+  "Folder names, separated by commas": "資料夾名稱，以逗號分隔"
 }

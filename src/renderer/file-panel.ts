@@ -311,6 +311,8 @@ export function createFilePanel(options: FilePanelOptions) {
   let diffMountToken = 0;
   let pdfMountToken = 0;
   let editorSaveButton: HTMLButtonElement | null = null;
+  /** The line a search hit asked for, applied once that file's viewer exists. */
+  let pendingLine: { path: string; line: number } | null = null;
   let editorDirtyBadge: HTMLElement | null = null;
   let saving = false;
   let mode: 'files' | 'changes' | 'review' = options.reviewOnly ? 'changes' : 'files';
@@ -608,8 +610,9 @@ export function createFilePanel(options: FilePanelOptions) {
     if (!listings.has(entry.path)) await loadDirectory(entry.path);
   }
 
-  async function selectFile(entry: ProjectFileEntry): Promise<void> {
+  async function selectFile(entry: ProjectFileEntry, line?: number): Promise<void> {
     if (entry.path === editingPath) return;
+    pendingLine = line ? { path: entry.path, line } : null;
     if (editingPath) {
       if (!(await leaveEditorIfNeeded())) return;
       renderPreview();
@@ -951,6 +954,40 @@ export function createFilePanel(options: FilePanelOptions) {
     languageLabel.textContent = created.language;
     publish();
     codeViewer = created;
+    revealPendingLine();
+  }
+
+  function revealPendingLine(): void {
+    const surface = editingPath ? codeEditor : codeViewer;
+    if (!pendingLine || !surface || pendingLine.path !== previewPath) return;
+    surface.revealLine(pendingLine.line);
+    surface.focus();
+    pendingLine = null;
+  }
+
+  /** Opens one file at a line, as a Search hit does: its folders unfold and the viewer scrolls there. */
+  async function openFile(projectId: string, relative: string, line: number): Promise<boolean> {
+    if (options.reviewOnly || project?.id !== projectId) return false;
+    if (editingPath && editingPath !== relative && !(await leaveEditorIfNeeded())) return false;
+    if (project?.id !== projectId) return false;
+    if (mode === 'review') leaveReview();
+    showFiles();
+    if (pane.hidden) await show(false);
+    const folders = relative.split('/').slice(0, -1).map((_, index, parts) => parts.slice(0, index + 1).join('/'));
+    if (expanded.size + folders.length <= 128) {
+      for (const folder of folders) expanded.add(folder);
+      for (const folder of folders) if (!listings.has(folder)) await loadDirectory(folder);
+    }
+    if (project?.id !== projectId) return false;
+    if (previewPath === relative && (codeViewer || editingPath === relative)) {
+      selection = { path: relative, kind: 'file' };
+      pendingLine = { path: relative, line };
+      render();
+      revealPendingLine();
+      return true;
+    }
+    await selectFile({ name: baseName(relative), path: relative, kind: 'file', bytes: null }, line);
+    return previewPath === relative;
   }
 
   async function mountPdfViewer(value: ProjectFilePreview & { pdfDataBase64: string }, host: HTMLElement, revision: string): Promise<void> {
@@ -1650,6 +1687,7 @@ export function createFilePanel(options: FilePanelOptions) {
     show,
     mountAt(parent: HTMLElement): void { if (pane.parentElement !== parent) parent.append(pane); },
     openReview,
+    openFile,
     visible: () => !pane.hidden,
     update(next: LocalProject | null): void {
       const changed = project?.id !== next?.id;
