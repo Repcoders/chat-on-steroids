@@ -1851,6 +1851,8 @@ export async function readRecentEvents(
   limit: number,
   options: Pick<ReadOptions, 'kinds' | 'agent'> & {
     maxBytes?: number; before?: number; after?: number; orderByOrigin?: boolean;
+    /** Only events it accepts count toward `limit`. */
+    acceptEvent?: (event: SessionEvent) => boolean;
     /** History pages for reading: a turn's final answer sits beside its end (`residenceOf`). */
     byResidence?: boolean;
   } = {}

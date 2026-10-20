@@ -4,6 +4,7 @@ import { JSDOM } from 'jsdom';
 import { Lexer } from 'marked';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_GOAL_SYSTEM_PROMPT } from '../src/shared/goal.js';
+import { APPROVAL_ANSWERED_TEXT } from '../src/shared/approval-wait.js';
 import { prependUserPrompt } from '../src/shared/user-prompt.js';
 import type { Handoff, SessionEvent, SessionSummary } from '../src/shared/session.js';
 import type { InputArgs, InputEntry } from '../src/main/session/input.js';
@@ -5365,6 +5366,35 @@ it('keeps a still worked line on earlier turns while the latest turn has its own
   const lines = [...w.document.querySelectorAll<HTMLElement>('#timeline .turn-worked')];
   expect(lines.map(line => line.textContent)).toEqual(['Worked for 8s', 'Worked for 8s']);
   expect(lines.map(line => line.nextElementSibling?.textContent ?? '')).toEqual([expect.stringContaining('Answer first'), expect.stringContaining('Answer second')]);
+});
+
+it("opens the chat's run log from a turn's worked line, with that work's reload and approval wait marked", async () => {
+  const turn = (id: string, at: number, seq: number): SessionEvent[] => [
+    { seq, time: at, source: 'extension', kind: 'turn_start', turnId: id },
+    { kind: 'user_message', seq: seq + 1, origin: seq + 1, time: at + 10, source: 'extension', turnId: id, messageId: `q-${id}`, message: text(`Ask ${id}`) },
+    { seq: seq + 2, time: at + 2_000, source: 'app', kind: 'progress', progressId: `browser-repair:chat-a:${id}`, turnId: id, message: text(`Reloaded the chat for ${id}.`) },
+    { seq: seq + 3, time: at + 3_000, source: 'app', kind: 'progress', progressId: `approval-wait:chat-a:${id}`, message: text(APPROVAL_ANSWERED_TEXT) },
+    { kind: 'assistant_message', seq: seq + 4, time: at + 5_000, source: 'extension', turnId: id, messageId: `r-${id}`, message: text(`Answer ${id}`), final: true, state: 'final' },
+    { seq: seq + 5, time: at + 9_000, source: 'extension', kind: 'turn_end', turnId: id, outcome: 'completed' }
+  ];
+  const { w, append } = await boot([...turn('first', T0, 1), ...turn('second', T0 + 60_000, 7)]);
+  (w as any).api.getSessionControls = (id: string) => Promise.resolve({ ok: true,
+    data: { sessionId: id, automation: 'off', activeTurnId: null, finishHeld: false, blocked: '', job: null } });
+  await append([]);
+  // Outside developer mode the reload is not a timeline row; the run log is where it is told.
+  expect(w.document.getElementById('timeline')!.textContent).not.toContain('Reloaded the chat');
+  const reads = vi.spyOn((w as any).api, 'getSession');
+  const label = w.document.querySelectorAll<HTMLButtonElement>('#timeline .turn-worked button.turn-worked-label')[1]!;
+  expect(label.title).toBe('Run log');
+  label.click(); await settle();
+  expect(reads).toHaveBeenCalledWith(summary([]).id, { runLog: true, limit: 500 });
+  const rows = [...w.document.querySelectorAll<HTMLElement>('dialog.run-log-dialog .run-log-row')];
+  expect(rows.map(row => [row.querySelector('.run-log-kind')!.textContent, row.querySelector('.run-log-text')!.textContent, row.getAttribute('aria-current')])).toEqual([
+    ['Recovery', 'Reloaded the chat for first.', null],
+    ['Approval card', 'The tool approval ChatGPT asked for in this chat was answered.', null],
+    ['Recovery', 'Reloaded the chat for second.', 'true'],
+    ['Approval card', 'The tool approval ChatGPT asked for in this chat was answered.', 'true']
+  ]);
 });
 
 it('shows the running turn working at its top while it works', async () => {

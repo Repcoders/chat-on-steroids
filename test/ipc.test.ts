@@ -651,6 +651,21 @@ it('keeps origin history navigation separate from live revision cursors over IPC
   expect(delta.data.nextFrom).toBe(revision.event.seq + 1);
 });
 
+it("reads a chat's run log rows alone, however much of ChatGPT's commentary came after them", async () => {
+  const session = await createSession({ title: 'Run log' });
+  const line = (value: string) => ({ text: value, truncated: false, chars: value.length });
+  await appendEvent(session.id, { kind: 'progress', source: 'app', time: 10, progressId: 'browser-repair:chat-a:r1', message: line('Trying to reload chat…') });
+  await appendEvent(session.id, { kind: 'chat_error', source: 'extension', time: 20, message: line('Something went wrong.') });
+  for (let i = 0; i < 5; i++) {
+    await appendEvent(session.id, { kind: 'progress', source: 'extension', time: 30 + i, progressId: `caption-${i}`, message: line(`Looking ${i}`) });
+  }
+  await appendEvent(session.id, { kind: 'turn_start', source: 'extension', time: 40, turnId: 't1' });
+  await appendEvent(session.id, { kind: 'note', source: 'app', time: 50, message: line('Goal paused.') });
+  const read = await sessionEvents({ id: session.id, runLog: true, limit: 3 });
+  expect(read.ok).toBe(true);
+  expect(read.data.events.map((event: any) => event.progressId ?? event.kind)).toEqual(['browser-repair:chat-a:r1', 'chat_error', 'note']);
+});
+
 describe('explicit settings replace the published tool contract', () => {
   it.each(['finish', 'command'] as const)('withdraws %s from real endpoint publication after its setting is disabled', async kind => {
     const { startMcpServer } = await import('../src/main/mcp/server.js');

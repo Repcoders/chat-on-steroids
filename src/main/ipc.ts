@@ -136,6 +136,7 @@ import {
 import { forgetSession, notifyChanged, onSessionChange } from './session/recorder.js';
 import { findInSession, locateMessage, locateSearchMatch, searchSessions } from './session/search.js';
 import { readSessionEvents, readSessionList, sessionListCursorSchema } from './session/read-model.js';
+import { RUN_LOG_EVENT_KINDS, runLogKind } from '../shared/run-log.js';
 import { exportSessionMarkdown } from './session/markdown-export.js';
 import { blockedChatIds, setChatsBlocked } from './session/blocked-chats.js';
 import { setChatsTrusted, trustedChatIds } from './session/trusted-chats.js';
@@ -1404,11 +1405,14 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
         after: z.number().int().min(0).max(10_000_000).optional(),
         limit: z.number().int().min(1).max(1000).optional(),
         /** Only the chat's tool calls (and its start, to tell a whole history from a window): a sub-agent's Activity. */
-        actions: z.boolean().optional()
+        actions: z.boolean().optional(),
+        /** Only the rows of the chat's run log: recoveries, approval waits, errors, reopened turns, notes, handoffs. */
+        runLog: z.boolean().optional()
       })
       .parse(payload);
-    const { actions, ...paging } = options;
-    const page = await readSessionEvents(id, actions ? { ...paging, kinds: ['session_start', 'tool_call'] } : paging);
+    const { actions, runLog, ...paging } = options;
+    const page = await readSessionEvents(id, actions ? { ...paging, kinds: ['session_start', 'tool_call'] }
+      : runLog ? { ...paging, kinds: RUN_LOG_EVENT_KINDS, accept: event => runLogKind(event) !== null } : paging);
     if (!page) throw new Error('Session not found');
     return page;
   });

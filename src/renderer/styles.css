@@ -156,6 +156,19 @@
 .plugin-dialog-head .btn { color: var(--soft); }
 .plugin-dialog-body { padding: 24px; font-size: calc(13px * var(--text-scale, 1)); line-height: 1.6; }
 .plugin-dialog-body > p:first-child { margin-top: 0; }
+/* The run log is a drawer on the window's end edge, the window's full height. */
+.run-log-dialog { width: min(440px, 100vw); height: 100dvh; max-height: none; margin: 0; margin-inline-start: auto; border-width: 0; border-inline-start: 1px solid var(--edge); border-radius: 0; }
+.run-log-dialog::backdrop { background: #0004; backdrop-filter: none; }
+.run-log-intro, .run-log-empty { margin: 0 0 16px; color: var(--soft); }
+.run-log-list { display: grid; gap: 2px; margin: 0 -12px; padding: 0; list-style: none; }
+.run-log-row { display: grid; gap: 4px; padding: 10px 12px; border-radius: var(--r-md); }
+.run-log-row[aria-current] { background: var(--hover); }
+.run-log-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.run-log-head .ico { flex: none; color: var(--soft); }
+.run-log-row[data-kind="error"] .run-log-head .ico { color: var(--red); }
+.run-log-kind { font-weight: 550; }
+.run-log-time { margin-inline-start: auto; color: var(--faint); font-size: calc(11.5px * var(--text-scale, 1)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.run-log-text { margin: 0; padding-inline-start: 22px; color: var(--soft); overflow-wrap: anywhere; unicode-bidi: plaintext; text-align: start; }
 .plugin-detail-hero, .plugin-card-head { display: flex; align-items: center; gap: 17px; margin-bottom: 20px; }
 .plugin-detail-hero .plugin-icon { width: 60px; height: 60px; border-radius: 16px; }
 .plugin-detail-hero p, .plugin-card-head p { margin: 0; color: var(--soft); line-height: 1.6; }
@@ -2763,6 +2776,10 @@ input[readonly] {
    the turn's work and what it says. */
 .turn-worked { margin: 12px 0 8px; padding-bottom: 9px; border-bottom: 1px solid var(--line); color: var(--faint); font-size: calc(12.5px * var(--text-scale, 1)); font-weight: 500; letter-spacing: .01em; line-height: 18px; font-variant-numeric: tabular-nums; }
 .turn-worked[hidden] { display: none; }
+/* The words open the run log: they read as the line's text until pointed at. */
+.turn-worked-label { padding: 0; color: inherit; background: none; border: 0; font: inherit; letter-spacing: inherit; cursor: pointer; }
+.turn-worked-label:hover { color: var(--soft); }
+.turn-worked-label:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 /* While the turn works, a light sheen passes through the words (not the rule under them). */
 .turn-status.is-working .turn-worked-label {
   color: transparent;
