@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { constants as fsConstants } from 'node:fs';
 import path from 'node:path';
 import type { Root } from '../../shared/types.js';
+import type { WorkerWorktreeReview, WorkerWorktreeReviewFile } from '../../shared/session.js';
 import type { Workspace } from '../workspace.js';
 import { rawPromises as fs } from '../rawfs.js';
 import { isContained } from '../sandbox.js';
@@ -18,6 +19,9 @@ const MAX_FINGERPRINT_ENTRIES = 4_096;
 const MAX_FINGERPRINT_DEPTH = 32;
 const MAX_FINGERPRINT_BYTES = 64 * 1024 * 1024;
 const GIT_TIMEOUT_MS = 20_000;
+const MAX_REVIEW_FILES = 60;
+const MAX_REVIEW_SIDE_BYTES = 256 * 1024;
+const MAX_REVIEW_TOTAL_BYTES = 4 * 1024 * 1024;
 const MANAGED_FOLDER = '.chat-on-steroids-worktrees';
 
 export type WorkerWorkspace = Pick<Workspace, 'real' | 'virtual'>;
@@ -1225,6 +1229,116 @@ export async function diffWorkerWorkspace(lease: WorkerWorktreeLease): Promise<W
     baseOid: lease.baseOid, headOid: status.headOid, status,
     committedPatch: committed.patch, committedPatchTruncated: committed.truncated,
     workingPatch: working.patch, workingPatchTruncated: working.truncated
+  };
+}
+
+interface ReviewSide { bytes: Buffer | null; tooLarge: boolean }
+
+function namesFromStatus(buffer: Buffer): Array<{ status: string; path: string }> {
+  // `--name-status -z --no-renames`: STATUS NUL PATH NUL, one pair per file.
+  const parts = new TextDecoder('utf-8', { fatal: false }).decode(buffer).split('\0');
+  const result: Array<{ status: string; path: string }> = [];
+  for (let index = 0; index + 1 < parts.length; index += 2) {
+    const status = parts[index]!, file = parts[index + 1]!;
+    if (status && file) result.push({ status: status[0]!, path: file });
+  }
+  return result;
+}
+
+async function reviewBlob(cwd: string, oid: string, relative: string): Promise<ReviewSide> {
+  try {
+    const result = await runGit(cwd, ['cat-file', 'blob', `${oid}:${relative}`], MAX_REVIEW_SIDE_BYTES);
+    if (result.code !== 0) throw new WorkerWorktreeError('WORKTREE_REVIEW_FAILED', result.stderr || 'Git object is unavailable');
+    return { bytes: result.stdout, tooLarge: false };
+  } catch (error) {
+    if (error instanceof WorkerWorktreeError && error.code === 'WORKTREE_GIT_OUTPUT') return { bytes: null, tooLarge: true };
+    throw error;
+  }
+}
+
+/** A regular file inside the checkout only: a symlink, folder or swapped parent is never read. */
+async function reviewWorkingFile(root: string, realRoot: string, relative: string): Promise<ReviewSide> {
+  const target = path.resolve(root, relative);
+  if (target === root || !isContained(root, target)) return { bytes: null, tooLarge: false };
+  let before;
+  try { before = await fs.lstat(target); } catch { return { bytes: null, tooLarge: false }; }
+  if (!before.isFile()) return { bytes: null, tooLarge: false };
+  if (!isContained(realRoot, await fs.realpath(path.dirname(target)))) return { bytes: null, tooLarge: false };
+  if (before.size > MAX_REVIEW_SIDE_BYTES) return { bytes: null, tooLarge: true };
+  const handle = await fs.open(target, 'r');
+  try {
+    const opened = await handle.stat();
+    if (opened.dev !== before.dev || opened.ino !== before.ino || opened.size !== before.size) {
+      throw new WorkerWorktreeError('WORKTREE_REVIEW_CHANGED', 'a checkout file changed while it was read');
+    }
+    const bytes = Buffer.alloc(opened.size);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const read = await handle.read(bytes, offset, bytes.length - offset, offset);
+      if (!read.bytesRead) break;
+      offset += read.bytesRead;
+    }
+    return { bytes: bytes.subarray(0, offset), tooLarge: false };
+  } finally { await handle.close(); }
+}
+
+function reviewFile(relative: string, scope: WorkerWorktreeReviewFile['scope'], status: string, base: ReviewSide, current: ReviewSide): WorkerWorktreeReviewFile {
+  // Git's own heuristic: a NUL byte means binary. Line endings are compared, not shown.
+  const decode = (side: ReviewSide): string | null => side.bytes === null || side.bytes.includes(0) ? null
+    : new TextDecoder('utf-8', { fatal: false }).decode(side.bytes).replaceAll('\r\n', '\n');
+  return {
+    path: relative, scope, status: status === 'A' ? 'added' : status === 'D' ? 'deleted' : 'modified',
+    baseText: decode(base), currentText: decode(current),
+    binary: Boolean(base.bytes?.includes(0) || current.bytes?.includes(0)),
+    tooLarge: base.tooLarge || current.tooLarge
+  };
+}
+
+/**
+ * Read-only review behind an exact broker cleanup offer: the uncommitted changes a removal
+ * would discard, then the commits only on the worker's branch (base → HEAD). Like the list,
+ * it never adds the lease to the live registry. Ignored files are flagged, never read.
+ */
+export async function reviewOfferedWorkerWorktree(
+  approvedRoots: readonly Root[],
+  offer: WorkerCleanupOfferIdentity
+): Promise<WorkerWorktreeReview> {
+  const lease = await offeredWorkerLease(approvedRoots, offer);
+  const root = lease.worktreePath;
+  const realRoot = await fs.realpath(root);
+  const status = await statusOf(root, true);
+  const names = ['diff', '--no-ext-diff', '--no-textconv', '--no-renames', '--name-status', '-z'];
+  const [working, committed] = await Promise.all([
+    runGit(root, [...names, 'HEAD', '--', '.'], 1024 * 1024),
+    runGit(root, [...names, lease.baseOid, status.headOid, '--', '.'], 1024 * 1024)
+  ]);
+  if (working.code !== 0 || committed.code !== 0) {
+    throw new WorkerWorktreeError('WORKTREE_DIFF_FAILED', working.stderr || committed.stderr || 'Git diff failed');
+  }
+  const entries = [
+    ...namesFromStatus(working.stdout).map(entry => ({ ...entry, scope: 'uncommitted' as const })),
+    ...status.untrackedFiles.map(file => ({ status: 'A', path: file, scope: 'uncommitted' as const })),
+    ...namesFromStatus(committed.stdout).map(entry => ({ ...entry, scope: 'committed' as const }))
+  ];
+  const files: WorkerWorktreeReviewFile[] = [];
+  let bytes = 0;
+  for (const entry of entries) {
+    if (files.length >= MAX_REVIEW_FILES || bytes >= MAX_REVIEW_TOTAL_BYTES) break;
+    const absent: ReviewSide = { bytes: null, tooLarge: false };
+    const fromOid = entry.scope === 'committed' ? lease.baseOid : status.headOid;
+    const base = entry.status === 'A' ? absent : await reviewBlob(root, fromOid, entry.path);
+    const current = entry.status === 'D' ? absent
+      : entry.scope === 'committed' ? await reviewBlob(root, status.headOid, entry.path)
+        : await reviewWorkingFile(root, realRoot, entry.path);
+    bytes += (base.bytes?.length ?? 0) + (current.bytes?.length ?? 0);
+    files.push(reviewFile(entry.path, entry.scope, entry.status, base, current));
+  }
+  // The files above must describe the same owned checkout the offer named.
+  await assertOwnedWorktree(lease);
+  return {
+    runId: lease.runId, agentId: lease.agentId, files,
+    ignoredFiles: status.ignoredFiles.length > 0,
+    truncated: status.truncated || files.length < entries.length
   };
 }
 

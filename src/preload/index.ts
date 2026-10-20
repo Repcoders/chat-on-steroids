@@ -39,6 +39,7 @@ import type {
   ClearAgentResult,
   WorkerWorktreeCleanupOffer,
   WorkerWorktreeCleanupResult,
+  WorkerWorktreeReview,
   SwarmState,
   TokenPressure
 } from '../shared/session.js';
@@ -400,6 +401,9 @@ const api = {
   clearAgent: (id: string, runId?: string) => call<ClearAgentResult>('swarm:clearAgent', { id, runId }),
   /** Review only. Scans retained broker-owned checkouts on demand, never at app startup. */
   listWorktreeCleanupOffers: () => call<WorkerWorktreeCleanupOffer[]>('swarm:worktreeCleanupList'),
+  /** Read-only: an offered checkout's uncommitted changes and branch-only commits. */
+  reviewWorktreeCleanupOffer: (runId: string, agentId: string) =>
+    call<WorkerWorktreeReview>('swarm:worktreeCleanupReview', { runId, agentId }),
   /** Main process asks the user for explicit approval before discarding checkout files. */
   removeWorktreeCleanupOffer: (runId: string, agentId: string) =>
     call<WorkerWorktreeCleanupResult>('swarm:worktreeCleanupRemove', { runId, agentId }),

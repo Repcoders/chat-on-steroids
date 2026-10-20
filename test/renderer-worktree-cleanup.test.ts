@@ -120,3 +120,47 @@ it('keeps the renderer wired to the existing cleanup IPC and main-owned confirma
   expect(ipc).toContain('dialog.showMessageBox(');
   expect(ipc).toContain('if (response !== 1) return { removed: false, branchPreserved: true }');
 });
+
+it('shows an offered checkout\'s changes under its row, losses first, and hides them again', async () => {
+  const { toggleWorktreeReview } = await import('../src/renderer/worktree-review.js');
+  const host = document.createElement('div');
+  document.body.append(host);
+  paintWorktreeCleanupOffers([offer({ dirty: true, uniqueCommits: true, changeCount: 2 })], host);
+  const row = host.querySelector<HTMLElement>('.worktree-checkout-row')!;
+  const show = row.querySelector<HTMLButtonElement>('[data-worktree-diff]')!;
+  expect(show.textContent).toBe('Show changes');
+  expect(show.classList.contains('btn-solid')).toBe(false);
+  expect(show.getAttribute('aria-expanded')).toBe('false');
+  expect(show.getAttribute('aria-label')).toContain('Review API');
+  const file = (path: string, scope: 'uncommitted' | 'committed', status: 'added' | 'deleted' | 'modified') =>
+    ({ path, scope, status, baseText: status === 'added' ? null : 'a\n', currentText: status === 'deleted' ? null : 'b\n', binary: false, tooLarge: false });
+  const calls: string[][] = [];
+  const load = async (runId: string, agentId: string) => {
+    calls.push([runId, agentId]);
+    return { runId, agentId, ignoredFiles: true, truncated: false,
+      files: [file('src/app.ts', 'uncommitted', 'modified'), file('notes.md', 'uncommitted', 'added'), file('old.txt', 'committed', 'deleted')] };
+  };
+  try {
+    await toggleWorktreeReview(show, load);
+    expect(calls).toEqual([['f0ebc42e-c880-4701-971e-b1797e568883', 'worker-2']]);
+    const review = row.querySelector<HTMLElement>('.worktree-checkout-review')!;
+    expect(show.getAttribute('aria-expanded')).toBe('true');
+    expect(show.getAttribute('aria-controls')).toBe(review.id);
+    expect([...review.querySelectorAll('.worktree-review-head b')].map(node => node.textContent))
+      .toEqual(['Uncommitted changes', 'Commits only on this branch']);
+    expect([...review.querySelectorAll('.worktree-review-file summary b')].map(node => node.textContent))
+      .toEqual(['Edited app.ts', 'Created notes.md', 'Deleted old.txt']);
+    expect(review.textContent).toContain('Ignored files are not shown.');
+    expect(review.textContent).not.toContain(offer().workspace);
+
+    await toggleWorktreeReview(show, load);
+    expect(row.querySelector('.worktree-checkout-review')).toBeNull();
+    expect(show.getAttribute('aria-expanded')).toBe('false');
+    expect(calls).toHaveLength(1);
+
+    // A refusal (null from run(), which already showed its toast) leaves the row closed.
+    await toggleWorktreeReview(show, async () => null);
+    expect(row.querySelector('.worktree-checkout-review')).toBeNull();
+    expect(show.disabled).toBe(false);
+  } finally { host.remove(); }
+});
