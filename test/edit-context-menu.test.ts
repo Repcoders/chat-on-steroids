@@ -30,14 +30,15 @@ describe('native editable context menu', () => {
 
   it('opens the native editing menu on the window context-menu event only', () => {
     const source = readFileSync(new URL('../src/main/index.ts', import.meta.url), 'utf8');
-    const start = source.indexOf("  window.webContents.on('context-menu'");
-    const handler = source.slice(start, source.indexOf('\n  window.webContents.on(', start + 1));
+    // Every app window (the main one and project windows) gets its guards from guardAppWindow(owner).
+    const start = source.indexOf("  owner.webContents.on('context-menu'");
+    const handler = source.slice(start, source.indexOf('\n  owner.webContents.on(', start + 1));
     let callback: (event: unknown, params: unknown) => void = () => undefined;
     let shown = 0;
     const owner = { isDestroyed: () => false, webContents: { on: (event: string, listener: typeof callback) => {
       expect(event).toBe('context-menu'); callback = listener;
     } } };
-    const context = vm.createContext({ window: owner, editContextMenuTemplate, Menu: { buildFromTemplate: (template: unknown[]) => {
+    const context = vm.createContext({ owner, editContextMenuTemplate, Menu: { buildFromTemplate: (template: unknown[]) => {
       expect(template).toHaveLength(4); return { popup: (options: { window: unknown }) => { expect(options.window).toBe(owner); shown++; } };
     } } });
     vm.runInContext(handler, context);

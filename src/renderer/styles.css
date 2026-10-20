@@ -2512,6 +2512,9 @@ input[readonly] {
 .card.is-session > #chatBody { grid-row: 3; padding-top: 12px; }
 .card.is-session > .composer-dock { grid-row: 4; }
 .card.is-session > #composer { grid-row: 5; }
+.card.is-session > #projectWindowNotice { grid-row: 5; }
+/* In the composer's place while another window owns the chat: the same box, holding one line and its action. */
+.project-window-notice { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: calc(100% - 48px); max-width: 860px; margin: 14px auto 24px; border: 1px solid var(--composer-edge); border-radius: 22px; background: var(--card); padding: 10px 10px 10px 18px; color: var(--soft); font-size: calc(13px * var(--text-scale, 1)); }
 .card.is-session > #chatFoot { grid-row: 6; }
 
 /* ------------------------------------------------------- session list */

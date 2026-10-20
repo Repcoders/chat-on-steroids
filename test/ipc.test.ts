@@ -42,7 +42,7 @@ vi.mock('../src/main/mcp/persistent-paths.js', () => ({
 
 const { defaultConfig, getConfig, initConfigPath, saveConfig } = await import('../src/main/config.js');
 const { initSecretsPath, resetSecretsCacheForTests } = await import('../src/main/secrets.js');
-const { appendEvent, createSession, getSession, initSessionStore, rebindSession, resetSessionStoreForTests, upsertMessageEvent } = await import('../src/main/session/store.js');
+const { appendEvent, bindSessionProject, createSession, getSession, initSessionStore, rebindSession, resetSessionStoreForTests, upsertMessageEvent } = await import('../src/main/session/store.js');
 const { flushDurable, initDurableStore, readDurable, writeDurableNow, writeDurableSoon } = await import('../src/main/durable.js');
 const { pendingCommands, resetBridgeForTests, setBrowserOpener, startBridge, stopBridge } = await import(
   '../src/main/bridge.js'
@@ -537,6 +537,35 @@ it('adds picker-selected projects, reuses containing approval, and leaves cancel
   })).toMatchObject({ ok: false });
 });
 
+it('sends to a project open in its own window only from that window', async () => {
+  // Project windows: one composer per chat. The main window and other project windows are refused.
+  const { projectWindows } = await import('../src/main/project-windows.js');
+  const P = '3f2c1d4e-5a6b-4c7d-8e9f-0a1b2c3d4e5f', Q = '9e8d7c6b-5a4f-4e3d-8c2b-1a0f9e8d7c6b';
+  const own = { isDestroyed: () => false, webContents: { id: 4242, send: vi.fn() } };
+  const other = { isDestroyed: () => false, webContents: { id: 4343, send: vi.fn() } };
+  const send = (sender: number | null, extra: object) => handlers.get('sessions:send')!(sender === null ? null : { sender: { id: sender } }, {
+    id: '0b1c2d3e-4f5a-4b6c-8d7e-9f0a1b2c3d4e', sessionId: null, projectId: null, text: 'hello', mode: 'auto', dueAt: 0, model: null, reasoningEffort: null, ...extra
+  }) as Promise<any>;
+  const refused = { ok: false, error: 'This project is open in its own window. Send from that window.' };
+  projectWindows.add(P, own as any);
+  projectWindows.add(Q, other as any);
+  try {
+    expect(await send(null, { projectId: P })).toEqual(refused);
+    expect(await send(4343, { projectId: P })).toEqual(refused);
+    expect(await send(4242, { projectId: null })).toEqual(refused);
+    // An existing chat is judged by the project it was recorded in, not by what the request says.
+    const chat = await createSession({ title: 'owned chat' });
+    await bindSessionProject(chat.id, P);
+    expect(await send(null, { sessionId: chat.id, projectId: null })).toEqual(refused);
+    expect(await send(4343, { sessionId: chat.id, projectId: Q })).toEqual(refused);
+    // Opening a window is only for a project still in the sidebar.
+    expect(await handlers.get('window:openProject')!(null, { projectId: P })).toEqual({ ok: false, error: 'Project not found' });
+  } finally {
+    projectWindows.remove(own as any);
+    projectWindows.remove(other as any);
+  }
+});
+
 it('does not install a stale Git watch after a newer Files project watch', async () => {
   const { ProjectFileWatchSet } = await import('../src/main/project-file-watcher.js');
   const { ProjectGitWatchSet } = await import('../src/main/project-git.js');
@@ -562,6 +591,45 @@ it('does not install a stale Git watch after a newer Files project watch', async
     fileSync.mockRestore();
     gitSync.mockRestore();
   }
+});
+
+it('keeps each window\'s Files watch and plan progress with the page that asked', async () => {
+  // Project windows: the main window and a project window each watch their own project and hear
+  // only their own changes; a plan's progress goes back to the composer that asked for it.
+  const { ProjectFileWatchSet } = await import('../src/main/project-file-watcher.js');
+  const { ProjectGitWatchSet } = await import('../src/main/project-git.js');
+  const page = () => Object.assign(new EventEmitter(), { send: vi.fn(), isDestroyed: () => false });
+  const main = page(), own = page();
+  currentWindow = { setBackgroundColor: vi.fn(), setTitleBarOverlay: vi.fn(), isDestroyed: () => false, webContents: main } as any;
+  const mainProject = '33333333-3333-4333-8333-333333333333', ownProject = '44444444-4444-4444-8444-444444444444';
+  // A watch reports one change as soon as it is set up, through the set's own delivery.
+  const fileSync = vi.spyOn(ProjectFileWatchSet.prototype, 'sync').mockImplementation(async function (this: any, projectId) {
+    if (projectId) this.changed({ projectId, directory: '' });
+  });
+  const fileClose = vi.spyOn(ProjectFileWatchSet.prototype, 'close');
+  const gitSync = vi.spyOn(ProjectGitWatchSet.prototype, 'sync').mockResolvedValue();
+  try {
+    const watch = (sender: unknown, projectId: string | null) => handlers.get('projectFiles:watch')!(sender, { projectId, directories: [''] });
+    expect(await watch({ sender: main }, mainProject)).toMatchObject({ ok: true, data: true });
+    expect(await watch({ sender: own }, ownProject)).toMatchObject({ ok: true, data: true });
+    const changes = (contents: { send: ReturnType<typeof vi.fn> }) => contents.send.mock.calls.filter(([channel]) => channel === 'projectFiles:changed').map(([, event]) => event.projectId);
+    expect(changes(main)).toEqual([mainProject]);
+    expect(changes(own)).toEqual([ownProject]);
+    // Closing one window's watch leaves the other's in place.
+    fileClose.mockClear();
+    expect(await watch({ sender: own }, null)).toMatchObject({ ok: true, data: true });
+    expect(fileClose).not.toHaveBeenCalled();
+    own.emit('destroyed');
+    expect(fileClose).toHaveBeenCalledOnce();
+  } finally {
+    fileSync.mockRestore();
+    fileClose.mockRestore();
+    gitSync.mockRestore();
+  }
+  const requestId = '55555555-5555-4555-8555-555555555555';
+  await handlers.get('sessions:plan')!({ sender: own }, { text: 'Plan the release', backend: 'api', requestId });
+  expect(own.send).toHaveBeenCalledWith('task:progress', expect.objectContaining({ requestId, phase: 'preparing' }));
+  expect(main.send.mock.calls.some(([channel]) => channel === 'task:progress')).toBe(false);
 });
 
 /** The whole settings object the renderer sends, with the parts a test cares about set. */

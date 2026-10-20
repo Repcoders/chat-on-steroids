@@ -362,6 +362,8 @@ const api = {
   setInputAutomation: (id: string, mode: 'off' | 'goal' | 'loop', loopAfterTurn?: boolean) => call<boolean>('sessions:inputAutomation', { id, mode, loopAfterTurn }),
   setZoom: (factor: number) => call<number>('window:zoom', { factor }),
   getZoom: () => call<number>('window:getZoom'),
+  /** Opens a project in its own window, or shows the one it already has. */
+  openProjectWindow: (projectId: string) => call<boolean>('window:openProject', { projectId }),
   openSessionChat: (id: string) => call<boolean>('sessions:openChat', { id }),
   /** ChatGPT's tool approval card in this chat's page, as the app may show it (2.1.38). */
   approvalCard: (id: string) => call<ApprovalCardView | null>('sessions:approvalCard', { id }),

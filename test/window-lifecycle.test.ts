@@ -16,15 +16,18 @@ import {
 describe('native window activation', () => {
   it.each(['darwin', 'win32', 'linux'])('keeps native fullscreen available on macOS (%s)', (platform) => {
     const source = readFileSync(new URL('../src/main/index.ts', import.meta.url), 'utf8');
-    const constructor = source.slice(source.indexOf('  window = new BrowserWindow({'), source.indexOf("  if (process.platform === 'win32') window.removeMenu();"))
-      .replaceAll(' as const', '');
-    let options: Record<string, unknown> | undefined;
+    // The main window and project windows share appWindowOptions().
+    const start = source.indexOf('function appWindowOptions()');
+    const constructor = source.slice(start, source.indexOf('\n}\n', start) + 2)
+      .replace('function appWindowOptions(): Electron.BrowserWindowConstructorOptions', 'function appWindowOptions()')
+      .replaceAll(' as const', '') + 'result.options = appWindowOptions();';
+    const result: { options?: Record<string, unknown> } = {};
     vm.runInNewContext(constructor, {
-      BrowserWindow: function (value: Record<string, unknown>) { options = value; },
-      layout: {}, icon: null, process: { platform },
+      result, browserWindowIconPath: () => null, app: { isPackaged: false }, process: { platform, resourcesPath: '' },
       titleBarOverlayForTheme: () => ({}), windowBackgroundForTheme: () => '#181818', getConfig: () => ({ ui: { theme: 'dark' } }),
       UI_BASE_ZOOM: 1, path: { join: () => 'preload.js' }, __dirname: '/app'
     });
+    const options = result.options;
     expect(options?.fullscreenable).toBe(platform === 'darwin');
     expect(options?.webPreferences).toMatchObject({ sandbox: true, contextIsolation: true, nodeIntegration: false });
     // macOS and Windows draw the app's own top bar as the title bar; Linux keeps its native frame.

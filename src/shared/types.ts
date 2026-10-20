@@ -863,6 +863,8 @@ export interface AppState {
   desktopAccess?: MacOSDesktopAccessStatus | null;
   /** This run's settings file could not be read, so the app started read-only; cleared once read-only is off. */
   settingsRecovered?: boolean;
+  /** Projects open in their own window; that window's composer alone sends to their chats. */
+  projectWindows?: string[];
 }
 
 export const DEFAULT_CAPABILITIES: Capabilities = {

@@ -98,8 +98,11 @@ import { openRowMenu, rowMenuOpenFor, toggleRowMenu, type RowMenuItem, type RowM
 import { createSearchPopup } from './search-popup.js';
 import { primaryShortcut } from './shortcuts.js';
 import { initSshProjectDialog } from './ssh-project-dialog.js';
+import { mayComposeIn, windowProjectFrom } from '../shared/project-windows.js';
 
 const api = window.api;
+/** The project this window was opened for (`?project=<id>`), or null in the main window. */
+const windowProject = windowProjectFrom(window.location?.search ?? '');
 let chatSearch: ChatSearch | null = null;
 let chatFind: ReturnType<typeof initChatFind> | null = null;
 
@@ -154,7 +157,7 @@ const projectHistory = new Map<string, { cursor: { updatedAt: number; id: string
 let activeId: string | null = null;
 let selectedId: string | null = null;
 let newChatSelected = true;
-let selectedProjectId: string | null = null;
+let selectedProjectId: string | null = windowProject;
 /** Branch in new chat (#482): the reply the new chat being written will branch from, if any. */
 let newChatBranch: { sessionId: string; conversationId: string; messageId: string; title: string } | null = null;
 /**
@@ -166,7 +169,7 @@ let editingQuestion: { sessionId: string; messageId: string; later: number; prev
 const NATIVE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 let projects: LocalProject[] = [];
 /** Window-local disclosure intent. Project groups start closed until the user or selection opens one. */
-const expandedProjects = new Set<string>();
+const expandedProjects = new Set<string>(windowProject ? [windowProject] : []);
 const projectVisibleCounts = new Map<string, number>();
 function projectGroup(id: string | null | undefined): string | null {
   return id && !projects.find(project => project.id === id)?.ungrouped ? id : null;
@@ -194,6 +197,11 @@ function projectMenuItems(id: string): RowMenuItem[] {
         : t('Create this project in ChatGPT again'),
       run: () => void retryChatgptProject(id)
     } satisfies RowMenuItem] : []),
+    // A project window is already that project's own window.
+    ...(windowProject ? [] : [{
+      action: 'window', icon: 'i-out', label: () => t('Open in new window'), title: () => t('Open this project in its own window'),
+      run: () => void run(api.openProjectWindow(id))
+    } satisfies RowMenuItem]),
     {
       action: 'color', icon: 'i-palette', label: () => t('Color'), title: () => t('Change project color'),
       submenu: () => ([null, ...PROJECT_COLORS] as const).map(choice => ({
@@ -1259,6 +1267,8 @@ async function loadSessions(detail: 'reread' | 'changed' = 'reread'): Promise<vo
   const changed = changedTranscripts;
   changedTranscripts = { all: false, ids: new Set() };
   if (catalog) projects = catalog;
+  const own = windowProject ? projects.find(project => project.id === windowProject) : null;
+  if (own) document.title = own.name;
   // Once older pages have been requested, a hot refresh only replaces/updates the newest page.
   // Throwing the older rows away here would make scrolling history vanish every 400 ms while a
   // live chat is recording. Before pagination begins, replacing the first page is cheaper and
@@ -1623,7 +1633,9 @@ function selectInboxProject(id: string | null): void {
 }
 
 function paintInbox(): void {
-  if (inboxProject && !projects.some(project => project.id === inboxProject && !project.ungrouped)) inboxProject = null;
+  // A project window's inbox shows its own project and no other.
+  if (windowProject) inboxProject = windowProject;
+  else if (inboxProject && !projects.some(project => project.id === inboxProject && !project.ungrouped)) inboxProject = null;
   const list = $('chatList');
   // A live update rebuilds the list: focus stays on the same chat's control, or on the same header control.
   const restoreRowFocus = sidebarFocus(list, 'data-id', ['.sess-top', '.worker-toggle', '.sess-menu']);
@@ -1687,6 +1699,7 @@ function paintInbox(): void {
   trigger.append(disclosureChevron('ico'));
   ui(trigger, 'title', () => [selected?.path ?? t('All'), ...(note ? [note.line] : [])].join('\n'));
   ui(trigger, 'aria-label', () => [t('Projects: {0}', [name()]), ...(note ? [note.line] : [])].join(' · '));
+  trigger.disabled = !!windowProject;
   trigger.addEventListener('click', () => { if (inboxPicker.open) inboxPicker.close(); else inboxPicker.show(); });
   filters.append(trigger);
   if (selected) {
@@ -1904,6 +1917,7 @@ function unattributedActivity(entries: SessionSummary[]): HTMLElement | null {
 }
 
 function paintSessions(): void {
+  paintComposerOwner();
   // Keep the pointer's elected rows alive while asynchronous activity snapshots arrive.
   if (sidebarOrder?.interacting) return;
   // Nor replace the name field mid-word: an input method's composition (Chinese, Japanese,
@@ -1912,6 +1926,8 @@ function paintSessions(): void {
   const layout = sidebarLayout();
   paintedLayout = layout;
   $('sessionList').classList.toggle('is-inbox', layout === 'inbox');
+  // The tree's Chats section holds chats outside projects; a project window has none to list.
+  $('chatsSection').hidden = layout !== 'inbox' && !!windowProject;
   if (layout !== 'inbox') inboxPicker.close();
   if (layout === 'inbox') {
     paintInbox();
@@ -1956,6 +1972,8 @@ function paintSessions(): void {
   });
   for (const entry of orderedSessions) {
     if (entry.origin?.kind === 'worker') continue;
+    // A project window lists only its own project's chats.
+    if (windowProject && groupOf(entry.projectId) !== windowProject) continue;
     if (!entry.conversationId && entry.origin?.kind !== 'desktop') { diagnostics.push(entry); continue; }
     const projectId = groupOf(entry.projectId);
     const workers = children.get(entry.id);
@@ -1969,9 +1987,9 @@ function paintSessions(): void {
       if (workers) workerGroup(entry.id, workers, row, rows);
     }
   }
-  const history = workerHistory(children.get('other-workers') ?? []);
+  const history = windowProject ? null : workerHistory(children.get('other-workers') ?? []);
   if (history) rows.push(history);
-  const projectEntries = projectSortEntries(groupOf);
+  const projectEntries = projectSortEntries(groupOf).filter(({ id }) => !windowProject || id === windowProject);
   const orderedProjects = sidebarOrder?.ordered(SIDEBAR_PROJECT_SCOPE, projectEntries) ?? projectEntries;
   const projectSections: HTMLElement[] = [];
   for (const { id } of orderedProjects) {
@@ -7234,6 +7252,27 @@ export function chatApply(state: AppState, previous?: Config): void {
 
   // A changed layout redraws even with nothing loaded yet: its own controls are the list's head.
   if (sessions.length > 0 || sidebarLayout() !== paintedLayout) paintSessions();
+  else paintComposerOwner();
+}
+
+/**
+ * Project windows: a project open in its own window owns its chats, so exactly one composer can
+ * send to each of them. Elsewhere the composer gives way to a note saying where to write; main
+ * refuses such a send as well (shared/project-windows.ts).
+ */
+function paintComposerOwner(): void {
+  const project = selectedId ? sessions.find(row => row.id === selectedId)?.projectId ?? null : selectedProjectId;
+  const elsewhere = !mayComposeIn(windowProject, project, deps.state()?.projectWindows ?? []);
+  const notice = $('projectWindowNotice');
+  $('composer').hidden = elsewhere;
+  notice.hidden = !elsewhere;
+  if (!elsewhere) return;
+  const owned = !windowProject && !!project;
+  ui(notice.querySelector('span')!, 'textContent', () => owned ? t('This project is open in its own window.') : t('This chat belongs to another window.'));
+  const show = notice.querySelector<HTMLButtonElement>('button')!;
+  show.hidden = !owned;
+  ui(show, 'textContent', () => t('Show its window'));
+  show.onclick = () => { if (project) void run(api.openProjectWindow(project)); };
 }
 
 /** Called when the Chat tab becomes visible or is left, so it only polls when shown. */
@@ -7687,7 +7726,7 @@ async function sendComposer(delivery?: 'finish' | 'auto' | 'after-turn', plan?: 
   const projectId = selectedId ? sessions.find(row => row.id === selectedId)?.projectId ?? null : selectedProjectId;
   const images = imageDrafts.get(key) ?? [];
   const text = plan?.[0] ?? (authoredComposerText().trim() || (images.length ? 'Please look at the attached files.' : ''));
-  if ($<HTMLButtonElement>('chatSend').disabled) return;
+  if ($<HTMLButtonElement>('chatSend').disabled || !mayComposeIn(windowProject, projectId, deps.state()?.projectWindows ?? [])) return;
   if (!text) {
     // An empty/repeated form submission is not a Stop gesture. Only activation
     // of the button while it actually displays Stop/Cancel owns this branch.
@@ -7908,6 +7947,8 @@ function selectSession(id: string): void {
 }
 
 function selectNewChat(projectId: string | null = null, branch: typeof newChatBranch = null): void {
+  // A project window's new chats are always in its project.
+  projectId ??= windowProject;
   if (editingQuestion) endEditing(true);
   newChatBranch = branch;
   rememberDraft(); selectionGeneration++; chatFind?.selectionChanged(); replaceComposerDraft(); pendingNewInput = null;
