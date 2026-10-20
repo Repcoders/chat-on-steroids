@@ -2790,5 +2790,17 @@
   "{0} sub-agents need attention": "{0} 个子智能体需要处理",
   "A tool call from an untrusted chat was refused. To allow it, open this chat's ⋯ menu in the sidebar (or right-click its row) and choose Trust chat.": "来自未受信任聊天的工具调用已被拒绝。要允许它，请在侧边栏中打开此聊天的 ⋯ 菜单（或右键点击其所在行），然后选择“信任聊天”。",
   "A tool call from a worker whose main chat is not currently allowed was refused. Open that main chat's ⋯ menu in the sidebar and choose Trust chat if it is untrusted, or Release chat if it is blocked.": "一个工作者的工具调用已被拒绝，因为它的主聊天当前未被允许。请在侧边栏中打开该主聊天的 ⋯ 菜单，若未受信任则选择“信任聊天”，若已被阻止则选择“解除阻止”。",
-  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "一个由应用创建的工作者的工具调用已被拒绝，因为启动它的主聊天尚未得到确认。请回到侧边栏中的该主聊天；其所在行出现后，打开 ⋯ 菜单并选择“信任聊天”（若已被阻止则选择“解除阻止”），待工作者在那里连接或恢复后再重试。"
+  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "一个由应用创建的工作者的工具调用已被拒绝，因为启动它的主聊天尚未得到确认。请回到侧边栏中的该主聊天；其所在行出现后，打开 ⋯ 菜单并选择“信任聊天”（若已被阻止则选择“解除阻止”），待工作者在那里连接或恢复后再重试。",
+  "Workspace profiles": "工作区配置",
+  "Switch to “{0}”?": "切换到“{0}”？",
+  "Switch": "切换",
+  "Nothing changes: these settings are already in place.": "没有变化：这些设置已经生效。",
+  "Permissions, folders and Desktop stay as they are.": "权限、文件夹和 Desktop 保持不变。",
+  "On": "开启",
+  "Switch notifications, keep-awake and background tabs together from the tray or menu bar icon’s menu.": "通过托盘或菜单栏图标的菜单，一起切换通知、保持唤醒和后台标签页。",
+  "Save these settings as a profile": "将这些设置保存为配置",
+  "Keeps “Notify when a chat finishes”, “Keep awake while a chat works” and “Background tabs open in” as they are now. Permissions, folders and Desktop are never part of a profile.": "按当前状态保存“聊天完成时通知”“聊天工作时保持唤醒”和“后台标签页打开位置”。权限、文件夹和 Desktop 从不属于配置。",
+  "Save as profile": "保存为配置",
+  "Workspace profile limit reached": "已达到工作区配置上限",
+  "Workspace profile not found": "找不到工作区配置"
 }

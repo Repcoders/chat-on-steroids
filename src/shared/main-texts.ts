@@ -2,7 +2,7 @@
  * English source of the texts the main process shows outside the window: the tray menu and its
  * tooltip, the Session finish desktop notice with its buttons, tunnel-loss notices, and the
  * one-time notice that the CoS browser hid to the tray, the window that says an update is installing,
- * native file dialogs and the worker checkout removal confirmation.
+ * native file dialogs, the worker checkout removal confirmation and the workspace profile switch.
  *
  * Same contract as STOP_NOTICE_TEXTS (#855): the main process has no interface catalogs, so the
  * renderer translates exactly these strings and publishes them; anything else is refused, and a
@@ -63,7 +63,23 @@ export const MAIN_TEXTS = [
   'Keep checkout',
   'Remove checkout; preserve Git branch',
   // The turn-completion notice when an answer has no text to show.
-  'ChatGPT finished.'
+  'ChatGPT finished.',
+  // Workspace profiles in the tray, and the question before a switch.
+  'Workspace profiles',
+  'Switch to “{0}”?',
+  'Switch',
+  'Cancel',
+  'Nothing changes: these settings are already in place.',
+  'Permissions, folders and Desktop stay as they are.',
+  'Notify when a chat finishes',
+  'Keep awake while a chat works',
+  'Background tabs open in',
+  'On',
+  'Off',
+  'The computer',
+  'The computer and screen',
+  'Their own minimized window',
+  'A tab group in your browser window'
 ] as const;
 
 export type MainText = typeof MAIN_TEXTS[number];

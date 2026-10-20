@@ -2882,5 +2882,17 @@
   "{0} sub-agents need attention|many": "{0} subagentes necesitan atención",
   "A tool call from an untrusted chat was refused. To allow it, open this chat's ⋯ menu in the sidebar (or right-click its row) and choose Trust chat.": "Se rechazó una llamada a herramienta de un chat no fiable. Para permitirla, abre el menú ⋯ de este chat en la barra lateral (o haz clic derecho en su fila) y elige «Confiar en el chat».",
   "A tool call from a worker whose main chat is not currently allowed was refused. Open that main chat's ⋯ menu in the sidebar and choose Trust chat if it is untrusted, or Release chat if it is blocked.": "Se rechazó una llamada a herramienta de un trabajador cuyo chat principal no está permitido ahora. Abre el menú ⋯ de ese chat principal en la barra lateral y elige «Confiar en el chat» si no es de confianza, o «Desbloquear chat» si está bloqueado.",
-  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "Se rechazó una llamada a herramienta de un trabajador creado por la aplicación porque aún no se ha comprobado el chat principal que lo inició. Vuelve a ese chat principal en la barra lateral; cuando aparezca su fila, abre su menú ⋯ y elige «Confiar en el chat», o «Desbloquear chat» si está bloqueado, y vuelve a intentarlo cuando el trabajador esté conectado o recuperado allí."
+  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "Se rechazó una llamada a herramienta de un trabajador creado por la aplicación porque aún no se ha comprobado el chat principal que lo inició. Vuelve a ese chat principal en la barra lateral; cuando aparezca su fila, abre su menú ⋯ y elige «Confiar en el chat», o «Desbloquear chat» si está bloqueado, y vuelve a intentarlo cuando el trabajador esté conectado o recuperado allí.",
+  "Workspace profiles": "Perfiles de trabajo",
+  "Switch to “{0}”?": "¿Cambiar a «{0}»?",
+  "Switch": "Cambiar",
+  "Nothing changes: these settings are already in place.": "No cambia nada: estos ajustes ya están aplicados.",
+  "Permissions, folders and Desktop stay as they are.": "Los permisos, las carpetas y Desktop se quedan como están.",
+  "On": "Activado",
+  "Switch notifications, keep-awake and background tabs together from the tray or menu bar icon’s menu.": "Cambia juntos los avisos, el modo activo y las pestañas en segundo plano desde el menú del icono de la bandeja o de la barra de menús.",
+  "Save these settings as a profile": "Guardar estos ajustes como perfil",
+  "Keeps “Notify when a chat finishes”, “Keep awake while a chat works” and “Background tabs open in” as they are now. Permissions, folders and Desktop are never part of a profile.": "Guarda «Avisar cuando un chat termine», «Mantener activo mientras un chat trabaja» y «Las pestañas en segundo plano se abren en» tal como están ahora. Los permisos, las carpetas y Desktop nunca forman parte de un perfil.",
+  "Save as profile": "Guardar como perfil",
+  "Workspace profile limit reached": "Se alcanzó el límite de perfiles de trabajo",
+  "Workspace profile not found": "No se encontró el perfil de trabajo"
 }

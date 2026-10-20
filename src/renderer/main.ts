@@ -26,6 +26,7 @@ import { initPets } from './pets.js';
 import { initSkillsLibrary } from './skills-library.js';
 import { initWhatsNew } from './whats-new.js';
 import { initSettingsSearch } from './settings-search.js';
+import { initWorkspaceProfiles } from './workspace-profiles.js';
 import type { AppearanceSettings } from '../shared/appearance.js';
 import type { BrowserBridgePort } from '../shared/browser-bridge.js';
 import { parseCommandAllowlistText } from '../shared/command-allowlist.js';
@@ -1369,6 +1370,7 @@ $('setupProfileAdd').addEventListener('click', () => {
 });
 $('setupProfileCancel').addEventListener('click', () => $<HTMLDialogElement>('setupProfileDialog').close());
 $('setupProfileForm').addEventListener('submit', event => { event.preventDefault(); void changeSetupProfile('add'); });
+const paintWorkspaceProfiles = initWorkspaceProfiles({ api, settled: () => settingsSaveQueue, apply: next => apply(next) });
 
 function paintSetupFields(): void {
   for (const id of ['tunnelId', 'apiKey']) {
@@ -1769,6 +1771,7 @@ function apply(next: AppState): void {
   apiKey.disabled = !secureStorageAvailable;
   paintSetupFields();
   paintSetupProfiles(next);
+  paintWorkspaceProfiles(next);
   ui($('apiKeyState'), 'textContent', () => !secureStorageAvailable
     ? (next.secureStorage?.detail ?? t("Secure credential storage is unavailable."))
     : next.hasApiKey

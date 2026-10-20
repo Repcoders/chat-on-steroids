@@ -205,6 +205,13 @@
                 <label class="setting"><span class="setting-text"><b>Mention Plugins instead of Core</b><em>Ordinary messages the app sends mention Chat On Steroids Plugins. Goal, Loop, workers and recovery always mention Core. Messages you send in ChatGPT itself are unchanged.</em></span><input id="mentionPlugins" type="checkbox" /></label>
               </div>
             </section>
+            <section class="appearance-section" id="workspaceProfilesSetting">
+              <header class="settings-section-head"><div><h2>Workspace profiles</h2><p>Switch notifications, keep-awake and background tabs together from the tray or menu bar icon’s menu.</p></div></header>
+              <div class="settings-surface pane appearance-settings-card">
+                <div class="setting"><span class="setting-text"><b>Save these settings as a profile</b><em>Keeps “Notify when a chat finishes”, “Keep awake while a chat works” and “Background tabs open in” as they are now. Permissions, folders and Desktop are never part of a profile.</em></span><button class="btn" id="workspaceProfileAdd" type="button">Save as profile</button></div>
+                <div id="workspaceProfileList"></div>
+              </div>
+            </section>
             <section class="appearance-section" id="privacyScreenshotsSetting">
               <header class="settings-section-head"><div><h2>Privacy</h2><p>What ChatGPT sees of your screen.</p></div></header>
               <div class="settings-surface pane appearance-settings-card">
@@ -1554,6 +1561,14 @@
         <label for="setupProfileName">Profile name</label>
         <input id="setupProfileName" type="text" maxlength="80" required autocomplete="off" />
         <div class="step-actions"><button class="btn" id="setupProfileCancel" type="button">Cancel</button><button class="btn" type="submit">Add profile</button></div>
+      </form>
+    </dialog>
+    <dialog id="workspaceProfileDialog" class="setup-profile-dialog" aria-labelledby="workspaceProfileDialogTitle">
+      <form id="workspaceProfileForm">
+        <h3 id="workspaceProfileDialogTitle">Save as profile</h3>
+        <label for="workspaceProfileName">Profile name</label>
+        <input id="workspaceProfileName" type="text" maxlength="80" required autocomplete="off" />
+        <div class="step-actions"><button class="btn" id="workspaceProfileCancel" type="button">Cancel</button><button class="btn" type="submit">Save</button></div>
       </form>
     </dialog>
     <script type="module" src="./main.ts"></script>

@@ -66,6 +66,21 @@ export function mainTexts(): Record<MainText, string> {
     'Keep checkout': t('Keep checkout'),
     'Remove checkout; preserve Git branch': t('Remove checkout; preserve Git branch'),
     'ChatGPT finished.': t('ChatGPT finished.'),
+    'Workspace profiles': t('Workspace profiles'),
+    'Switch to “{0}”?': t('Switch to “{0}”?'),
+    'Switch': t('Switch'),
+    'Cancel': t('Cancel'),
+    'Nothing changes: these settings are already in place.': t('Nothing changes: these settings are already in place.'),
+    'Permissions, folders and Desktop stay as they are.': t('Permissions, folders and Desktop stay as they are.'),
+    'Notify when a chat finishes': t('Notify when a chat finishes'),
+    'Keep awake while a chat works': t('Keep awake while a chat works'),
+    'Background tabs open in': t('Background tabs open in'),
+    'On': t('On'),
+    'Off': t('Off'),
+    'The computer': t('The computer'),
+    'The computer and screen': t('The computer and screen'),
+    'Their own minimized window': t('Their own minimized window'),
+    'A tab group in your browser window': t('A tab group in your browser window'),
   };
 }
 

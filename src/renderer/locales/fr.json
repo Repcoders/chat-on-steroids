@@ -2882,5 +2882,17 @@
   "{0} sub-agents need attention|many": "{0} sous-agents demandent votre attention",
   "A tool call from an untrusted chat was refused. To allow it, open this chat's ⋯ menu in the sidebar (or right-click its row) and choose Trust chat.": "Un appel d’outil d’un chat non approuvé a été refusé. Pour l’autoriser, ouvrez le menu ⋯ de ce chat dans la barre latérale (ou faites un clic droit sur sa ligne) et choisissez « Faire confiance au chat ».",
   "A tool call from a worker whose main chat is not currently allowed was refused. Open that main chat's ⋯ menu in the sidebar and choose Trust chat if it is untrusted, or Release chat if it is blocked.": "Un appel d’outil d’un worker dont le chat principal n’est pas autorisé actuellement a été refusé. Ouvrez le menu ⋯ de ce chat principal dans la barre latérale et choisissez « Faire confiance au chat » s’il n’est pas approuvé, ou « Débloquer le chat » s’il est bloqué.",
-  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "Un appel d’outil d’un worker créé par l’application a été refusé, car le chat principal qui l’a lancé n’est pas encore prouvé. Revenez à ce chat principal dans la barre latérale ; une fois sa ligne affichée, ouvrez son menu ⋯ et choisissez « Faire confiance au chat », ou « Débloquer le chat » s’il est bloqué, puis réessayez une fois le worker rattaché ou rétabli."
+  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "Un appel d’outil d’un worker créé par l’application a été refusé, car le chat principal qui l’a lancé n’est pas encore prouvé. Revenez à ce chat principal dans la barre latérale ; une fois sa ligne affichée, ouvrez son menu ⋯ et choisissez « Faire confiance au chat », ou « Débloquer le chat » s’il est bloqué, puis réessayez une fois le worker rattaché ou rétabli.",
+  "Workspace profiles": "Profils de travail",
+  "Switch to “{0}”?": "Passer à « {0} » ?",
+  "Switch": "Changer",
+  "Nothing changes: these settings are already in place.": "Rien ne change : ces réglages sont déjà en place.",
+  "Permissions, folders and Desktop stay as they are.": "Les autorisations, les dossiers et Desktop restent tels quels.",
+  "On": "Activé",
+  "Switch notifications, keep-awake and background tabs together from the tray or menu bar icon’s menu.": "Change ensemble les notifications, la mise en veille et les onglets en arrière-plan depuis le menu de l’icône de la zone de notification ou de la barre des menus.",
+  "Save these settings as a profile": "Enregistrer ces réglages comme profil",
+  "Keeps “Notify when a chat finishes”, “Keep awake while a chat works” and “Background tabs open in” as they are now. Permissions, folders and Desktop are never part of a profile.": "Garde « Prévenir quand un chat a terminé », « Garder éveillé pendant qu’un chat travaille » et « Les onglets en arrière-plan s'ouvrent dans » tels qu’ils sont maintenant. Les autorisations, les dossiers et Desktop ne font jamais partie d’un profil.",
+  "Save as profile": "Enregistrer comme profil",
+  "Workspace profile limit reached": "Nombre maximal de profils de travail atteint",
+  "Workspace profile not found": "Profil de travail introuvable"
 }

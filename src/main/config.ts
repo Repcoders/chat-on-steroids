@@ -4,6 +4,7 @@ import { DEFAULT_RECORDING_STORAGE_GIB, REASONING_EFFORTS, RECORDING_STORAGE_LIM
 import { appearanceSchema } from './appearance-schema.js';
 import { BROWSER_BRIDGE_PORTS } from '../shared/browser-bridge.js';
 import { CONNECTOR_SUFFIX_MAX, CONNECTOR_SUFFIX_PATTERN } from '../shared/connector-names.js';
+import { WORKSPACE_PROFILE_LIMIT, type WorkspaceProfile } from '../shared/workspace-profiles.js';
 /**
  * Non-secret settings, stored as one small JSON file in the app's userData folder.
  * No database: there are at most a handful of roots and a dozen booleans.
@@ -298,6 +299,16 @@ const commandAllowlistRuleSchema = z.string().max(MAX_COMMAND_ALLOWLIST_RULE_CHA
   if (message) ctx.addIssue({ code: 'custom', message });
 });
 
+const workspaceProfileSchema = z.object({
+  id: z.string().min(1).max(64),
+  name: z.string().trim().min(1).max(80),
+  settings: z.object({
+    turnNotifications: z.boolean(),
+    keepAwake: z.enum(['off', 'computer', 'screen']),
+    backgroundPlacement: z.enum(['window', 'group'])
+  })
+});
+
 const configSchema = z.object({
   // A config written by hand — or by a build before `/skills` was reserved — must not be
   // able to claim a reserved virtual root. Renamed rather than rejected: a single bad root
@@ -332,6 +343,21 @@ const configSchema = z.object({
     id: z.string().min(1).max(64), name: z.string().trim().min(1).max(80),
     tunnelId: z.string().max(128), desktopTunnelId: z.string().max(128), pluginsTunnelId: z.string().max(128)
   })).max(11).refine(rows => new Set(rows.map(row => row.id)).size === rows.length, 'Duplicate setup profile').optional(),
+  // Workspace profiles hold only the settings their schema names: a hand-edited `capabilities` or
+  // `roots` inside one is dropped, never applied. A damaged or repeated profile is dropped alone, so
+  // it can neither take the rest of the file into recovery nor survive into a switch.
+  workspaceProfiles: z.array(z.unknown()).optional().catch(undefined).transform(rows => {
+    if (!rows) return undefined;
+    const kept: WorkspaceProfile[] = [];
+    for (const row of rows) {
+      const profile = workspaceProfileSchema.safeParse(row);
+      // A name is a profile's identity for saving over it, so a second spelling of it is dropped too.
+      const name = profile.success ? profile.data.name.toLocaleLowerCase() : '';
+      if (profile.success && kept.length < WORKSPACE_PROFILE_LIMIT &&
+          !kept.some(other => other.id === profile.data.id || other.name.toLocaleLowerCase() === name)) kept.push(profile.data);
+    }
+    return kept;
+  }),
   ui: z.object({
     appearance: appearanceSchema.optional().catch(undefined),
     autoContinue: z.boolean().optional().default(true),

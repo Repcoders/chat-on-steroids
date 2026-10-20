@@ -438,6 +438,8 @@ export interface Config {
   connectorSuffix?: string;
   /** Inactive setups only. Keys remain in encrypted secret slots addressed by profile ID. */
   setupProfiles?: Array<{ id: string; name: string; tunnelId: string; desktopTunnelId: string; pluginsTunnelId: string }>;
+  /** Named sets of everyday settings, switched from the tray. Never permissions; apart from setupProfiles. */
+  workspaceProfiles?: import('./workspace-profiles.js').WorkspaceProfile[];
   roots: Root[];
   capabilities: Capabilities;
   readOnly: boolean;

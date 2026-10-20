@@ -7,7 +7,7 @@ import { requestSessionFinishGoal, setFinishNotifier } from './session/finish.js
  */
 
 import path from 'node:path';
-import { app, Notification, BrowserWindow, Menu, Tray, nativeImage, nativeTheme, powerMonitor, powerSaveBlocker, screen, session } from 'electron';
+import { app, dialog, Notification, BrowserWindow, Menu, Tray, nativeImage, nativeTheme, powerMonitor, powerSaveBlocker, screen, session } from 'electron';
 import { createKeepAwake, installKeepAwake } from './keep-awake.js';
 import { getConfig, initConfigPath, loadConfig } from './config.js';
 import { initConnectorProofPath, loadConnectorProof, notePluginInstalled } from './connector-proof.js';
@@ -125,6 +125,7 @@ import { trayGuidArgsForPlatform, trayImageSpec } from './tray-image.js';
 import { browserWindowIconPath } from './window-icon.js';
 import { editContextMenuTemplate } from './edit-context-menu.js';
 import { showConnectionLossNotice } from './connection-loss-notice.js';
+import { chooseWorkspaceProfile, onWorkspaceProfilesChange, workspaceProfileMenu } from './workspace-profiles.js';
 
 /** Durable state file holding the multi-agent run. Hashes only, never credentials. */
 const SWARM_STATE = 'swarm';
@@ -393,6 +394,7 @@ function refreshTray(): void {
         label: mainText(running ? 'Disconnect' : 'Connect'),
         click: () => void (running ? disconnect() : connect())
       },
+      ...workspaceProfileMenu(getConfig().workspaceProfiles, id => void chooseWorkspaceProfile(id, options => dialog.showMessageBox(options))),
       { type: 'separator' },
       {
         label: mainText('Quit'),
@@ -668,6 +670,7 @@ void app.whenReady().then(async () => {
   // The built-in browser's own hooks live in its module, which loads only once it is selected.
   onCosBrowserLoaded(cosBrowser => { cosBrowser.onChange(refreshTray); refreshTray(); });
   onMainTextsChange(refreshTray);
+  onWorkspaceProfilesChange(refreshTray);
   onMainTextsChange(() => writeDurableSoon(MAIN_TEXTS_STATE, mainTextTranslations()));
 
   logInfo('app started');
