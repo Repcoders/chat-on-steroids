@@ -927,8 +927,9 @@ also shows the chat screen), Project home, Color (a submenu: None and the palett
 the same `projects:color` owner; choices wait while a save is pending) and Remove. Project home
 (`renderer/project-home.ts`) is a read-only dialog: the folder, the branch and change count from the
 same `projectGit:snapshot` read Review uses (none for a project on a server), the project's loaded
-chats newest first with their sub-agents, the last activity, and New chat, Files and Review, which
-select a new chat in the project unless the open chat is already in it. Opening it reads the
+chats newest first with their sub-agents, the last activity, and New chat, Files and Review. New
+chat always selects a new chat in the project; Files and Review open their panel, first selecting a
+new chat in the project unless the open chat is already in it. Opening it reads the
 project's first history page once, as a first expand does. A chat's
 menu: Rename and Open in browser, Block/Release and, in strict mode, Trust/Untrust, then Remove;
 the Unattributed row offers only its app-wide Block/Allow (never in strict mode) and Remove.
