@@ -106,9 +106,10 @@ export function initChatSources(deps: ChatSourcesDeps): { open(id: string): void
     if (!dialog.open) dialog.showModal();
     field.focus();
     void deps.sources(id).then(sources => {
-      if (mine !== generation || !dialog.open) return;
-      all = sources?.sources ?? [];
-      limited = Boolean(sources?.limited);
+      // A failed load has already said so in a toast; an empty list would claim the chat cites nothing.
+      if (mine !== generation || !dialog.open || !sources) return;
+      all = sources.sources;
+      limited = Boolean(sources.limited);
       paint();
     });
   };

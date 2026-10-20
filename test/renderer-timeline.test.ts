@@ -5389,6 +5389,18 @@ it('opens the chat Sources from the globe under an answer that cites any, and co
   expect(dialog.open).toBe(false);
 });
 
+it('does not call a chat empty of sources when its Sources fail to load', async () => {
+  const reply: SessionEvent = { kind: 'assistant_message', seq: 1, time: T0, source: 'extension', turnId: 'web-turn', messageId: 'reply',
+    message: text('Release B is faster.'), final: true, state: 'final', references: [{ index: 0, sources: [{ title: 'Release B', url: 'https://example.com/b' }] }] };
+  const { w } = await boot([reply, { seq: 2, time: T0 + 1_000, source: 'extension', kind: 'turn_end', turnId: 'web-turn', outcome: 'completed' }]);
+  (w as any).api.chatSources = vi.fn(async () => ({ ok: false, error: 'Sources unavailable' }));
+  w.document.querySelector<HTMLButtonElement>('.answer-sources')!.click(); await settle();
+  const dialog = w.document.getElementById('sourcesDialog') as HTMLDialogElement;
+  expect(dialog.open).toBe(true);
+  // The toast reports the failure; the list does not claim the chat cites nothing.
+  expect(dialog.querySelector('.search-status')).toBeNull();
+});
+
 it('does not offer copy or export after an interrupted turn', async () => {
   const reply: SessionEvent = { kind: 'assistant_message', seq: 1, time: T0, source: 'extension', turnId: 'cut-turn', messageId: 'cut', message: text('Half an answer'), final: true, state: 'final' };
   const { w } = await boot([reply, { seq: 2, time: T0 + 1_000, source: 'extension', kind: 'turn_end', turnId: 'cut-turn', outcome: 'interrupted' }]);
