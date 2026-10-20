@@ -4,7 +4,7 @@ import { initChatSearch, type ChatSearch } from './chat-search.js';
 import { initChatFind } from './chat-find.js';
 import { createWorkspaceTerminal } from './workspace-terminal.js';
 import { createWorkspaceDocks } from './workspace-docks.js';
-import { currentLanguage, ui, t, tn } from './i18n.js';
+import { currentLanguage, formatLocale, ui, t, tn } from './i18n.js';
 import { APP_COMMANDS, initSkills } from './skills.js';
 import { imageStorageButton } from './image-storage.js';
 import { applyChatModels, applyComposerSessionModel, initChatModels, confirmedComposerModel, composerSendModel, ensureComposerModel, chatModelName } from './chat-models.js';
@@ -2419,7 +2419,7 @@ function paintGoalProgress(): void {
     browser: t("Sending opening message to ChatGPT…"), sent: t("Opening message sent"), tool: t('Opening message delivered to the active turn'),
     failed: t("Task could not continue"), cancelled: t("Opening message cancelled"), paused: t("Automation paused · task text preserved"), 'no-reply': t("Goal reached") };
   if (phase === 'retrying') { text = ''; error = undefined; }
-  labels.retrying = t("Provider busy · retry {0}{1}", [progress?.attempt ?? '', progress?.retryAt ? t(' at {0}', [new Date(progress.retryAt).toLocaleTimeString(currentLanguage())]) : '']);
+  labels.retrying = t("Provider busy · retry {0}{1}", [progress?.attempt ?? '', progress?.retryAt ? t(' at {0}', [new Date(progress.retryAt).toLocaleTimeString(formatLocale())]) : '']);
   const mode = $<HTMLSelectElement>('chatAutomation').value === 'loop' ? t('Loop') : t('Goal');
   labels.settling = `${mode} · ${wait?.reason === 'native-busy' ? t('ChatGPT resumed work · waiting before retry') : wait?.reason === 'silence' ? t('Waiting before recovery reload') : wait?.reason === 'quiet' ? t('Waiting for tool inactivity') :
     wait?.reason === 'workers' ? t('Waiting for this chat’s sub-agents') : wait?.reason === 'tools' ? t('Waiting for running tools') : wait?.reason === 'listening' ? t('Waiting for activity after recovery') : wait?.reason === 'closed' ? t('Paused until this chat is open in the browser') : t('Answer settling')}`;
@@ -2619,7 +2619,7 @@ function paintTaskPlan(): void {
     const failure = plan.error;
     if (failure === 'request_too_long') {
       preview.append(el('div', 'muted', () => t("This request is longer than {0} characters, the most a plan can be made from. Shorten it, or turn off Plan to send it as a message.",
-        [MAX_TASK_REQUEST_CHARS.toLocaleString(currentLanguage())])));
+        [MAX_TASK_REQUEST_CHARS.toLocaleString(formatLocale())])));
     } else {
       const error = el('div', 'muted', () => failure === 'invalid_goal_decision_json' ? t("The planner response could not be read.") : localizedGoalError(failure));
       error.title = plan.error;
@@ -2627,7 +2627,7 @@ function paintTaskPlan(): void {
     }
   } else if (plan?.requestId) {
     const progress = plan.progress;
-    const label = () => !progress ? t("Creating plan…") : progress.phase === 'retrying' ? t("Provider busy · retry {0}{1}", [progress.attempt ?? '', progress.retryAt ? t(' at {0}', [new Date(progress.retryAt).toLocaleTimeString(currentLanguage())]) : '']) : progress.phase === 'cancelled' ? t("Plan cancelled") : progress.phase === 'preparing' ? t("Preparing plan…") : progress.phase === 'ready' ? t("Plan ready") : progress.phase === 'failed' ? t("Plan failed") : t("Writing plan…");
+    const label = () => !progress ? t("Creating plan…") : progress.phase === 'retrying' ? t("Provider busy · retry {0}{1}", [progress.attempt ?? '', progress.retryAt ? t(' at {0}', [new Date(progress.retryAt).toLocaleTimeString(formatLocale())]) : '']) : progress.phase === 'cancelled' ? t("Plan cancelled") : progress.phase === 'preparing' ? t("Preparing plan…") : progress.phase === 'ready' ? t("Plan ready") : progress.phase === 'failed' ? t("Plan failed") : t("Writing plan…");
     preview.append(el('span', 'muted', label));
     if (progress?.text || progress?.error) preview.append(el('pre', 'task-progress-text', progress.error ? () => localizedGoalError(progress.error!) : progress.text));
   }
@@ -3298,7 +3298,7 @@ function citationPill(pill: CitationPill): HTMLElement {
     const source = pill.sources[at]!;
     site.textContent = source.source || siteOf(source.url);
     title.href = source.url; title.textContent = source.title || siteOf(source.url);
-    const date = source.date ? new Date(source.date).toLocaleDateString(currentLanguage(), { year: 'numeric', month: 'long', day: 'numeric' }) : '';
+    const date = source.date ? new Date(source.date).toLocaleDateString(formatLocale(), { year: 'numeric', month: 'long', day: 'numeric' }) : '';
     detail.textContent = [date, source.snippet].filter(Boolean).join(' — ');
     detail.hidden = !detail.textContent;
     count.textContent = `${at + 1}/${pill.sources.length}`;
@@ -4636,7 +4636,7 @@ function eventRow(event: SessionEvent): HTMLElement {
   tagImageRow(row, event);
   const time = document.createElement('time');
   time.textContent = clockTime(event.time);
-  time.title = new Date(event.time).toLocaleString(currentLanguage());
+  time.title = new Date(event.time).toLocaleString(formatLocale());
   const body = el('div', 'ev-body');
   const currentWorker = sessions.find(session => session.id === selectedId)?.origin;
   if (event.agent && event.agent !== 'prime' && !(currentWorker?.kind === 'worker' && currentWorker.agentId === event.agent)) {
@@ -5059,7 +5059,7 @@ function compactionRow(block: CompactionBlock, previous?: HTMLElement, latest = 
   if (previous) return row;
   const time = document.createElement('time');
   time.textContent = clockTime(block.time);
-  time.title = new Date(block.time).toLocaleString(currentLanguage());
+  time.title = new Date(block.time).toLocaleString(formatLocale());
   const body = el('div', 'ev-body');
   body.append(box);
   row.append(time, body);
@@ -5556,7 +5556,7 @@ function paintDetail(followBottom = historyBefore === null): void {
       const row = cached?.sig === sig ? cached.row : inputMessageRow(entry, true);
       if (row !== cached?.row) {
         const time = document.createElement('time');
-        time.textContent = new Date(entry.createdAt).toLocaleString(currentLanguage());
+        time.textContent = new Date(entry.createdAt).toLocaleString(formatLocale());
         row.prepend(time);
       }
       row.dataset.timelineKey = key;
@@ -6714,7 +6714,7 @@ function paintGoalReasoning(selected?: Config['goal']['reasoning'], changingMode
 /** The release date OpenRouter publishes, as a person would date a model. */
 function releasedOn(created: number): string {
   if (!created) return t("release date not published");
-  return new Date(created * 1000).toLocaleDateString(currentLanguage(), { year: 'numeric', month: 'short', day: 'numeric' });
+  return new Date(created * 1000).toLocaleDateString(formatLocale(), { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 /**
@@ -7262,7 +7262,7 @@ function inputMessageRow(entry: InputEntry, notice: boolean): HTMLElement {
   if (!visibleInputIds.has(entry.id)) row.classList.add('is-entering');
   visibleInputIds.add(entry.id);
   if (visibleInputIds.size > 100) visibleInputIds.delete(visibleInputIds.values().next().value!);
-  const status = () => entry.error ? t(entry.error) : held ? t("Sending in a moment…") : waiting === 'extension' ? t("Waiting for the browser extension to connect") : waiting === 'tool-call' ? t("Waiting for the running tool call to finish") : waiting === 'chatgpt-project' ? t("Creating this project in ChatGPT…") : waiting === 'chatgpt-project-failed' ? t("This project's ChatGPT Project isn't available. Retry it from the project's menu.") : (entry.state === 'failed' ? t("Delivery not confirmed") : entry.state === 'decision' ? t("Preparing follow-up") : entry.state === 'browser' ? t("Delivery confirmation pending") : entry.state === 'tool' ? t("Sent to the active turn · awaiting receipt") : entry.dueAt > Date.now() ? t("Scheduled {0}", [new Date(entry.dueAt).toLocaleString(currentLanguage())]) : entry.delivery === 'tool' ? t("Waiting for the next tool call") : t("Queued"));
+  const status = () => entry.error ? t(entry.error) : held ? t("Sending in a moment…") : waiting === 'extension' ? t("Waiting for the browser extension to connect") : waiting === 'tool-call' ? t("Waiting for the running tool call to finish") : waiting === 'chatgpt-project' ? t("Creating this project in ChatGPT…") : waiting === 'chatgpt-project-failed' ? t("This project's ChatGPT Project isn't available. Retry it from the project's menu.") : (entry.state === 'failed' ? t("Delivery not confirmed") : entry.state === 'decision' ? t("Preparing follow-up") : entry.state === 'browser' ? t("Delivery confirmation pending") : entry.state === 'tool' ? t("Sent to the active turn · awaiting receipt") : entry.dueAt > Date.now() ? t("Scheduled {0}", [new Date(entry.dueAt).toLocaleString(formatLocale())]) : entry.delivery === 'tool' ? t("Waiting for the next tool call") : t("Queued"));
   const files = el('div', 'message-attachments');
   if (entry.attachments?.length) files.append(...entry.attachments.map(file => attachmentCard(file)));
   for (const image of entry.images ?? []) { const preview = document.createElement('img'); preview.src = image.dataUrl; preview.alt = image.name; files.append(preview); }

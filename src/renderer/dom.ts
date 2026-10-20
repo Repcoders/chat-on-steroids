@@ -1,4 +1,4 @@
-import { currentLanguage, t, ui } from './i18n.js';
+import { formatLocale, t, ui } from './i18n.js';
 /**
  * The handful of DOM helpers both panels need.
  *
@@ -198,7 +198,7 @@ export function shortAgo(atMs: number | null): string {
 
 /** A clock time for one event in a timeline. */
 export function clockTime(atMs: number): string {
-  return new Date(atMs).toLocaleTimeString(currentLanguage());
+  return new Date(atMs).toLocaleTimeString(formatLocale());
 }
 
 /** "1.2k", "3.4M" — for token and character counts that get large. */

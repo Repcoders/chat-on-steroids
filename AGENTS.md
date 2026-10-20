@@ -4333,7 +4333,11 @@ App-owned external/local links cross their validated main-process route.
 
 English, Spanish, Simplified Chinese, Traditional Chinese, Japanese, Korean, Turkish, French, European Portuguese, Brazilian Portuguese, German, Russian and Vietnamese use the existing UI
 catalogs (`i18n.ts`, `locales/{es,zh-CN,zh-TW,ja,ko,tr,fr,pt-PT,pt-BR,de,ru,vi}.json`), with the selected locale in
-`cos.ui.language`. The main process has no catalogs: the renderer translates the allowlisted
+`cos.ui.language`. Numbers, dates and times are written in `formatLocale()`: the app language unless
+Appearance's Number and date format (`cos.ui.formatLocale`: `app`, `system` or one of `FORMAT_LOCALES`)
+picks the system region, which main reads with `app.getSystemLocale()` over `ui:systemLocale`, or a
+fixed format. Labels and words that stand alone (weekday and month headings, sidebar ages, lists) keep
+the app language. The main process has no catalogs: the renderer translates the allowlisted
 stopped-chat notice texts (`shared/stop-notice.ts`) and publishes them over `ui:stopNoticeTexts`
 at startup and on each language change; unknown keys are refused and untranslated notices stay English.
 The tray menu, its tooltip, the Session finish notice with its buttons, tunnel-loss notices and the

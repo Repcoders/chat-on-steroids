@@ -52,6 +52,28 @@ try {
 
 export function currentLanguage(): Language { return language; }
 
+const FORMAT_KEY = 'cos.ui.formatLocale';
+/** Appearance's fixed number and date formats, beside the app language and the system region. */
+export const FORMAT_LOCALES = ['en-US', 'en-GB', 'de-DE', 'de-CH', 'fr-FR', 'es-ES', 'es-MX', 'it-IT', 'nl-NL', 'pl-PL',
+  'pt-BR', 'pt-PT', 'ru-RU', 'sv-SE', 'tr-TR', 'vi-VN', 'ja-JP', 'ko-KR', 'zh-CN', 'zh-TW'] as const;
+export type FormatChoice = 'app' | 'system' | typeof FORMAT_LOCALES[number];
+function parseFormatChoice(value: string | null | undefined): FormatChoice {
+  return value === 'system' || (FORMAT_LOCALES as readonly string[]).includes(value ?? '') ? value as FormatChoice : 'app';
+}
+let formatChoice: FormatChoice = 'app';
+try { formatChoice = parseFormatChoice(window.localStorage.getItem(FORMAT_KEY)); }
+catch { /* Without storage, numbers and dates follow the app language. */ }
+let systemLocale: string | null = null;
+
+/**
+ * The locale numbers, dates and times are written in: the app language unless Appearance picks the
+ * system region or a fixed format. Labels stay in the app language, and so do words that stand
+ * alone, such as a weekday or month heading, a "5h" age or an "and" list.
+ */
+export function formatLocale(): string {
+  return formatChoice === 'app' ? language : formatChoice === 'system' ? systemLocale ?? language : formatChoice;
+}
+
 const languageListeners = new Set<() => void>();
 /** Runs after each language change, for copy that leaves this document (#855). */
 export function onLanguageChange(listener: () => void): () => void {
@@ -134,6 +156,27 @@ export function setLanguage(next: Language): void {
   for (const listener of languageListeners) {
     try { listener(); } catch { /* One listener cannot block the repaint below. */ }
   }
+  repaint();
+}
+
+/** Appearance › Number and date format; labels keep the app language. */
+export function setFormatChoice(next: FormatChoice): void {
+  formatChoice = next;
+  try { window.localStorage.setItem(FORMAT_KEY, next); } catch { /* The current window still changes format. */ }
+  syncFormatControl();
+  repaint();
+}
+
+/** The operating system's region locale, as the main process reads it; anything else is ignored. */
+export function setSystemLocale(tag: unknown): void {
+  let next: string | null = null;
+  try { next = typeof tag === 'string' && tag ? Intl.getCanonicalLocales(tag)[0] ?? null : null; } catch { /* Not a locale. */ }
+  if (next === systemLocale) return;
+  systemLocale = next;
+  repaint();
+}
+
+function repaint(): void {
   // The document owns the live labels, including hidden settings and collapsed
   // history. Do not index every label ever created: sweeping WeakRefs during
   // rendering keeps their detached DOM trees alive until the job ends and makes
@@ -158,6 +201,33 @@ function syncLanguageControls(): void {
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-language]')) {
     button.setAttribute('aria-pressed', String(button.dataset.language === language));
   }
+}
+
+const FORMAT_SAMPLE = new Date(2026, 9, 20, 15, 30);
+/** "1,234.5 · 10/20/26, 3:30 PM": what a format choice writes. */
+function formatExample(locale: string): string {
+  return `${new Intl.NumberFormat(locale).format(1234.5)} · ${new Intl.DateTimeFormat(locale, { dateStyle: 'short', timeStyle: 'short' }).format(FORMAT_SAMPLE)}`;
+}
+function localeName(locale: string): string {
+  try { return new Intl.DisplayNames(language, { type: 'language' }).of(locale) ?? locale; } catch { return locale; }
+}
+function syncFormatControl(): void {
+  const select = document.getElementById('uiFormatLocale') as HTMLSelectElement | null;
+  if (select) select.value = formatChoice;
+}
+function initFormatControl(): void {
+  const select = document.getElementById('uiFormatLocale') as HTMLSelectElement | null;
+  if (!select) return;
+  const option = (value: FormatChoice, label: () => string): void => {
+    const node = document.createElement('option');
+    node.value = value;
+    select.append(ui(node, 'textContent', label));
+  };
+  option('app', () => `${t('Same as language')} · ${formatExample(language)}`);
+  option('system', () => systemLocale ? `${t('System region')} · ${formatExample(systemLocale)}` : t('System region'));
+  for (const locale of FORMAT_LOCALES) option(locale, () => `${localeName(locale)} · ${formatExample(locale)}`);
+  syncFormatControl();
+  select.addEventListener('change', () => setFormatChoice(parseFormatChoice(select.value)));
 }
 
 /** Run once on the static shell, before any user/provider content is inserted. */
@@ -185,4 +255,5 @@ export function initLanguage(): void {
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-language]')) {
     button.addEventListener('click', () => setLanguage(parseLanguage(button.dataset.language)));
   }
+  initFormatControl();
 }

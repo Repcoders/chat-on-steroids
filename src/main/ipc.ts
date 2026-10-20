@@ -854,6 +854,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     const language = z.enum(UI_LANGUAGES).parse(payload);
     if (getConfig().ui.language !== language) await updateConfig(config => ({ ...config, ui: { ...config.ui, language } }));
   });
+  // Windows' Region format or macOS's Region, which can differ from the language the app speaks.
+  handle('ui:systemLocale', async () => app.getSystemLocale());
   // The one-time offer to turn automatic plugin refresh on (installs from before it existed have
   // it saved as off). Either answer is kept, so the offer never comes back.
   handle('pluginRefresh:offer', async (payload) => {

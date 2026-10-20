@@ -1,5 +1,5 @@
 import { initBrowserSetup } from './setup-browser.js';
-import { currentLanguage, ui, uiText, t, tn, initLanguage, onLanguageChange } from './i18n.js';
+import { currentLanguage, formatLocale, ui, uiText, t, tn, initLanguage, onLanguageChange, setSystemLocale } from './i18n.js';
 import { workerName } from './agent-panel.js';
 import { primaryShiftShortcut, primaryShortcut } from './shortcuts.js';
 import { desktopAccessProblem, paintDesktopAccessNotice } from './desktop-access-notice.js';
@@ -109,6 +109,8 @@ publishMainTexts(texts => api.setMainTexts?.(texts));
 const publishUiLanguage = (): void => { void Promise.resolve(api.setUiLanguage?.(currentLanguage())).catch(() => undefined); };
 publishUiLanguage();
 onLanguageChange(publishUiLanguage);
+// Appearance's "System region" format; until main answers it writes as the app language does.
+void Promise.resolve(api.systemLocale?.()).then(reply => { if (reply?.ok) setSystemLocale(reply.data); }).catch(() => undefined);
 const pet = initPet(api, () => showTab('pets'));
 const settingsSearch = initSettingsSearch({
   open: tab => showTab(tab),
@@ -2319,7 +2321,7 @@ function logRow(entry: LogEntry): HTMLElement {
   const time = document.createElement('time');
   // Bound like other copy, so lines already shown follow a language change instead of keeping
   // the old clock format next to new lines in the new one.
-  ui(time, 'textContent', () => new Date(entry.time).toLocaleTimeString(currentLanguage()));
+  ui(time, 'textContent', () => new Date(entry.time).toLocaleTimeString(formatLocale()));
   line.append(time, el('span', 'what', what), el('span', 'rest', rest));
   return line;
 }
