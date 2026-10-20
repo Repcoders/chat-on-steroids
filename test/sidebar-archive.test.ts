@@ -18,11 +18,14 @@ it('remembers archived chats across a restart and ignores broken or oversized st
   archive.archive('blocked', 'blocked', 20);
   archive.archive('gone', null, 30);
   archive.unarchive('gone');
+  archive.archive('handled', 'approval', 40);
+  archive.settle('handled');
   const saved = dom.window.localStorage.getItem('chat-on-steroids.sidebar-archive')!;
   const again = fixture(saved);
   expect(again.get('kept')).toEqual({ needs: null, activeAt: 10 });
   expect(again.get('blocked')).toEqual({ needs: 'blocked', activeAt: 20 });
   expect(again.get('gone')).toBeUndefined();
+  expect(again.get('handled')).toEqual({ needs: null, activeAt: 40 });
   expect(fixture('{not json').get('kept')).toBeUndefined();
   const mixed = fixture(JSON.stringify([['ok', null, 1], ['x'.repeat(161), null, 1], ['bad-needs', 7, 1], ['no-time', null, 'soon'], 'flat']));
   expect(['ok', 'x'.repeat(161), 'bad-needs', 'no-time', 'flat'].filter(id => mixed.get(id))).toEqual(['ok']);

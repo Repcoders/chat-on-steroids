@@ -991,13 +991,18 @@ function sessionRow(summary: SessionSummary): HTMLElement {
           if (archived) sidebarArchive?.unarchive(summary.id);
           else sidebarArchive?.archive(summary.id, archiveNeeds(summary, workerChildren().get(summary.id)), summary.updatedAt);
           paintSessions();
-          // The keyboard follows the chat to its new place, or stays on the Archived heading when
-          // the chat went behind a closed group.
-          const rebuilt = [...$('sessionList').querySelectorAll<HTMLElement>('.sess')].find(row => row.dataset.id === summary.id);
-          if (rebuilt && !rebuilt.closest('details:not([open])')) {
+          // The keyboard follows the chat to its new place, or to the heading of the closed group
+          // (Archived, or a project) it went behind.
+          const list = $('sessionList');
+          const rebuilt = [...list.querySelectorAll<HTMLElement>('.sess')].find(row => row.dataset.id === summary.id);
+          const hidden = rebuilt?.closest<HTMLDetailsElement>('details:not([open])');
+          if (rebuilt && !hidden) {
             rebuilt.querySelector<HTMLElement>('.sess-top')?.focus({ preventScroll: true });
             rowMenuButton(owner)?.focus({ preventScroll: true });
-          } else $('sessionList').querySelector<HTMLElement>('.sidebar-archive > summary')?.focus({ preventScroll: true });
+          } else {
+            const project = [...list.querySelectorAll<HTMLElement>('.project-group')].find(group => group.dataset.projectId === summary.projectId);
+            (hidden ?? project ?? list.querySelector('.sidebar-archive'))?.querySelector<HTMLElement>(':scope > summary')?.focus({ preventScroll: true });
+          }
         }
       });
     }
@@ -1518,7 +1523,11 @@ function archiveNeeds(summary: SessionSummary, workers: SessionSummary[] = []): 
  */
 function shelved(summary: SessionSummary, workers?: SessionSummary[]): boolean {
   const archived = pinnable(summary) ? sidebarArchive?.get(summary.id) : undefined;
-  return archived !== undefined && !archiveSurfaces(archived, archiveNeeds(summary, workers), summary.updatedAt);
+  if (!archived) return false;
+  const needs = archiveNeeds(summary, workers);
+  // What it was archived with is handled: the next need brings it back, even with no newer activity.
+  if (needs === null && archived.needs !== null) sidebarArchive?.settle(summary.id);
+  return !archiveSurfaces(archived, needs, summary.updatedAt);
 }
 
 /** The archived chats, most recent first, in one group at the end of the sidebar, closed until opened. */
@@ -1540,7 +1549,12 @@ function archiveShelf(entries: SessionSummary[], draw: (entry: SessionSummary) =
     }
   } finally { drawingShelf = false; }
   box.append(heading, ...rows);
-  box.addEventListener('toggle', () => { archiveShelfOpen = box.open; });
+  // As the project folders do: a repaint may replace this node before the native toggle arrives.
+  heading.addEventListener('click', event => {
+    event.preventDefault();
+    archiveShelfOpen = !archiveShelfOpen;
+    box.open = archiveShelfOpen;
+  });
   return box;
 }
 
@@ -1988,7 +2002,7 @@ function paintSessions(): void {
   // Store lightweight owners until the visible page is known. Creating DOM for
   // hundreds of older, off-page project tasks on every activity push stalls the renderer
   // even though those nodes are immediately discarded by the project page limit.
-  const projectRows = new Map<string, Array<{ entry: SessionSummary; workers?: SessionSummary[]; selected: boolean }>>();
+  const projectRows = new Map<string, Array<{ entry: SessionSummary; workers?: SessionSummary[]; selected: boolean; surfaced: boolean }>>();
   const diagnostics: SessionSummary[] = [], shelf: SessionSummary[] = [];
   // Pinned chats lead their own list (#1133). Resolve project membership once for
   // this paint: scanning all sessions for each project and then searching the project
@@ -2019,7 +2033,9 @@ function paintSessions(): void {
     if (shelved(entry, workers)) { shelf.push(entry); continue; }
     if (projectId) {
       const tasks = projectRows.get(projectId) ?? [];
-      tasks.push({ entry, workers, selected: entry.id === selectedId || workers?.some(worker => worker.id === selectedId) === true });
+      tasks.push({ entry, workers, selected: entry.id === selectedId || workers?.some(worker => worker.id === selectedId) === true,
+        // Back from Archived for what it needs: drawn past the page limit too.
+        surfaced: sidebarArchive?.get(entry.id) !== undefined });
       projectRows.set(projectId, tasks);
     } else {
       const row = sessionRow(entry); rows.push(row);
@@ -2075,7 +2091,7 @@ function paintSessions(): void {
     }
     const tasks = projectRows.get(id) ?? [];
     const count = projectVisibleCounts.get(id) ?? PROJECT_TASK_PAGE_SIZE;
-    const shown = tasks.filter((task, index) => index < count || task.selected);
+    const shown = tasks.filter((task, index) => index < count || task.selected || task.surfaced);
     const shownRows: HTMLElement[] = [];
     for (const task of shown) {
       const row = sessionRow(task.entry);

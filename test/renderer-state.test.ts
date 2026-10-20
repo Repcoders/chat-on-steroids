@@ -1129,6 +1129,95 @@ it('brings an archived chat back to its list, tree and inbox, while it needs app
   expect(doc.querySelector('#chatList > :last-child')?.classList.contains('sidebar-archive')).toBe(true);
 });
 
+it('keeps the Archived group as clicked when a repaint lands before its toggle event', async () => {
+  const now = Date.now();
+  const sessions = [inboxChat('a1', { updatedAt: now - 2000 }), inboxChat('a2', { updatedAt: now - 1000 }), inboxChat('a3', { updatedAt: now })];
+  const mounted = await mountChat({}, [], { listSessions: async () => listed(sessions) });
+  const doc = mounted.window.document;
+  const shelf = () => doc.querySelector<HTMLDetailsElement>('#chatList > details.sidebar-archive')!;
+  await vi.waitFor(() => expect(doc.querySelector('#chatList > .sess[data-id="a1"]')).not.toBeNull());
+  rowMenuItem(doc.querySelector('#chatList > .sess[data-id="a1"]')!, 'archive')!.click();
+  shelf().querySelector<HTMLElement>(':scope > summary')!.click();
+  // The repaint replaces the group before the native toggle event of the click is delivered.
+  rowMenuItem(doc.querySelector('#chatList > .sess[data-id="a2"]')!, 'archive')!.click();
+  await settle();
+  expect(shelf().open).toBe(true);
+  shelf().querySelector<HTMLElement>(':scope > summary')!.click();
+  rowMenuItem(doc.querySelector('#chatList > .sess[data-id="a3"]')!, 'archive')!.click();
+  await settle();
+  expect(shelf().open).toBe(false);
+});
+
+it('gives focus to the closed project a chat was unarchived into when the Archived group is gone', async () => {
+  const { project, session } = projectSidebarFixture();
+  const mounted = await mountChat({}, [], {
+    listProjects: async () => ({ ok: true, data: [project] }),
+    listSessions: async () => listed([session, inboxChat('loose', { updatedAt: 1 })])
+  });
+  const doc = mounted.window.document;
+  const group = () => doc.querySelector<HTMLDetailsElement>(`[data-project-id="${project.id}"]`)!;
+  await vi.waitFor(() => expect(group()?.querySelector(`.sess[data-id="${session.id}"]`)).not.toBeNull());
+  rowMenuItem(group().querySelector(`.sess[data-id="${session.id}"]`)!, 'archive')!.click();
+  expect(group().querySelector('.sess')).toBeNull();
+  const unarchive = rowMenuItem(doc.querySelector(`.sidebar-archive .sess[data-id="${session.id}"]`)!, 'archive')!;
+  unarchive.click();
+  expect(doc.querySelector('.sidebar-archive')).toBeNull();
+  expect(group().open).toBe(false);
+  expect(doc.activeElement).toBe(group().querySelector(':scope > summary'));
+});
+
+it('brings an archived chat back when it is blocked again after a release, with no newer activity', async () => {
+  let blocked = ['c-a1'];
+  let changed: () => void = () => undefined;
+  let reads = 0;
+  const sessions = [inboxChat('a1', { updatedAt: 100 }), inboxChat('a2', { updatedAt: 200 })];
+  const mounted = await mountChat({}, [], {
+    listSessions: async () => { reads++; return listed(sessions, { blocked }); },
+    onSessionChanged: (fn: () => void) => { changed = fn; return () => undefined; }
+  });
+  const doc = mounted.window.document;
+  const treeIds = () => [...doc.querySelectorAll<HTMLElement>('#chatList > .sess')].map(row => row.dataset.id);
+  await vi.waitFor(() => expect(treeIds()).toEqual(['a1', 'a2']));
+  // Archived while blocked: it stays archived.
+  rowMenuItem(doc.querySelector('#chatList > .sess[data-id="a1"]')!, 'archive')!.click();
+  expect(treeIds()).toEqual(['a2']);
+  blocked = [];
+  const before = reads;
+  changed();
+  await vi.waitFor(() => expect(reads).toBeGreaterThan(before));
+  await settle();
+  expect(treeIds()).toEqual(['a2']);
+  // Blocked again: a new block, though the chat's own activity time did not move.
+  blocked = ['c-a1'];
+  changed();
+  await vi.waitFor(() => expect(treeIds()).toEqual(['a1', 'a2']));
+});
+
+it('draws an archived project chat that needs approval even past the project page limit', async () => {
+  const { project, session } = projectSidebarFixture();
+  let approval: string[] = [];
+  let changed: () => void = () => undefined;
+  const now = Date.now();
+  const tasks = Array.from({ length: 6 }, (_, index) => ({ ...session, id: `p${index}`, title: `p${index}`,
+    conversationId: `c-p${index}`, chatIds: [`c-p${index}`], updatedAt: now - index * 1000 }));
+  const mounted = await mountChat({}, [], {
+    listProjects: async () => ({ ok: true, data: [project] }),
+    listSessions: async () => listed(tasks, { approval }),
+    onSessionChanged: (fn: () => void) => { changed = fn; return () => undefined; }
+  });
+  const doc = mounted.window.document;
+  const drawn = () => [...doc.querySelectorAll<HTMLElement>(`[data-project-id="${project.id}"] > .sess`)].map(row => row.dataset.id);
+  await vi.waitFor(() => expect(drawn()).toEqual(['p0', 'p1', 'p2', 'p3', 'p4']));
+  rowMenuItem(doc.querySelector(`[data-project-id="${project.id}"] > .sess[data-id="p4"]`)!, 'archive')!.click();
+  expect(drawn()).toEqual(['p0', 'p1', 'p2', 'p3', 'p5']);
+  // Newer chats start in the project, so the archived one is far down the list when it needs approval.
+  tasks.unshift(...['n1', 'n2'].map((id, index) => ({ ...session, id, title: id, conversationId: `c-${id}`, chatIds: [`c-${id}`], updatedAt: now + 1000 * (2 - index) })));
+  approval = ['c-p4'];
+  changed();
+  await vi.waitFor(() => expect(drawn()).toContain('p4'));
+  expect(doc.querySelector('.sidebar-archive')).toBeNull();
+});
+
 it('shows unattributed activity at the end of the inbox, as the tree does, with its Allow/Block switch', async () => {
   const loose = inboxChat('loose', { title: 'Unattributed activity', conversationId: null, chatIds: [] });
   let rows: unknown[] = [loose];

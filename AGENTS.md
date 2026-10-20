@@ -4116,8 +4116,12 @@ needing it) and its `updatedAt` when archived. It is local only: nothing reaches
 in the tree and the Inbox, for one closed Archived group (`.sidebar-archive`, window-local open
 state) at the end of the chat list, most recent first, its workers under it. Only pinnable chats can
 be archived. One that needs something it did not when archived, or the same need again after newer
-activity (`archiveSurfaces`), is drawn in its list until that is handled. Its menu there offers
-Archive again, which records the need it has now; only rows in the Archived group offer Unarchive.
+activity (`archiveSurfaces`), is drawn in its list until that is handled, past its project's page
+limit too. Once what it was archived with is handled (`settle`), any later need brings it back. Its
+menu there offers Archive again, which records the need it has now; only rows in the Archived group
+offer Unarchive. The group's open state changes on the summary's click, as project folders do, and
+focus follows the chat or goes to the heading of the closed group it went behind. Tests:
+`test/sidebar-archive.test.ts` and the archive tests in `test/renderer-state.test.ts`.
 The worker drawer is a read-only split view of the selected worker's own recorded conversation;
 opening it never switches the prime composer. Its cards show the scoped worker id, task, observed
 current-conversation model and broker status when known, falling back to recorded session activity.

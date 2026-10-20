@@ -52,6 +52,11 @@ export function createSidebarArchive() {
       archived.set(id, { needs, activeAt });
       save();
     },
+    /** What the chat was archived with is handled: from now on any need brings it back. Keeps its place at the bound. */
+    settle(id: string): void {
+      const entry = archived.get(id);
+      if (entry && entry.needs !== null) { entry.needs = null; save(); }
+    },
     unarchive(id: string): void {
       if (archived.delete(id)) save();
     }
