@@ -2822,5 +2822,9 @@
   "Chats sit under their project folders.": "Sohbetler proje klasörlerinin altında durur.",
   "All chats in one list, active ones on top.": "Tüm sohbetler tek listede, etkin olanlar üstte.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Bir sohbetin aynı anda çalıştırabileceği en fazla yardımcı ajan sohbeti sayısı. Bağlı tarayıcı eklentisi gerekir.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Uzun işler, bir araç sonucundan hemen sonra otomatik Devam ile yeni bir turda sürer. Kısa turlar daha az kesilir. Hedef ve Döngü sohbetlerinde de kullanılır; Pro modellerde ve yardımcı ajanların kendi sohbetlerinde kullanılmaz."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Uzun işler, bir araç sonucundan hemen sonra otomatik Devam ile yeni bir turda sürer. Kısa turlar daha az kesilir. Hedef ve Döngü sohbetlerinde de kullanılır; Pro modellerde ve yardımcı ajanların kendi sohbetlerinde kullanılmaz.",
+  "Note to {0}": "{0} için not",
+  "Send note": "Notu gönder",
+  "Also tell the main chat": "Ana sohbete de söyle",
+  "I sent {0} this note directly: {1}": "Bu notu doğrudan {0} adlı ajana gönderdim: {1}"
 }

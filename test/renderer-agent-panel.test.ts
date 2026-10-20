@@ -1,6 +1,6 @@
 import { JSDOM } from 'jsdom';
 import { afterEach, expect, it, vi } from 'vitest';
-import { createAgentPanel } from '../src/renderer/agent-panel.js';
+import { createAgentPanel, workerNoteMessages } from '../src/renderer/agent-panel.js';
 import type { SessionSummary } from '../src/shared/session.js';
 import { workerBrief } from '../src/shared/worker-brief.js';
 
@@ -492,4 +492,58 @@ it('keeps a failed worker\'s last action in the roster', () => {
   toggle.click();
   expect(document.querySelector('.agent-card-last')?.textContent).toBe('Last action: Ran npm test');
   expect(document.querySelector('.agent-card-activity')).toBeNull();
+});
+
+it('takes a note in the row of a working worker, keeps it through repaints, and empties it once sent (#59)', async () => {
+  dom = new JSDOM('<main></main><button></button>');
+  Object.assign(globalThis, { document: dom.window.document });
+  const toggle = document.querySelector('button')!;
+  let answer!: (sent: boolean) => void;
+  const sendNote = vi.fn(() => new Promise<boolean>(done => { answer = done; }));
+  const panel = createAgentPanel({ host: document.querySelector('main')!, toggle, load: async () => null, render: () => [], openMain: vi.fn(), working: () => true,
+    agent: worker => ({ state: worker.id === 'busy' ? 'active' : 'sleeping', task: 'Placeholder task', conversationId: 'c' }), sendNote });
+  const worker = (id: string, agentId: string, updatedAt = 1) => ({ id, title: agentId, updatedAt, startedAt: 0, conversationId: 'c',
+    origin: { kind: 'worker', fromSessionId: 'prime', agentId } }) as unknown as SessionSummary;
+  panel.update('prime', [worker('busy', 'worker-1'), worker('idle', 'worker-2')]);
+  toggle.click();
+  // Only the working worker takes a note; an idle one is reached by opening its chat.
+  const forms = () => [...document.querySelectorAll<HTMLFormElement>('.agent-note')];
+  expect(forms().map(form => form.dataset.workerSession)).toEqual(['busy']);
+  const field = () => forms()[0]!.querySelector<HTMLInputElement>('.agent-note-input')!;
+  expect(field().placeholder).toBe('Note to Worker 1');
+  field().focus(); field().value = 'Use the placeholder branch';
+  field().dispatchEvent(new dom.window.Event('input'));
+  field().setSelectionRange(4, 4);
+  // A worker update rebuilds the roster: the words, the focus and the caret stay.
+  panel.update('prime', [worker('busy', 'worker-1', 2), worker('idle', 'worker-2', 2)]);
+  expect(field().value).toBe('Use the placeholder branch');
+  expect(document.activeElement).toBe(field());
+  expect(field().selectionStart).toBe(4);
+  const copy = forms()[0]!.querySelector<HTMLInputElement>('.agent-note-copy-box')!;
+  copy.checked = true; copy.dispatchEvent(new dom.window.Event('change'));
+  forms()[0]!.querySelector<HTMLButtonElement>('.agent-note-send')!.click();
+  expect(sendNote).toHaveBeenCalledWith({ sessionId: 'busy', identity: 'worker-1', text: 'Use the placeholder branch', copy: true });
+  expect(field().readOnly).toBe(true);
+  forms()[0]!.querySelector<HTMLButtonElement>('.agent-note-send')!.click();
+  expect(sendNote).toHaveBeenCalledTimes(1);
+  answer(true); await Promise.resolve(); await Promise.resolve();
+  expect(field().value).toBe('');
+  expect(field().readOnly).toBe(false);
+  expect(forms()[0]!.querySelector<HTMLInputElement>('.agent-note-copy-box')!.checked).toBe(true);
+  // A refused note keeps its words to send again.
+  field().value = 'Second placeholder note'; field().dispatchEvent(new dom.window.Event('input'));
+  forms()[0]!.querySelector<HTMLButtonElement>('.agent-note-send')!.click();
+  answer(false); await Promise.resolve(); await Promise.resolve();
+  expect(field().value).toBe('Second placeholder note');
+});
+
+it('sends a worker note to its own chat, and its copy to the prime as an ordinary message (#59)', () => {
+  const worker = { id: 'worker-session', projectId: 'project-a' }, prime = { id: 'prime-session' };
+  expect(workerNoteMessages({ worker, prime, identity: 'worker-2', text: 'Skip the {1} fixture', copy: false }))
+    .toEqual([{ sessionId: 'worker-session', projectId: 'project-a', text: 'Skip the {1} fixture' }]);
+  expect(workerNoteMessages({ worker, prime, identity: 'worker-2', text: 'Skip the {1} fixture', copy: true })).toEqual([
+    { sessionId: 'worker-session', projectId: 'project-a', text: 'Skip the {1} fixture' },
+    { sessionId: 'prime-session', projectId: null, text: 'I sent worker-2 this note directly: Skip the {1} fixture' }
+  ]);
+  expect(workerNoteMessages({ worker, prime: null, identity: 'worker-2', text: 'Placeholder', copy: true })).toHaveLength(1);
 });
