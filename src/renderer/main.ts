@@ -59,7 +59,7 @@ import {
 } from '../shared/types.js';
 import type { SwarmState } from '../shared/session.js';
 import { $, ago, disclosureChevron, el, icon, run, shortAgo, toast } from './dom.js';
-import { chatApply, chatSettingsPatch, chatVisible, initChat, openChatSearch, openChatView } from './chat.js';
+import { chatApply, chatSettingsPatch, chatVisible, initChat, openAnswerLink, openChatSearch, openChatView } from './chat.js';
 import { publishStopNoticeTexts } from './stop-notices.js';
 import { publishMainTexts } from './main-texts.js';
 import { paintSharedTunnel } from './tunnel-warning.js';
@@ -2855,6 +2855,8 @@ initPets(api, pet);
 openSkillsLibrary = initSkillsLibrary(api);
 initBrowserPreferences();
 initChat({ save: () => save(), state: () => state });
+// An answer link the app was opened with: the chat page, at that answer.
+api.onOpenAnswerLink(link => { showTab('chat'); void openAnswerLink(link); });
 
 void (async () => {
   await refresh();

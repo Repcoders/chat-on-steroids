@@ -166,7 +166,7 @@ async function settleHistoryFrame(w: Pick<Window, 'requestAnimationFrame'>): Pro
   await settle();
 }
 
-async function boot(events: SessionEvent[], selectExisting = true, pausedHelpers: Array<{ id: string; sourceSessionId: string }> = [], projects: LocalProject[] = [], options: { origin?: SessionSummary["origin"]; developerMode?: boolean; playfulStatus?: boolean; followOutput?: boolean; followUp?: 'steer' | 'queue'; enterSends?: boolean; sessions?: SessionSummary[]; pro?: boolean; astra?: boolean; reserveOpenings?: boolean; handoff?: Handoff | null; deferProcessStop?: boolean; defaultChatModel?: string; noModels?: boolean; approvalCard?: () => unknown; answerApproval?: (id: string, cardId: string, choice: string) => unknown; summary?: Partial<SessionSummary>; holdInputs?: Promise<void> } = {}) {
+async function boot(events: SessionEvent[], selectExisting = true, pausedHelpers: Array<{ id: string; sourceSessionId: string }> = [], projects: LocalProject[] = [], options: { origin?: SessionSummary["origin"]; developerMode?: boolean; playfulStatus?: boolean; followOutput?: boolean; followUp?: 'steer' | 'queue'; enterSends?: boolean; sessions?: SessionSummary[]; pro?: boolean; astra?: boolean; reserveOpenings?: boolean; handoff?: Handoff | null; deferProcessStop?: boolean; defaultChatModel?: string; noModels?: boolean; approvalCard?: () => unknown; answerApproval?: (id: string, cardId: string, choice: string) => unknown; summary?: Partial<SessionSummary>; holdInputs?: Promise<void>; listSessions?: (args?: unknown) => Promise<unknown> } = {}) {
   const html = await fs.readFile(path.join(process.cwd(), 'src', 'renderer', 'index.html'), 'utf8');
   dom = new JSDOM(html, { url: 'https://local.test/', pretendToBeVisual: true });
   const w = dom.window;
@@ -219,6 +219,7 @@ async function boot(events: SessionEvent[], selectExisting = true, pausedHelpers
   const live = { events: [...events], inputs: [] as InputEntry[], sent: [] as InputArgs[], automation: 'off', controlCalls: [] as Array<{ id: string; action: string }>, compacting: false, finishHeld: true };
   let sessionListener: (change?: unknown) => void = () => undefined;
   let writeSessionListener: (id: string) => void = () => undefined;
+  let answerLinkListener: (link: { sessionId: string; messageId: string }) => void = () => undefined;
   let backgroundProcessListener: () => void = () => undefined;
   let backgroundProcesses: Array<{ processId: number; incarnation: number; command: string; startedAt: number; tty: boolean }> = [];
   let resolveBackgroundStop: (() => void) | null = null;
@@ -249,7 +250,13 @@ async function boot(events: SessionEvent[], selectExisting = true, pausedHelpers
         writeSessionListener = fn;
         return () => undefined;
       },
-      listSessions: () => {
+      onOpenAnswerLink: (fn: (link: { sessionId: string; messageId: string }) => void) => {
+        answerLinkListener = fn;
+        return () => undefined;
+      },
+      listSessions: (args?: unknown) => {
+        // `listSessions`: the test answers the sidebar's reads itself, the first one included.
+        if (options.listSessions) return options.listSessions(args);
         const sessions = options.sessions ?? [{ ...summary(live.events), ...options.summary, ...(options.origin ? { origin: options.origin } : {}), ...(projects[0] ? { projectId: projects[0].id } : {}) }];
         const known = new Set(sessions.map(row => row.id));
         const openings = live.inputs.filter(row => row.opening && row.sessionId && !known.has(row.sessionId)).map(row => ({
@@ -347,6 +354,7 @@ async function boot(events: SessionEvent[], selectExisting = true, pausedHelpers
     // changes every transcript it can show. Payload-less pushes are catalog/control only.
     notifySession: () => sessionListener({ allTranscripts: true }),
     writeSession: (id: string) => writeSessionListener(id),
+    openAnswerLink: (link: { sessionId: string; messageId: string }) => answerLinkListener(link),
     progress: (value: any) => { for (const listener of taskProgressListeners) listener(value); },
     resolveBackgroundStop: () => { const resolve = resolveBackgroundStop; resolveBackgroundStop = null; resolve?.(); },
     async publishBackgroundProcesses(rows: Array<{ processId: number; incarnation: number; command: string; startedAt: number; tty: boolean }>) {
@@ -6359,6 +6367,104 @@ it.each([true, false])('runs the highlighted slash command with Enter whatever E
   expect(app.live.sent).toHaveLength(0);
   expect(app.w.document.getElementById('contextMeterButton')!.getAttribute('aria-expanded')).toBe('true');
   expect(input.value).toBe('');
+});
+
+describe('answer links', () => {
+  const replyId = '2b06482d-0dc6-4847-bf7a-2e1a0f671e89';
+  const ask: SessionEvent = { kind: 'user_message', seq: 1, origin: 1, time: T0, source: 'extension', turnId: 'done-turn', messageId: 'ask', message: text('Plan the release') };
+  const reply = (messageId = replyId): SessionEvent => ({ kind: 'assistant_message', seq: 2, time: T0 + 1_000, source: 'extension', turnId: 'done-turn', messageId, message: text('Tag first, then build.'), final: true, state: 'final' });
+  const end: SessionEvent = { seq: 3, time: T0 + 2_000, source: 'extension', kind: 'turn_end', turnId: 'done-turn', outcome: 'completed' };
+  const linkButton = (w: { document: Document }) => w.document.querySelector<HTMLButtonElement>('.answer-actions .answer-link');
+
+  it('copies an app link to the answer', async () => {
+    const { w } = await boot([ask, reply(), end]);
+    const api = (w as any).api;
+    api.writeClipboard = vi.fn(async () => ({ ok: true, data: true }));
+    const button = linkButton(w)!;
+    expect(button.getAttribute('aria-label')).toBe('Copy link to answer');
+    button.click(); await settle();
+    expect(api.writeClipboard).toHaveBeenCalledWith(`chat-on-steroids://answer/${summary([]).id}/${replyId}`);
+    expect(w.document.querySelector('.toast')?.textContent).toContain('Link copied');
+  });
+
+  it('offers no link for an answer without a native id', async () => {
+    const { w } = await boot([ask, reply('assistant:interim:1'), end]);
+    expect(w.document.querySelector('.answer-actions')).not.toBeNull();
+    expect(linkButton(w)).toBeNull();
+  });
+
+  it('opens the linked chat at the answer, even one the sidebar has not loaded', async () => {
+    const other = { ...summary([]), id: '2026-10-17-other001', title: 'Other chat' };
+    const { w, openAnswerLink } = await boot([ask, reply(), end], false, [], [], { sessions: [other] });
+    const api = (w as any).api;
+    const getSession = api.getSession;
+    api.getSession = vi.fn(getSession);
+    api.locateMessage = vi.fn(async () => ({ ok: true, data: { seq: 2, kind: 'assistant_message', messageId: replyId, position: 2 } }));
+    const linked = summary([]).id;
+    openAnswerLink({ sessionId: linked, messageId: replyId }); await settle(); await settle();
+    expect(api.getSession).toHaveBeenCalledWith(linked, { limit: 1 });
+    expect(api.locateMessage).toHaveBeenCalledWith(linked, replyId);
+    expect(w.document.querySelector(`.sess.is-sel[data-id="${linked}"]`)).not.toBeNull();
+    expect(w.document.querySelector('#timeline .is-search-hit')?.textContent).toContain('Tag first, then build.');
+  });
+
+  it('lets the newest link win when an older one is still reading its chat', async () => {
+    const other = { ...summary([]), id: '2026-10-17-other001', title: 'Other chat' };
+    const { w, openAnswerLink } = await boot([ask, reply(), end], false, [], [], { sessions: [other] });
+    const api = (w as any).api;
+    const getSession = api.getSession;
+    let release!: () => void;
+    const held = new Promise<void>(resolve => { release = resolve; });
+    api.getSession = vi.fn(async (...args: unknown[]) => { await held; return getSession(...args); });
+    api.locateMessage = vi.fn(async () => ({ ok: true, data: { seq: 2, kind: 'assistant_message', messageId: replyId, position: 2 } }));
+    const linked = summary([]).id;
+    // The first link points at a chat the sidebar has not loaded; the second opens while it is read.
+    openAnswerLink({ sessionId: linked, messageId: replyId }); await settle();
+    openAnswerLink({ sessionId: other.id, messageId: replyId }); await settle(); await settle();
+    release(); await settle(); await settle();
+    expect(w.document.querySelector(`.sess.is-sel[data-id="${other.id}"]`)).not.toBeNull();
+    expect(api.locateMessage).not.toHaveBeenCalledWith(linked, replyId);
+    expect(api.locateMessage).toHaveBeenCalledWith(other.id, replyId);
+  });
+
+  it('keeps the sidebar paging when a link opened the app before its first page arrived', async () => {
+    const newest = { ...summary([]), updatedAt: T0 + 2 };
+    const older = { ...summary([]), id: '2026-10-17-older001', title: 'Older chat', updatedAt: T0 + 1 };
+    let release!: () => void;
+    const firstPage = new Promise<void>(resolve => { release = resolve; });
+    const page = (sessions: SessionSummary[], nextCursor: unknown) => ({ ok: true, data: { sessions, total: 2, nextCursor, activeId: null, pressure: [], blocked: [] } });
+    const listSessions = vi.fn(async (args?: unknown) => {
+      if ((args as { cursor?: unknown } | undefined)?.cursor) return page([older], null);
+      await firstPage;
+      return page([newest], { updatedAt: newest.updatedAt, id: newest.id });
+    });
+    const { w, openAnswerLink } = await boot([ask, reply(), end], false, [], [], { listSessions });
+    (w as any).api.locateMessage = vi.fn(async () => ({ ok: true, data: { seq: 2, kind: 'assistant_message', messageId: replyId, position: 2 } }));
+    openAnswerLink({ sessionId: newest.id, messageId: replyId }); await settle();
+    release(); await settle(); await settle();
+    expect(w.document.querySelector(`.sess.is-sel[data-id="${newest.id}"]`)).not.toBeNull();
+    w.document.getElementById('sessionList')!.closest('.scroll')!.dispatchEvent(new w.Event('scroll'));
+    await settle();
+    expect(listSessions).toHaveBeenCalledWith(expect.objectContaining({ cursor: { updatedAt: newest.updatedAt, id: newest.id } }));
+    expect(w.document.querySelector(`[data-id="${older.id}"]`)).not.toBeNull();
+  });
+
+  it('says so when the linked chat was removed or no longer holds the answer', async () => {
+    const { w, openAnswerLink } = await boot([ask, reply(), end], false);
+    const api = (w as any).api;
+    api.getSession = vi.fn(async () => ({ ok: false, error: 'Session not found' }));
+    openAnswerLink({ sessionId: '2026-10-17-removed1', messageId: replyId }); await settle();
+    expect(w.document.querySelector('.toast')?.textContent).toContain('The chat this link points to was removed');
+    expect(w.document.querySelector('.sess.is-sel')).toBeNull();
+    // A read that failed for another reason says that reason, not that the chat is gone.
+    api.getSession = vi.fn(async () => ({ ok: false, error: 'Disk read failed' }));
+    openAnswerLink({ sessionId: '2026-10-17-unread01', messageId: replyId }); await settle();
+    expect(w.document.querySelector('.toast')?.textContent).toContain('Disk read failed');
+    api.locateMessage = vi.fn(async () => ({ ok: true, data: null }));
+    openAnswerLink({ sessionId: summary([]).id, messageId: replyId }); await settle();
+    expect(w.document.querySelector(`.sess.is-sel[data-id="${summary([]).id}"]`)).not.toBeNull();
+    expect([...w.document.querySelectorAll('.toast')].map(node => node.textContent).join(' ')).toContain('This answer is no longer in the chat');
+  });
 });
 
 describe('branch in new chat (#482)', () => {

@@ -255,7 +255,8 @@ describe('Windows login startup', () => {
     const handler = source.slice(start, source.indexOf('\n});', start) + 4);
     let received!: (event: unknown, argv: string[]) => void;
     const request = vi.fn();
-    vm.runInNewContext(handler, { app: { on: (_: string, listener: typeof received) => { received = listener; } }, windowActivation: { request }, isBackgroundLaunch });
+    vm.runInNewContext(handler, { app: { on: (_: string, listener: typeof received) => { received = listener; } }, windowActivation: { request }, isBackgroundLaunch,
+      answerLinkInArgv: () => null, answerLinks: { open: vi.fn() } });
     received({}, ['app.exe', '--background']);
     expect(request).not.toHaveBeenCalled();
     received({}, ['app.exe']);
