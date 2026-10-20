@@ -514,7 +514,6 @@ export async function setProjectGitStaged(projectId: string, relativePath: strin
   const change = snapshot.changes.find(entry => entry.path === relativePath);
   if (!change) throw new Error('This file is no longer changed');
   if (change.status === 'C') throw new Error('Resolve this conflict before staging it');
-  // A rename is only reported once the index holds it, so only unstaging has its old path to restore.
   const paths = [change.path, ...(change.previousPath ? [change.previousPath] : [])];
   if (staged) {
     // `git add` runs the clean filter .gitattributes picks, a command from .git/config; both are
@@ -525,9 +524,20 @@ export async function setProjectGitStaged(projectId: string, relativePath: strin
     if (driver && !['unspecified', 'unset', 'set'].includes(driver)) {
       throw new Error('This file goes through a Git filter, which Review does not run. Stage it from a terminal.');
     }
-    await gitWrite(context, ['add', '--all', '--', change.path]);
+    // A rename the working tree holds (` R`) still has its old path in the index, to stage as removed;
+    // one the index already holds (`RM`) does not, and naming it would fail.
+    const old = change.previousPath
+      ? await runGit(context.projectReal, ['--literal-pathspecs', 'ls-files', '--error-unmatch', '--', change.previousPath], 64 * 1024)
+      : null;
+    await gitWrite(context, ['add', '--all', '--', ...(old?.code === 0 ? paths : [change.path])]);
+  } else if (await headExists(context)) {
+    // A mixed reset refreshes the index afterwards, which hashes working files through their clean
+    // filter. Git before 2.36 has no --no-refresh, and there --quiet already skips the refresh.
+    await gitWrite(context, ['reset', '--quiet', '--no-refresh', '--', ...paths]).catch(async (error: Error) => {
+      if (!/no-refresh/.test(error.message)) throw error;
+      await gitWrite(context, ['reset', '--quiet', '--', ...paths]);
+    });
   }
-  else if (await headExists(context)) await gitWrite(context, ['reset', '--quiet', '--', ...paths]);
   // Before the first commit there is no HEAD to reset to; unstaging removes the index entry.
   // --force skips rm's comparison with the working file, which could run a filter too.
   else await gitWrite(context, ['rm', '--cached', '--force', '--quiet', '--ignore-unmatch', '--', ...paths]);

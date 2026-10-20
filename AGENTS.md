@@ -4555,7 +4555,9 @@ literal pathspecs), and a commit box commits the index (`projectGit:commit`). Bo
 `core.hooksPath` to the null device and turn commit signing off: hooks and `gpg.program` are
 repository files an agent can write, so a click never runs them. For the same reason a file whose
 `filter` attribute names a driver is not staged (Git cannot stage it without running the clean
-filter). Main rereads Git before each write: a file must still be a current change. A commit reads the index once with `write-tree`,
+filter), and unstaging passes `--no-refresh` so the reset does not hash working files through
+one. Staging a rename the working tree holds also stages its old path's removal. Main rereads Git
+before each write: a file must still be a current change. A commit reads the index once with `write-tree`,
 checks that tree (exactly the paths the renderer showed as staged, nothing outside the Local
 Project, no conflict, no merge/rebase/cherry-pick in progress), then makes it with `commit-tree`
 and moves HEAD with `update-ref` from the checked parent, so a file staged meanwhile is not

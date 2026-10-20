@@ -458,3 +458,39 @@ it('refuses to stage a file that goes through a Git filter instead of running th
   await setProjectGitStaged(id, '.gitattributes', true);
   expect((await readProjectGitSnapshot(id)).changes.find(change => change.path === '.gitattributes')).toMatchObject({ staged: 'all' });
 });
+
+it('unstages a filtered file without the index refresh that would run its clean filter', async () => {
+  const { root, id } = await committedProject();
+  await fs.writeFile(path.join(root, '.gitattributes'), '*.dat filter=demo\n');
+  await fs.writeFile(path.join(root, 'data.dat'), 'first\n');
+  await git(root, 'add', '.gitattributes', 'data.dat'); await git(root, 'commit', '-m', 'data');
+  await fs.writeFile(path.join(root, 'data.dat'), 'second\n');
+  // An older file time keeps the staged entry from looking racily clean, so Review's own status read
+  // has no reason to hash the file; only a refresh after the reset would.
+  const past = new Date(Date.now() - 3_600_000);
+  await fs.utimes(path.join(root, 'data.dat'), past, past);
+  await git(root, 'add', 'data.dat');
+  // The driver appears only now, after the file was staged elsewhere.
+  const marker = path.join(directory, 'filtered.txt');
+  const filter = path.join(directory, 'filter.sh');
+  await fs.writeFile(filter, `#!/bin/sh\necho ran >> '${marker.split(path.sep).join('/')}'\ncat\n`, { mode: 0o755 });
+  await git(root, 'config', 'filter.demo.clean', `sh '${filter.split(path.sep).join('/')}'`);
+
+  await setProjectGitStaged(id, 'data.dat', false);
+  await expect(fs.readFile(marker, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+  expect((await exec('git', ['diff', '--cached', '--name-only'], { cwd: root })).stdout.trim()).toBe('');
+});
+
+it('stages both sides of a rename Git found in the working tree', async () => {
+  const { root, id } = await committedProject();
+  await fs.rename(path.join(root, 'old-name.ts'), path.join(root, 'new-name.ts'));
+  await git(root, 'add', '-N', 'new-name.ts');
+  const before = (await readProjectGitSnapshot(id)).changes.find(change => change.path === 'new-name.ts');
+  expect(before).toMatchObject({ status: 'R', previousPath: 'old-name.ts' });
+  expect(before?.staged).toBeUndefined();
+
+  await setProjectGitStaged(id, 'new-name.ts', true);
+  const after = (await readProjectGitSnapshot(id)).changes;
+  expect(after.find(change => change.path === 'new-name.ts')).toMatchObject({ status: 'R', previousPath: 'old-name.ts', staged: 'all' });
+  expect(after.some(change => change.path === 'old-name.ts')).toBe(false);
+});
