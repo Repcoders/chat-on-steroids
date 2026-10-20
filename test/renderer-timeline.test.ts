@@ -548,6 +548,25 @@ it('outlines the open chat in the Chat map and scrolls the timeline to the round
   expect(labels()).toEqual(['1Fix the failing tests', 'Ran npm run lint21 failed', '2Now the docsEdited', 'Something went wrong']);
 });
 
+it('ignores a Chat map click while another chat is still loading', async () => {
+  const rows: SessionEvent[] = [{ seq: 1, time: T0, source: 'extension', kind: 'user_message', messageId: 'map-a', message: text('Previous chat') }];
+  const first = summary(rows), second = { ...summary([]), id: 'other', title: 'Other session' };
+  const { w } = await boot(rows, true, [], [], { sessions: [first, second] });
+  w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: '%', code: 'Digit5', ctrlKey: true, shiftKey: true, bubbles: true }));
+  const node = w.document.querySelector<HTMLButtonElement>('#workDockRight .chat-map-node')!;
+  expect(node.textContent).toBe('1Previous chat');
+  (w as any).api.getSession = () => new Promise(() => {});
+  (w.document.querySelector(`#sessionList [data-id="${second.id}"]`) as HTMLElement).click();
+  await settle();
+  // The previous chat's rows stay on screen, inert, until the new one arrives; a jump into them would
+  // stop the chat being opened from following its end.
+  const row = w.document.querySelector<HTMLElement>('#timeline .ev-user_message')!;
+  const scrolled = vi.spyOn(row, 'scrollIntoView');
+  node.click();
+  expect(scrolled).not.toHaveBeenCalled();
+  expect(row.classList.contains('is-search-hit')).toBe(false);
+});
+
 it('patches native reactions in place and hides streamed envelopes without changing authored messages', async () => {
   const user: SessionEvent = { kind: 'user_message', seq: 1, origin: 1, time: T0, source: 'extension', messageId: 'reaction-user', message: text('Question') };
   const answer: SessionEvent = { kind: 'assistant_message', seq: 2, time: T0 + 1, source: 'extension', messageId: 'reaction-answer', message: text('\uE200message_'), final: false };

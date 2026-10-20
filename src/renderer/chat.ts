@@ -8172,6 +8172,8 @@ export function initChat(next: Deps): void {
   docks.register('agents', 'Sub-agents', 'i-agents', () => agentPanel?.show(), () => agentPanel?.hide(), () => selectedId !== null);
   chatMapPanel = createChatMap({
     onJump: key => {
+      // While another chat loads, the rows (and the map) are still the previous chat's.
+      if (selectedId === null || detailFor !== selectedId) return;
       const row = [...$('timeline').querySelectorAll<HTMLElement>('[data-timeline-key]')].find(node => node.dataset.timelineKey === key);
       if (row) revealRow(row);
     },
