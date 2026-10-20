@@ -2125,7 +2125,7 @@ in real Electron at narrow/wide widths and multiple zoom levels.
 The words of a turn's "Worked for" / "Working for" line are a button that opens the chat's run log
 (`src/renderer/run-log.ts`), a drawer listing what the app did about the chat while it worked,
 oldest first, with times. `sessions:events` with `runLog: true` reads only those rows from the
-recorded history (`src/shared/run-log.ts`): app `progress` rows of browser repairs
+whole recorded history, past the recent-tail byte budget (`src/shared/run-log.ts`): app `progress` rows of browser repairs
 (`browser-repair:`, hidden from the timeline outside developer mode) and approval-card waits
 (`approval-wait:`), `chat_error`, app-reopened `turn_start` (with `detail`), notes and handoffs.
 ChatGPT's own commentary is `progress` too and never counts; rows are picked by kind, source and id

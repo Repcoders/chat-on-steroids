@@ -1412,7 +1412,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
       .parse(payload);
     const { actions, runLog, ...paging } = options;
     const page = await readSessionEvents(id, actions ? { ...paging, kinds: ['session_start', 'tool_call'] }
-      : runLog ? { ...paging, kinds: RUN_LOG_EVENT_KINDS, accept: event => runLogKind(event) !== null } : paging);
+      // The whole history, not the recent-tail budget: a long run's early recovery is the point.
+      : runLog ? { ...paging, before: paging.before ?? Number.POSITIVE_INFINITY, kinds: RUN_LOG_EVENT_KINDS, accept: event => runLogKind(event) !== null } : paging);
     if (!page) throw new Error('Session not found');
     return page;
   });

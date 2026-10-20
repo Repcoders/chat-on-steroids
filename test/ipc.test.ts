@@ -666,6 +666,19 @@ it("reads a chat's run log rows alone, however much of ChatGPT's commentary came
   expect(read.data.events.map((event: any) => event.progressId ?? event.kind)).toEqual(['browser-repair:chat-a:r1', 'chat_error', 'note']);
 });
 
+it("reads a run log row from before more than 8 MB of later commentary", async () => {
+  const session = await createSession({ title: 'Long run log' });
+  const line = (value: string) => ({ text: value, truncated: false, chars: value.length });
+  await appendEvent(session.id, { kind: 'progress', source: 'app', time: 10, progressId: 'browser-repair:chat-a:r1', message: line('Trying to reload chat…') });
+  const long = 'x'.repeat(480 * 1024);
+  for (let i = 0; i < 20; i++) {
+    await appendEvent(session.id, { kind: 'progress', source: 'extension', time: 20 + i, progressId: `caption-${i}`, message: line(long) });
+  }
+  const read = await sessionEvents({ id: session.id, runLog: true, limit: 500 });
+  expect(read.ok).toBe(true);
+  expect(read.data.events.map((event: any) => event.progressId)).toEqual(['browser-repair:chat-a:r1']);
+});
+
 describe('explicit settings replace the published tool contract', () => {
   it.each(['finish', 'command'] as const)('withdraws %s from real endpoint publication after its setting is disabled', async kind => {
     const { startMcpServer } = await import('../src/main/mcp/server.js');
