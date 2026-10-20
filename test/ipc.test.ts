@@ -1252,10 +1252,16 @@ describe('root namespace invariants', () => {
     await saveConfig({ ...defaultConfig(), roots: [] });
     const demoFolders = async () => (await fs.readdir(tmpdir())).filter(name => name.startsWith('cos-demo-'));
     const before = new Set(await demoFolders());
-    // The root is approved, then telling the window about it fails.
+    // The root is approved, then telling the window about it fails once.
+    let failed = false;
+    const delivered: any[] = [];
     currentWindow = {
       setBackgroundColor: vi.fn(), setTitleBarOverlay: vi.fn(), isDestroyed: () => false,
-      webContents: { send: vi.fn((channel: string) => { if (channel === 'state:changed') throw new Error('window went away'); }) }
+      webContents: { send: vi.fn((channel: string, state: any) => {
+        if (channel !== 'state:changed') return;
+        if (!failed) { failed = true; throw new Error('window went away'); }
+        delivered.push(state);
+      }) }
     };
     vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({ response: 1 } as never);
 
@@ -1264,6 +1270,8 @@ describe('root namespace invariants', () => {
     expect(reply.error).toMatch(/window went away/);
     expect(getConfig().roots).toEqual([]);
     expect((await demoFolders()).filter(name => !before.has(name))).toEqual([]);
+    // The window is told again, without the root.
+    await vi.waitFor(() => expect(delivered.at(-1)?.config.roots).toEqual([]));
   });
 
   it('takes back only its own root when one of two demos shared at once fails', async () => {
@@ -1284,6 +1292,8 @@ describe('root namespace invariants', () => {
     try {
       expect(roots.map(root => `/${root.name}`)).toEqual([shared[0].data.folder]);
       expect((await fs.stat(roots[0]!.path)).isDirectory()).toBe(true);
+      // The failed demo's rollback tells the window once more; let it land in this test.
+      await vi.waitFor(() => expect(vi.mocked(currentWindow!.webContents.send).mock.calls.filter(([channel]) => channel === 'state:changed')).toHaveLength(3));
     } finally {
       for (const root of roots) await fs.rm(path.dirname(root.path), { recursive: true, force: true });
     }
@@ -1304,6 +1314,33 @@ describe('root namespace invariants', () => {
       // An older state built before the second approval must not be the last one the window gets.
       const states = send.mock.calls.filter(([channel]) => channel === 'state:changed').map(([, state]) => state);
       expect(states.at(-1)?.config.roots.map((root: { name: string }) => root.name).sort()).toEqual(['demo', 'demo-2']);
+    } finally {
+      for (const root of roots) await fs.rm(path.dirname(root.path), { recursive: true, force: true });
+    }
+  });
+
+  it('tells the window the folders that are left after a newer demo fails', async () => {
+    await saveConfig({ ...defaultConfig(), roots: [] });
+    const delivered: any[] = [];
+    let pushes = 0;
+    currentWindow = {
+      setBackgroundColor: vi.fn(), setTitleBarOverlay: vi.fn(), isDestroyed: () => false,
+      webContents: { send: vi.fn((channel: string, state: any) => {
+        if (channel !== 'state:changed') return;
+        if (++pushes === 1) throw new Error('window went away');
+        delivered.push(state);
+      }) }
+    };
+    vi.mocked(dialog.showMessageBox).mockResolvedValue({ response: 1 } as never);
+    // The first demo's state is slow; the second demo's push fails, and with it that demo.
+    vi.mocked(safeStorage.isAsyncEncryptionAvailable).mockImplementationOnce(() => new Promise(resolve => setTimeout(() => resolve(true), 50)));
+    const demo = (): Promise<any> => handlers.get('roots:demo')!(null, undefined) as Promise<any>;
+    const replies = await Promise.all([demo(), demo()]);
+    const roots = getConfig().roots;
+    try {
+      expect(replies.filter(reply => reply.ok)).toHaveLength(1);
+      expect(roots.map(root => root.name)).toEqual(['demo']);
+      await vi.waitFor(() => expect(delivered.at(-1)?.config.roots.map((root: { name: string }) => root.name)).toEqual(['demo']));
     } finally {
       for (const root of roots) await fs.rm(path.dirname(root.path), { recursive: true, force: true });
     }

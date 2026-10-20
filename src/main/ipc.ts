@@ -895,6 +895,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
         const name = added;
         await updateConfig(config => ({ ...config, roots: config.roots.filter(root => root.name !== name) })).catch(() => undefined);
         await removeDemoFolder(demo.parent);
+        // The window may have this root, or an older demo's state may have yielded to this one.
+        pushState();
       } else if (!(await resolvePath(getConfig().roots, demo.folder).then(() => true, () => false))) {
         // Kept only while an existing shared folder holds it.
         await removeDemoFolder(demo.parent);
