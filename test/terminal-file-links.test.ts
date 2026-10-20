@@ -41,15 +41,25 @@ const provide = (text: string, wide?: Set<number>) => {
   return { links, open };
 };
 
-it('opens a location only on Ctrl+click and keeps its range on the cells it occupies', () => {
-  const { links, open } = provide('错 src/app.ts:42:7 - error', new Set([0]));
-  expect(links).toHaveLength(1);
-  // The wide character takes cells 1-2 (1-based), so the path starts on cell 4 and ends on cell 18.
-  expect(links![0]!.range).toEqual({ start: { x: 4, y: 3 }, end: { x: 18, y: 3 } });
-  expect(links![0]!.text).toBe('src/app.ts:42:7');
-  links![0]!.activate({ ctrlKey: false, metaKey: false } as MouseEvent, links![0]!.text);
-  expect(open).not.toHaveBeenCalled();
-  links![0]!.activate({ ctrlKey: true, metaKey: false } as MouseEvent, links![0]!.text);
-  expect(open).toHaveBeenCalledWith(expect.objectContaining({ path: 'src/app.ts', line: 42, column: 7 }));
-  expect(provide('no locations here').links).toBeUndefined();
+it.each([['MacIntel', 'metaKey', 'ctrlKey'], ['Win32', 'ctrlKey', 'metaKey'], ['Linux x86_64', 'ctrlKey', 'metaKey']] as const)(
+  'on %s opens a location only on its primary-key click and keeps its range on the cells it occupies', (platform, primary, other) => {
+  vi.stubGlobal('navigator', { ...globalThis.navigator, platform });
+  try {
+    const { links, open } = provide('错 src/app.ts:42:7 - error', new Set([0]));
+    expect(links).toHaveLength(1);
+    // The wide character takes cells 1-2 (1-based), so the path starts on cell 4 and ends on cell 18.
+    expect(links![0]!.range).toEqual({ start: { x: 4, y: 3 }, end: { x: 18, y: 3 } });
+    expect(links![0]!.text).toBe('src/app.ts:42:7');
+    const click = (key?: 'ctrlKey' | 'metaKey') =>
+      links![0]!.activate({ ctrlKey: key === 'ctrlKey', metaKey: key === 'metaKey' } as MouseEvent, links![0]!.text);
+    click();
+    // Ctrl+click on macOS is a right click, and ⌘ elsewhere is the system key: neither opens.
+    click(other);
+    expect(open).not.toHaveBeenCalled();
+    click(primary);
+    expect(open).toHaveBeenCalledWith(expect.objectContaining({ path: 'src/app.ts', line: 42, column: 7 }));
+    expect(provide('no locations here').links).toBeUndefined();
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });
