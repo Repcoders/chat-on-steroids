@@ -4563,7 +4563,8 @@ uncommitted and untracked changes. Its list, line counts and file preview must s
 comparison identity, and a changed ref/HEAD cannot publish an old diff as current.
 A non-repository, binary file, oversized diff or truncated change set is an
 explicit state rather than a reason to invent content or mutate the worktree.
-The code viewer and editor have a Blame toggle (local projects only; the choice is a per-viewer
+The code viewer and editor have a Blame toggle (local projects and exact, untruncated UTF-8
+previews only, so the annotated text is the file's bytes; the choice is a per-viewer
 `localStorage` convenience). `projectGit:blame` (`getProjectGitBlame(projectId, path, contents)`)
 takes the text the surface shows, at most 256 Ki characters, re-resolves the project and file like
 the other Git reads, and runs `git blame --incremental --no-textconv --contents -` against HEAD

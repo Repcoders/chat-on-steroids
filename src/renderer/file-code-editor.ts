@@ -260,11 +260,18 @@ export async function createProjectCodeEditor(options: {
           pendingBlame = null;
           const notCommitted = new BlameMark(uncommitted);
           const shared = new Map<BlameAnnotation, BlameMark>([[uncommitted, notCommitted]]);
-          const marks = RangeSet.of(lines.slice(0, doc.lines).map((annotation, index) => {
+          const ranges = [];
+          for (let number = 1, gitLine = 0; number <= doc.lines && gitLine < lines.length; number++) {
+            const line = doc.line(number);
+            // With CRLF as the separator, a lone "\n" stays inside an editor line but ends a line
+            // for Git. Such a line takes the first of its Git lines' commits.
+            const annotation = lines[gitLine]!;
+            gitLine += 1 + (line.text.match(/\n/g)?.length ?? 0);
             let mark = shared.get(annotation);
             if (!mark) shared.set(annotation, mark = new BlameMark(annotation));
-            return mark.range(doc.line(index + 1).from);
-          }));
+            ranges.push(mark.range(line.from));
+          }
+          const marks = RangeSet.of(ranges);
           const value = markChanged({ marks: marks.map(request.changes), uncommitted: notCommitted }, request.changes, doc, view.state.doc);
           view.dispatch({ effects: [blameGutterSlot.reconfigure(blameGutter), setBlame.of(value)] });
         }

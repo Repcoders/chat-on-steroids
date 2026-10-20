@@ -1295,3 +1295,46 @@ it('toggles a Blame gutter on a code preview and in the editor for the text show
   expect(host.querySelector('.file-preview-title > strong')?.textContent).toBe('main.ts');
   expect(host.querySelector('.file-preview-blame')).toBeNull();
 });
+
+it('offers and reads no Blame for a truncated preview or a project on a server', async () => {
+  // A file over the editor limit is previewed cut short, possibly decoded from UTF-16 with its BOM
+  // dropped, and without a revision. Blaming that text would mark committed lines as new.
+  const large = { ...preview, path: 'src/main.ts', name: 'main.ts', text: 'export {}\n', revision: undefined, truncated: true, bytes: 600_000 };
+  (window.api.previewProjectFile as any).mockImplementation(() => ok(large));
+  window.localStorage.setItem('chat-on-steroids.file-blame', '1');
+  const panel = createFilePanel({ host, toggle });
+  panel.update(projectA); toggle.click(); await tick();
+  host.querySelector<HTMLButtonElement>('[data-path="src"]')!.click(); await tick();
+  host.querySelector<HTMLButtonElement>('[data-path="src/main.ts"]')!.click(); await tick(); await tick();
+  expect(host.querySelector('.test-code-input')).not.toBeNull();
+  expect(host.querySelector('.file-preview-blame')).toBeNull();
+  expect(window.api.getProjectGitBlame).not.toHaveBeenCalled();
+
+  // With Blame remembered on, a project on a server reads nothing either, and the choice survives.
+  (window.api.previewProjectFile as any).mockImplementation(() => ok({ ...large, revision: 'a'.repeat(64), truncated: false, bytes: 10 }));
+  panel.update({ ...projectB, path: 'me@devbox:/srv/beta', remote: { host: 'me@devbox', path: '/srv/beta' } }); await tick();
+  host.querySelector<HTMLButtonElement>('[data-path="src"]')!.click(); await tick();
+  host.querySelector<HTMLButtonElement>('[data-path="src/main.ts"]')!.click(); await tick(); await tick();
+  expect(host.querySelector('.test-code-input')).not.toBeNull();
+  expect(window.api.getProjectGitBlame).not.toHaveBeenCalled();
+  expect(window.localStorage.getItem('chat-on-steroids.file-blame')).toBe('1');
+});
+
+it('formats an open Blame gutter again in a newly chosen language', async () => {
+  const code = { ...preview, path: 'src/main.ts', name: 'main.ts', text: 'one\n' };
+  (window.api.previewProjectFile as any).mockImplementation(() => ok(code));
+  (window.api.getProjectGitBlame as any).mockImplementation(() => ok({
+    projectId: projectA.id, path: 'src/main.ts', state: 'ready', revision: 'r'.repeat(64),
+    commits: [{ oid: null, author: '', authorTime: 0, summary: '' }], lines: [0]
+  } satisfies ProjectGitBlame));
+  window.localStorage.setItem('chat-on-steroids.file-blame', '1');
+  const panel = createFilePanel({ host, toggle });
+  panel.update(projectA); toggle.click(); await tick();
+  host.querySelector<HTMLButtonElement>('[data-path="src"]')!.click(); await tick();
+  host.querySelector<HTMLButtonElement>('[data-path="src/main.ts"]')!.click(); await tick(); await tick();
+  expect(blameCalls.applied.at(-1)!.uncommitted.label).toBe('Not committed yet');
+  try {
+    setLanguage('de'); await tick();
+    expect(blameCalls.applied.at(-1)!.uncommitted.label).toBe('Noch nicht committet');
+  } finally { setLanguage('en'); }
+});

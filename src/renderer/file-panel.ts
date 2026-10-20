@@ -399,6 +399,12 @@ export function createFilePanel(options: FilePanelOptions) {
     preview.replaceChildren(previewResize, ...nodes);
   }
 
+  // Only an exact UTF-8 snapshot (it has a revision) is the file's bytes; a truncated preview of
+  // a larger file may be cut short or decoded from UTF-16, and would blame as uncommitted.
+  function blameable(value: ProjectFilePreview | null): boolean {
+    return !project?.remote && typeof value?.revision === 'string' && !value.truncated;
+  }
+
   function blameButton(): HTMLButtonElement[] {
     // Blame reads the project's Git on this computer; a project on a server has none here.
     if (project?.remote) return [];
@@ -437,6 +443,7 @@ export function createFilePanel(options: FilePanelOptions) {
     const surface = codeEditor ?? codeViewer, current = project, path = previewPath;
     if (!surface || !current || !path) return;
     if (!blameOn) { surface.clearBlame(); return; }
+    if (!blameable(previewValue)) return;
     const request = surface.blame();
     const value = await run(window.api.getProjectGitBlame(current.id, path, request.text));
     if (token !== blameToken || !blameOn || project?.id !== current.id || previewPath !== path || (codeEditor ?? codeViewer) !== surface) return;
@@ -1082,7 +1089,7 @@ export function createFilePanel(options: FilePanelOptions) {
       viewerHost = el('div', 'file-code-editor-host file-code-viewer-host');
       surfaceClass = 'has-code-viewer';
       content = viewerHost;
-      head.querySelector('.file-preview-close')?.before(...blameButton());
+      if (blameable(value)) head.querySelector('.file-preview-close')?.before(...blameButton());
     }
     const publish = (): void => {
       destroyCodeViewer(); destroyPdfViewer();
@@ -1477,6 +1484,8 @@ export function createFilePanel(options: FilePanelOptions) {
   onLanguageChange(() => {
     renderTree();
     if (mode === 'changes' && gitDiffPath === null) renderChangesList();
+    // Its dates and "Not committed yet" are formatted when the answer arrives.
+    if (blameOn) void showBlame();
   });
 
   function watchedDirectories(): string[] {

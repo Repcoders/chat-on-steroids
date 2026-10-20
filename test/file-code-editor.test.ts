@@ -121,3 +121,15 @@ it('shows a blame gutter that labels each commit once and marks lines rewritten 
   expect(parent.querySelector('.cm-blame-gutter')).toBeNull();
   editor.destroy();
 });
+
+it('keeps blame on the right lines when a CRLF file also has a lone line feed', async () => {
+  const parent = document.getElementById('editor')!;
+  // CRLF is the editor's separator here, so "two\nthree" is one editor line but two Git lines.
+  const editor = await createProjectCodeEditor({ parent, filename: 'notes.txt', text: 'one\r\ntwo\nthree\r\nfour\r\n', readOnly: true });
+  const commit = (name: string) => ({ key: name.repeat(40), label: name, title: name, uncommitted: false });
+  const none = { key: '', label: 'Not committed yet', title: 'Not committed yet', uncommitted: true };
+  const request = editor.blame();
+  request.apply([commit('a'), commit('b'), commit('c'), commit('d')], none);
+  expect([...parent.querySelectorAll('.cm-blame-gutter .cm-gutterElement')].map(cell => cell.textContent)).toEqual(['a', 'b', 'd']);
+  editor.destroy();
+});
