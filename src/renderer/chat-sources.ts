@@ -25,7 +25,7 @@ export function sourcesMarkdown(sources: readonly SessionSource[]): string {
   return sources.map(source => `- [${source.title.replace(/[\\[\]]/g, '\\$&')}](${source.url.replace(/\(/g, '%28').replace(/\)/g, '%29')})`).join('\n');
 }
 
-export function initChatSources(deps: ChatSourcesDeps): { open(id: string): void } {
+export function initChatSources(deps: ChatSourcesDeps): { open(id: string): void; selectionChanged(): void } {
   const dialog = $<HTMLDialogElement>('sourcesDialog');
   const field = $<HTMLInputElement>('sourcesFilter');
   const copy = $<HTMLButtonElement>('sourcesCopy');
@@ -83,15 +83,16 @@ export function initChatSources(deps: ChatSourcesDeps): { open(id: string): void
   const paint = (): void => {
     const sources = shown();
     copy.disabled = !sources.length;
+    // A page the search would find may be among those left out.
+    const note = limited ? [el('p', 'search-status', () => t('Only the first 500 cited pages are listed.'))] : [];
     if (!sources.length) {
-      list.replaceChildren(el('p', 'empty search-status', () => all.length ? t('No sources match') : t('No sources in this chat')));
+      list.replaceChildren(el('p', 'empty search-status', () => all.length ? t('No sources match') : t('No sources in this chat')), ...note);
       return;
     }
     const rows = el('div', 'search-list');
     rows.setAttribute('role', 'list');
     rows.append(...sources.map(row));
-    list.replaceChildren(rows);
-    if (limited) list.append(el('p', 'search-status', () => t('Only the first 500 cited pages are listed.')));
+    list.replaceChildren(rows, ...note);
   };
 
   const open = (id: string): void => {
@@ -127,5 +128,6 @@ export function initChatSources(deps: ChatSourcesDeps): { open(id: string): void
   // A click on the backdrop lands on the dialog itself, never on its contents.
   dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
   dialog.addEventListener('close', () => { generation++; });
-  return { open };
+  // Another chat was opened (a shortcut works behind the dialog): this list is not its list.
+  return { open, selectionChanged: () => { if (dialog.open) dialog.close(); } };
 }

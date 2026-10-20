@@ -265,7 +265,7 @@ async function removeProjectFromSidebar(id: string): Promise<void> {
       if (!selectedId) {
         const oldKey = draftKey();
         const authoredDraft = authoredComposerText();
-        selectedProjectId = null; selectionGeneration++; chatFind?.selectionChanged(); replaceComposerDraft();
+        selectedProjectId = null; selectionGeneration++; chatFind?.selectionChanged(); chatSources?.selectionChanged(); replaceComposerDraft();
         // Keep the visible draft and its attachments while moving to unfiled.
         inputDrafts.set(draftKey(), authoredDraft); inputDrafts.delete(oldKey); newChatTasks.delete(oldKey);
         skillPicker?.restore();
@@ -7855,7 +7855,7 @@ function selectSession(id: string): void {
   if (editingQuestion) endEditing(true);
   const ownerChanged = id !== selectedId;
   rememberDraft();
-  selectionGeneration++; chatFind?.selectionChanged(); replaceComposerDraft();
+  selectionGeneration++; chatFind?.selectionChanged(); chatSources?.selectionChanged(); replaceComposerDraft();
   inputQueueGeneration++;
   $('finishQueue').replaceChildren(); $('finishQueue').hidden = true;
   newChatSelected = false;
@@ -7900,7 +7900,7 @@ function selectSession(id: string): void {
 function selectNewChat(projectId: string | null = null, branch: typeof newChatBranch = null): void {
   if (editingQuestion) endEditing(true);
   newChatBranch = branch;
-  rememberDraft(); selectionGeneration++; chatFind?.selectionChanged(); replaceComposerDraft(); pendingNewInput = null;
+  rememberDraft(); selectionGeneration++; chatFind?.selectionChanged(); chatSources?.selectionChanged(); replaceComposerDraft(); pendingNewInput = null;
   inputQueueGeneration++;
   $('finishQueue').replaceChildren(); $('finishQueue').hidden = true;
   newChatSelected = true; selectedId = null; selectedProjectId = projectId; detailFor = null; detailCursor = null;

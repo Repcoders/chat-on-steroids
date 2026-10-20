@@ -5375,11 +5375,17 @@ it('opens the chat Sources from the globe under an answer that cites any, and co
   expect(titles()).toEqual(['Release [B] notes']);
   field.value = 'nothing like it';
   field.dispatchEvent(new w.Event('input', { bubbles: true }));
-  expect(dialog.querySelector('.search-status')!.textContent).toBe('No sources match');
+  // The cut list says so even when nothing of it matches: the page searched for may be left out.
+  expect([...dialog.querySelectorAll('.search-status')].map(node => node.textContent)).toEqual(['No sources match', 'Only the first 500 cited pages are listed.']);
   expect((w.document.getElementById('sourcesCopy') as HTMLButtonElement).disabled).toBe(true);
   field.value = '';
   field.dispatchEvent(new w.Event('input', { bubbles: true }));
   dialog.querySelector<HTMLButtonElement>('.source-answer')!.click();
+  expect(dialog.open).toBe(false);
+  // Opening another chat behind the dialog closes it: its list was this chat's.
+  bars[0]!.querySelector<HTMLButtonElement>('.answer-sources')!.click(); await settle();
+  expect(dialog.open).toBe(true);
+  w.document.getElementById('newChat')!.click(); await settle();
   expect(dialog.open).toBe(false);
 });
 
