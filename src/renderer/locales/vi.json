@@ -2366,7 +2366,6 @@
   "Keep plugin URLs across restarts": "Giữ URL của plugin qua các lần khởi động lại",
   "For your own tunnel, such as a named Cloudflare tunnel, whose URL ChatGPT stores. Anyone with that URL can use your Chat On Steroids plugins until you turn this off. Needs secure storage.": "Dành cho đường hầm riêng của bạn, ví dụ đường hầm Cloudflare có tên, có URL được ChatGPT lưu. Ai có URL đó đều dùng được các plugin Chat On Steroids của bạn cho đến khi bạn tắt tùy chọn này. Cần bộ lưu trữ an toàn.",
   "Start a fresh turn after": "Bắt đầu lượt mới sau",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Not used with Pro models, Goal, Loop or sub-agents.": "Công việc dài tiếp tục trong một lượt mới với Tiếp tục tự động, ngay sau một kết quả công cụ. Lượt ngắn hơn ít bị ngắt hơn. Không dùng với mô hình Pro, Goal, Loop hay tác tử con.",
   "20 minutes": "20 phút",
   "30 minutes": "30 phút",
   "45 minutes": "45 phút",
@@ -2785,5 +2784,6 @@
   "Answer {0}": "Câu trả lời {0}",
   "No sources match": "Không có nguồn nào khớp",
   "No sources in this chat": "Cuộc trò chuyện này không trích nguồn nào",
-  "Only the first 500 cited pages are listed.": "Chỉ liệt kê 500 trang được trích đầu tiên."
+  "Only the first 500 cited pages are listed.": "Chỉ liệt kê 500 trang được trích đầu tiên.",
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Công việc dài tiếp tục trong một lượt mới với Tiếp tục tự động, ngay sau một kết quả công cụ. Lượt ngắn hơn ít bị ngắt hơn. Cũng dùng trong các cuộc trò chuyện có Goal và Loop; không dùng với mô hình Pro hay trong cuộc trò chuyện riêng của tác nhân phụ."
 }
