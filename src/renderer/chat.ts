@@ -102,6 +102,8 @@ import { initSshProjectDialog } from './ssh-project-dialog.js';
 const api = window.api;
 let chatSearch: ChatSearch | null = null;
 let workLog: ReturnType<typeof createWorkLog> | null = null;
+/** Brings the Chat screen up for the chat a Work log row opens, from whatever page it was opened on. */
+let workLogShowChat: () => void = () => {};
 let chatFind: ReturnType<typeof initChatFind> | null = null;
 
 
@@ -1364,6 +1366,7 @@ async function loadProjectHistory(id: string): Promise<void> {
       loadedOlderSessions = true;
       for (const entry of page.pressure) pressure.set(entry.id, entry);
       paintSessions();
+      workLog?.update();
       // A page of workers shows nothing; read on while the project is open and still looks empty.
     } while (state.cursor && projectViewed(id) && !projectShowsChat(id));
   } finally {
@@ -7794,7 +7797,8 @@ export function openChatSearch(): void {
 }
 
 /** Opens the work log: each loaded chat's last finished turn by day (the View menu). */
-export function openWorkLog(): void {
+export function openWorkLog(showChat: () => void): void {
+  workLogShowChat = showChat;
   workLog?.open();
 }
 
@@ -8437,7 +8441,10 @@ export function initChat(next: Deps): void {
       return project ? { id: project.id, name: project.name } : null;
     },
     title: shownSessionTitle,
-    open: id => { if (id !== selectedId) { pendingNewInput = null; selectSession(id); } }
+    open: id => {
+      workLogShowChat();
+      if (id !== selectedId) { pendingNewInput = null; selectSession(id); }
+    }
   });
   chatSearch = initChatSearch({
     select: (id, match) => {

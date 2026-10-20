@@ -2842,7 +2842,7 @@ buildGroups();
 initSidebarResize();
 const viewMenu = initViewMenu({
   search: openChatSearch,
-  workLog: openWorkLog,
+  workLog: () => openWorkLog(() => showTab('chat')),
   cosBrowser: () => state?.config.ui.chatBrowser === 'cos',
   showCosBrowser: () => void run(api.showCosBrowser()),
   pets: { toggle: () => pet.toggle(), visible: () => pet.isVisible() },

@@ -1566,6 +1566,47 @@ it('keeps project keyboard focus across activity repaint without taking composer
   expect(wholeListReads()).toBe(reads + 1);
 });
 
+it("adds the chats a project's history read brings to an open Work log", async () => {
+  const { project, session } = projectSidebarFixture();
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const older = { ...session, id: 'older-chat', title: 'Older finished chat', conversationId: 'chat-older', chatIds: ['chat-older'],
+    updatedAt: 1, lastTurnOutcome: 'failed', lastTurnEndAt: Date.now() - DAY };
+  const listSessions = vi.fn(async (options?: { projectId?: string }) => {
+    if (!options?.projectId) return listed([session]);
+    await held;
+    return listed([older], { nextCursor: null });
+  });
+  const mounted = await mountChat({}, [], { listProjects: async () => ({ ok: true, data: [project] }), listSessions });
+  const doc = mounted.window.document;
+  const heading = () => doc.querySelector<HTMLElement>(`[data-project-id="${project.id}"] > summary`)!;
+  await vi.waitFor(() => expect(heading()).not.toBeNull());
+  await settle();
+  // The project's own history is still being read when the log opens.
+  heading().click();
+  const { openWorkLog } = await import('../src/renderer/chat.js');
+  openWorkLog(() => {});
+  const titles = () => [...doc.querySelectorAll('dialog.work-log-dialog .work-log-title')].map(node => node.textContent);
+  expect(titles()).toEqual([]);
+  release();
+  await vi.waitFor(() => expect(titles()).toEqual(['Older finished chat']));
+});
+
+it('shows the chat a Work log row opens, also when the log was opened on a library page', async () => {
+  const done = inboxChat('done-chat', { title: 'Finished chat', updatedAt: Date.now(), lastTurnOutcome: 'completed', lastTurnEndAt: Date.now() - 60_000 });
+  const mounted = await mountChat({}, [], { listSessions: async () => listed([done]) });
+  const doc = mounted.window.document;
+  const screen = () => doc.querySelector<HTMLElement>('.app')!.dataset.screen;
+  await vi.waitFor(() => expect(doc.querySelector('#sessionList [data-id="done-chat"]')).not.toBeNull());
+  doc.getElementById('sidebarPlugins')!.click();
+  expect(screen()).toBe('library');
+  doc.getElementById('viewMenu')!.click();
+  doc.querySelector<HTMLElement>('.row-menu [data-row-action="work-log"]')!.click();
+  doc.querySelector<HTMLElement>('dialog.work-log-dialog .work-log-row[data-session-id="done-chat"]')!.click();
+  expect(doc.querySelector('dialog.work-log-dialog')).toBeNull();
+  expect(screen()).toBe('chat');
+});
+
 // Adapted from @Haz4rdovisk's #345: typed Setup values used to reach the app only on blur, so a
 // Connect click right after typing did nothing.
 it.each(['wizConnect', 'connectionPopoverToggle'])(
