@@ -1234,20 +1234,26 @@ export async function diffWorkerWorkspace(lease: WorkerWorktreeLease): Promise<W
 
 interface ReviewSide { bytes: Buffer | null; tooLarge: boolean }
 
-function namesFromStatus(buffer: Buffer): Array<{ status: string; path: string }> {
-  // `--name-status -z --no-renames`: STATUS NUL PATH NUL, one pair per file.
+interface ReviewEntry { status: string; path: string; from: { mode: string; oid: string }; to: { mode: string; oid: string } }
+
+const ZERO_OID = /^0+$/;
+
+function entriesFromRaw(buffer: Buffer): ReviewEntry[] {
+  // `--raw -z --no-abbrev --no-renames`: ":SRCMODE DSTMODE SRCOID DSTOID STATUS" NUL PATH NUL.
   const parts = new TextDecoder('utf-8', { fatal: false }).decode(buffer).split('\0');
-  const result: Array<{ status: string; path: string }> = [];
+  const result: ReviewEntry[] = [];
   for (let index = 0; index + 1 < parts.length; index += 2) {
-    const status = parts[index]!, file = parts[index + 1]!;
-    if (status && file) result.push({ status: status[0]!, path: file });
+    const [fromMode, toMode, fromOid, toOid, status] = parts[index]!.replace(/^:/, '').split(' ');
+    const file = parts[index + 1]!;
+    if (!fromMode || !toMode || !fromOid || !toOid || !status || !file) continue;
+    result.push({ status: status[0]!, path: file, from: { mode: fromMode, oid: fromOid }, to: { mode: toMode, oid: toOid } });
   }
   return result;
 }
 
-async function reviewBlob(cwd: string, oid: string, relative: string): Promise<ReviewSide> {
+async function reviewBlob(cwd: string, oid: string): Promise<ReviewSide> {
   try {
-    const result = await runGit(cwd, ['cat-file', 'blob', `${oid}:${relative}`], MAX_REVIEW_SIDE_BYTES);
+    const result = await runGit(cwd, ['cat-file', 'blob', oid], MAX_REVIEW_SIDE_BYTES);
     if (result.code !== 0) throw new WorkerWorktreeError('WORKTREE_REVIEW_FAILED', result.stderr || 'Git object is unavailable');
     return { bytes: result.stdout, tooLarge: false };
   } catch (error) {
@@ -1307,7 +1313,7 @@ export async function reviewOfferedWorkerWorktree(
   const root = lease.worktreePath;
   const realRoot = await fs.realpath(root);
   const status = await statusOf(root, true);
-  const names = ['diff', '--no-ext-diff', '--no-textconv', '--no-renames', '--name-status', '-z'];
+  const names = ['diff', '--no-ext-diff', '--no-textconv', '--no-renames', '--raw', '--no-abbrev', '-z'];
   const [working, committed] = await Promise.all([
     runGit(root, [...names, 'HEAD', '--', '.'], 1024 * 1024),
     runGit(root, [...names, lease.baseOid, status.headOid, '--', '.'], 1024 * 1024)
@@ -1315,21 +1321,29 @@ export async function reviewOfferedWorkerWorktree(
   if (working.code !== 0 || committed.code !== 0) {
     throw new WorkerWorktreeError('WORKTREE_DIFF_FAILED', working.stderr || committed.stderr || 'Git diff failed');
   }
+  const untracked = { mode: '100644', oid: '0' }, none = { mode: '000000', oid: '0' };
   const entries = [
-    ...namesFromStatus(working.stdout).map(entry => ({ ...entry, scope: 'uncommitted' as const })),
-    ...status.untrackedFiles.map(file => ({ status: 'A', path: file, scope: 'uncommitted' as const })),
-    ...namesFromStatus(committed.stdout).map(entry => ({ ...entry, scope: 'committed' as const }))
+    ...entriesFromRaw(working.stdout).map(entry => ({ ...entry, scope: 'uncommitted' as const })),
+    ...status.untrackedFiles.map(file => ({ status: 'A', path: file, from: none, to: untracked, scope: 'uncommitted' as const })),
+    ...entriesFromRaw(committed.stdout).map(entry => ({ ...entry, scope: 'committed' as const }))
   ];
+  // A side is absent (mode 000000), a submodule pointer (160000, a commit and not a blob), the
+  // working file (zero id on the uncommitted side), or a blob read by its exact object id.
+  const side = async (entry: (typeof entries)[number], which: ReviewEntry['from'], other: ReviewEntry['from']): Promise<ReviewSide> => {
+    if (ZERO_OID.test(which.mode)) return { bytes: null, tooLarge: false };
+    if (which.mode === '160000') {
+      const commit = ZERO_OID.test(which.oid) ? `${other.oid}-dirty` : which.oid;
+      return { bytes: Buffer.from(`Subproject commit ${commit}\n`), tooLarge: false };
+    }
+    if (ZERO_OID.test(which.oid)) return entry.scope === 'uncommitted' ? reviewWorkingFile(root, realRoot, entry.path) : { bytes: null, tooLarge: false };
+    return reviewBlob(root, which.oid);
+  };
   const files: WorkerWorktreeReviewFile[] = [];
   let bytes = 0;
   for (const entry of entries) {
     if (files.length >= MAX_REVIEW_FILES || bytes >= MAX_REVIEW_TOTAL_BYTES) break;
-    const absent: ReviewSide = { bytes: null, tooLarge: false };
-    const fromOid = entry.scope === 'committed' ? lease.baseOid : status.headOid;
-    const base = entry.status === 'A' ? absent : await reviewBlob(root, fromOid, entry.path);
-    const current = entry.status === 'D' ? absent
-      : entry.scope === 'committed' ? await reviewBlob(root, status.headOid, entry.path)
-        : await reviewWorkingFile(root, realRoot, entry.path);
+    const base = await side(entry, entry.from, entry.to);
+    const current = await side(entry, entry.to, entry.from);
     bytes += (base.bytes?.length ?? 0) + (current.bytes?.length ?? 0);
     files.push(reviewFile(entry.path, entry.scope, entry.status, base, current));
   }

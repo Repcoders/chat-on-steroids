@@ -809,6 +809,23 @@ describe('automatic worker Git worktrees', () => {
       .rejects.toMatchObject({ code: 'WORKTREE_NOT_OWNED' });
   });
 
+  it('lists a submodule pointer a worker committed as its commit ids instead of failing the whole review', async () => {
+    const lease = await allocate();
+    // A gitlink names a commit this repository does not have, so it has no blob to read.
+    const pointer = 'c'.repeat(40);
+    git(lease.worktreePath, ['update-index', '--add', '--cacheinfo', `160000,${pointer},vendor/lib`]);
+    await write(path.join(lease.worktreePath, 'file.txt'), 'worker edit\n');
+    git(lease.worktreePath, ['add', 'file.txt']);
+    git(lease.worktreePath, ['commit', '-m', 'worker adds a submodule pointer']);
+    resetWorkerWorktreeRegistryForTests();
+
+    const review = await reviewOfferedWorkerWorktree(roots, { runId: RUN_ID, agentId: 'worker-1', createdAt: lease.createdAt, reason: 'completed' });
+    expect(review.files.filter(file => file.scope === 'committed')).toEqual([
+      { path: 'file.txt', scope: 'committed', status: 'modified', baseText: 'base\n', currentText: 'worker edit\n', binary: false, tooLarge: false },
+      { path: 'vendor/lib', scope: 'committed', status: 'added', baseText: null, currentText: `Subproject commit ${pointer}\n`, binary: false, tooLarge: false }
+    ]);
+  });
+
   it('refuses forged and obsolete broker offers without touching the real worker checkout', async () => {
     const lease = await allocate();
     const markerFile = path.join(path.dirname(lease.worktreePath), 'owner.json');
