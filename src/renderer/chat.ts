@@ -1,6 +1,7 @@
 import { hasProviderDirective, resolvedCapture, withoutProviderDirectives } from '../shared/content-reference.js';
 import { completedDilText } from '../shared/dil-tables.js';
 import { initChatSearch, type ChatSearch } from './chat-search.js';
+import { saveAnswerButton } from './saved-answers.js';
 import { initChatFind } from './chat-find.js';
 import { createWorkspaceTerminal } from './workspace-terminal.js';
 import { createWorkspaceDocks } from './workspace-docks.js';
@@ -2290,6 +2291,15 @@ function questionActions(event: Extract<SessionEvent, { kind: 'user_message' }>,
   edit.addEventListener('click', () => startEditing(event, later));
   bar.append(edit);
   return bar;
+}
+
+/** Opens a saved answer's chat at that answer (the saved answers shelf). */
+export async function openSavedAnswer(entryId: string, sessionId: string): Promise<void> {
+  if (sessionId !== selectedId) { pendingNewInput = null; selectSession(sessionId); }
+  const selection = selectionGeneration;
+  const found = await run(api.locateSavedAnswer(entryId));
+  if (!found || selection !== selectionGeneration || selectedId !== found.sessionId) return;
+  await revealChatLocation(found.sessionId, found.location);
 }
 
 /** Opens the chat a branch came from, at the exact reply it was branched from. */
@@ -4596,7 +4606,7 @@ function answerActions(turnId: string | null, messageId?: string): HTMLElement {
     else document.removeEventListener('pointerdown', close, true);
   });
   menu.addEventListener('keydown', event => { if (event.key === 'Escape') { menu.open = false; trigger.focus(); } });
-  bar.append(copy, menu);
+  bar.append(copy, ...sessionId ? [saveAnswerButton(sessionId, turnId, messageId)] : [], menu);
   const branch = branchPoint(messageId);
   if (branch) {
     // Branch in new chat (#482): ChatGPT's own branch at this reply, made with the first message.

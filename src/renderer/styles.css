@@ -662,6 +662,16 @@ code {
   .is-search-hit .said.is-user > .user-message-text { animation: none; box-shadow: 0 0 0 2px var(--accent-edge); }
 }
 .search-status { padding: 8px 10px; color: var(--faint); font-size: calc(12px * var(--text-scale, 1)); }
+/* Saved answers: the search dialog's rows, with Copy, Export and Remove beside each answer. */
+.saved-answer { display: flex; align-items: center; gap: 4px; margin: 2px 0; border-radius: 8px; }
+.saved-answer:hover, .saved-answer:focus-within { background: var(--hover); }
+.saved-answer > .search-result { flex: 1; min-width: 0; margin: 0; }
+.saved-answer > .search-result:hover, .saved-answer > .search-result:focus-visible { background: transparent; }
+.saved-answer > .search-result:disabled { cursor: default; }
+.saved-answer-meta { color: var(--faint); font-size: calc(11px * var(--text-scale, 1)); line-height: 16px; }
+.saved-answer.is-orphaned b { color: var(--soft); }
+.saved-answer-actions { display: flex; flex: none; gap: 2px; padding-inline-end: 6px; }
+.answer-action.answer-save.is-saved { color: var(--ink); }
 .sidebar-sessions h2 { font-size: calc(10px * var(--text-scale, 1)); padding: 10px 8px; }
 .sidebar-sessions .foot { border: 0; padding: 12px 8px; font-size: calc(10px * var(--text-scale, 1)); }
 .sidebar-bottom { border-top: 1px solid var(--line); padding-top: 10px; display: flex; align-items: center; gap: 4px; }

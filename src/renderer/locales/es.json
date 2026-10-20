@@ -2867,5 +2867,15 @@
   "Chats sit under their project folders.": "Los chats aparecen bajo las carpetas de sus proyectos.",
   "All chats in one list, active ones on top.": "Todos los chats en una lista, los activos arriba.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "El máximo de chats de subagentes que un chat puede tener a la vez. Necesita la extensión del navegador conectada.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "El trabajo largo sigue en un turno nuevo con un Continuar automático, justo después de un resultado de herramienta. Los turnos cortos se cortan menos. También en los chats con Objetivo y Bucle; no con modelos Pro ni en los chats de los subagentes."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "El trabajo largo sigue en un turno nuevo con un Continuar automático, justo después de un resultado de herramienta. Los turnos cortos se cortan menos. También en los chats con Objetivo y Bucle; no con modelos Pro ni en los chats de los subagentes.",
+  "Saved answers": "Respuestas guardadas",
+  "Search saved answers": "Buscar respuestas guardadas",
+  "Save answer": "Guardar respuesta",
+  "Remove from saved answers": "Quitar de las respuestas guardadas",
+  "Chat removed": "Chat eliminado",
+  "Star an answer to keep it here.": "Marca una respuesta con la estrella para guardarla aquí.",
+  "No saved answers match": "Ninguna respuesta guardada coincide",
+  "The shelf holds at most 500 answers. Remove one first.": "Caben como máximo 500 respuestas guardadas. Quita una primero.",
+  "This answer is too long to save.": "Esta respuesta es demasiado larga para guardarla.",
+  "This saved answer was removed": "Esta respuesta guardada se quitó"
 }

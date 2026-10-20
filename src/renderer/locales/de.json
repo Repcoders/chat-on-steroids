@@ -2822,5 +2822,15 @@
   "Chats sit under their project folders.": "Chats stehen unter ihren Projektordnern.",
   "All chats in one list, active ones on top.": "Alle Chats in einer Liste, aktive oben.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Wie viele Unteragenten-Chats ein Chat höchstens gleichzeitig ausführen darf. Benötigt die verbundene Browser-Erweiterung.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Lange Arbeit läuft direkt nach einem Tool-Ergebnis in einem neuen Durchlauf mit automatischem Weiter weiter. Kürzere Durchläufe brechen seltener ab. Auch in Goal- und Loop-Chats; nicht bei Pro-Modellen und nicht in den Chats von Unteragenten."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Lange Arbeit läuft direkt nach einem Tool-Ergebnis in einem neuen Durchlauf mit automatischem Weiter weiter. Kürzere Durchläufe brechen seltener ab. Auch in Goal- und Loop-Chats; nicht bei Pro-Modellen und nicht in den Chats von Unteragenten.",
+  "Saved answers": "Gespeicherte Antworten",
+  "Search saved answers": "Gespeicherte Antworten durchsuchen",
+  "Save answer": "Antwort speichern",
+  "Remove from saved answers": "Aus gespeicherten Antworten entfernen",
+  "Chat removed": "Chat entfernt",
+  "Star an answer to keep it here.": "Markiere eine Antwort mit dem Stern, um sie hier aufzubewahren.",
+  "No saved answers match": "Keine passenden gespeicherten Antworten",
+  "The shelf holds at most 500 answers. Remove one first.": "Es passen höchstens 500 Antworten in die gespeicherten Antworten. Entferne zuerst eine.",
+  "This answer is too long to save.": "Diese Antwort ist zu lang zum Speichern.",
+  "This saved answer was removed": "Diese gespeicherte Antwort wurde entfernt"
 }

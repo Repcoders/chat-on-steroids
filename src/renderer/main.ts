@@ -58,7 +58,8 @@ import {
 } from '../shared/types.js';
 import type { SwarmState } from '../shared/session.js';
 import { $, ago, disclosureChevron, el, icon, run, shortAgo, toast } from './dom.js';
-import { chatApply, chatSettingsPatch, chatVisible, initChat, openChatSearch, openChatView } from './chat.js';
+import { chatApply, chatSettingsPatch, chatVisible, initChat, openChatSearch, openChatView, openSavedAnswer } from './chat.js';
+import { initSavedAnswers } from './saved-answers.js';
 import { publishStopNoticeTexts } from './stop-notices.js';
 import { publishMainTexts } from './main-texts.js';
 import { paintSharedTunnel } from './tunnel-warning.js';
@@ -345,6 +346,7 @@ $('newChat').addEventListener('click', () => showTab('chat'));
 $('sidebarPlugins').addEventListener('click', () => showTab('plugins'));
 $('sidebarPets').addEventListener('click', () => showTab('pets'));
 $('sidebarSkills').addEventListener('click', () => showTab('skills'));
+initSavedAnswers({ open: entry => { showTab('chat'); void openSavedAnswer(entry.id, entry.sessionId); } });
 api.onPetOverlayOpenOwner(screen => showTab(screen));
 $('addProject').addEventListener('click', () => showTab('chat'));
 let zoomFactor = 1;

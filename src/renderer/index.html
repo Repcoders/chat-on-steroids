@@ -39,6 +39,7 @@
           <button class="btn sidebar-primary-link" id="sidebarPlugins" data-sidebar-page="plugins" type="button"><i class="ico ph ph-puzzle-piece" aria-hidden="true"></i>Plugins</button>
           <button class="btn sidebar-primary-link" id="sidebarSkills" data-sidebar-page="skills" type="button"><i class="ico ph ph-cube" aria-hidden="true"></i>Skills</button>
           <button class="btn sidebar-primary-link" id="sidebarPets" data-sidebar-page="pets" type="button"><i class="ico ph ph-paw-print" aria-hidden="true"></i>Pets</button>
+          <button class="btn sidebar-primary-link" id="sidebarSavedAnswers" type="button" aria-haspopup="dialog" aria-controls="savedAnswersDialog"><i class="ico ph ph-star" aria-hidden="true"></i>Saved answers</button>
         </div>
       <!-- Settings search: while it holds a query, its results take the page list's place. -->
       <div class="settings-find" id="settingsFindBox" hidden>
@@ -1529,6 +1530,13 @@
         <button class="btn search-dialog-clear" id="chatSearchClear" type="button" title="Clear search" aria-label="Clear search" hidden></button>
       </div>
       <div class="search-dialog-results" id="searchResults" aria-live="polite"></div>
+    </dialog>
+    <dialog class="search-dialog saved-answers-dialog" id="savedAnswersDialog" aria-label="Saved answers">
+      <div class="search-dialog-field">
+        <i class="ico ph ph-magnifying-glass" aria-hidden="true"></i>
+        <input id="savedAnswersSearch" type="search" placeholder="Search saved answers" aria-label="Search saved answers" aria-controls="savedAnswersList" autocomplete="off" spellcheck="false" />
+      </div>
+      <div class="search-dialog-results" id="savedAnswersList" aria-live="polite"></div>
     </dialog>
 
     <dialog class="whats-new-dialog" id="whatsNewDialog" aria-labelledby="whatsNewTitle" aria-describedby="whatsNewLead">

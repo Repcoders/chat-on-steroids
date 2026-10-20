@@ -2777,5 +2777,15 @@
   "Chats sit under their project folders.": "聊天顯示在各自的專案資料夾下。",
   "All chats in one list, active ones on top.": "所有聊天在同一清單中，進行中的排在最前。",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "一個聊天可同時執行的子代理聊天上限。需要已連線的瀏覽器擴充功能。",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "長時間的工作會在工具結果之後，透過自動「繼續」在新回合中接著進行。回合越短越不容易中斷。也用於目標和循環聊天；不用於 Pro 模型或子代理自己的聊天。"
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "長時間的工作會在工具結果之後，透過自動「繼續」在新回合中接著進行。回合越短越不容易中斷。也用於目標和循環聊天；不用於 Pro 模型或子代理自己的聊天。",
+  "Saved answers": "已儲存的回答",
+  "Search saved answers": "搜尋已儲存的回答",
+  "Save answer": "儲存回答",
+  "Remove from saved answers": "從已儲存的回答中移除",
+  "Chat removed": "聊天已刪除",
+  "Star an answer to keep it here.": "為回答加上星號，即可保存在這裡。",
+  "No saved answers match": "沒有符合的已儲存回答",
+  "The shelf holds at most 500 answers. Remove one first.": "最多可儲存 500 個回答。請先移除一個。",
+  "This answer is too long to save.": "這個回答太長，無法儲存。",
+  "This saved answer was removed": "這個已儲存的回答已被移除"
 }

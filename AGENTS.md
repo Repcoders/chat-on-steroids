@@ -2122,6 +2122,21 @@ window/sidebar width and zoom, tool disclosures, history controls and tail reser
 change prose width or line wrapping. `scripts/verify-chat-width.cjs` checks these transitions
 in real Electron at narrow/wide widths and multiple zoom levels.
 
+Saved answers (`session/saved-answers.ts`, durable state `saved-answers`, version 1): the star under a
+completed answer (`answerActions`, beside Copy) calls `savedAnswers:save { id, turnId? | messageId? }`,
+named as `sessions:exportMarkdown` names it. Main reads the answer whole with `readAnswerMarkdown` (the
+same completed-turn rule and overflow read as export) and keeps its own copy of that Markdown, with the
+chat title, the answer's first message id (`anchorMessageId`) and `savedAt`; the renderer cannot put
+text of its own on the shelf. One entry per answer (`savedAnswerKey`), at most 500, each at most 100,000
+characters; saving the same answer again changes nothing, and a save past a limit is refused.
+`savedAnswers:list`, `:save` and `:remove { id }` answer `SavedAnswerView[]`, newest first, where
+`orphaned` means `sessionDirectoryMissing` proved the chat's history gone; corrupt or unreadable history
+is not orphaned. Removing a chat keeps its entries: they still copy (`clipboard:write`) and export
+(`savedAnswers:export { id }`, a save dialog named after the title), but no longer open. Sidebar → Saved
+answers opens `#savedAnswersDialog`, which searches title and text in the renderer (every word,
+`foldCase`); an entry opens its chat at the answer through `savedAnswers:locate { id }` → `{ sessionId,
+location: SessionSearchLocation } | null` and the same `revealChatLocation` as search results.
+
 ### Context pressure and Usage are different measurements
 
 Session `contextTokens` estimates current frontend pressure and resets at durable A→B rebind.

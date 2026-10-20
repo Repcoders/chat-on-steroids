@@ -3,7 +3,8 @@ import path from 'node:path';
 import { app, clipboard, dialog, type BrowserWindow } from 'electron';
 import type { StoredText } from '../../shared/session.js';
 import {
-  answerMarkdown, completedTurnIds, markdownFileName, messageAnswerEntries, sessionMarkdown, transcriptEntries, turnAnswerEntries
+  answerMarkdown, completedTurnIds, markdownFileName, messageAnswerEntries, sessionMarkdown, transcriptEntries, turnAnswerEntries,
+  type TranscriptEntry
 } from '../../shared/markdown-export.js';
 import { getSession, readEvents, readOverflowText } from './store.js';
 import { providerEntitiesAsMarkdown } from '../../shared/content-reference.js';
@@ -30,22 +31,32 @@ async function fullText(sessionId: string, stored: StoredText, html?: StoredText
   return providerEntitiesAsMarkdown(completedDilText(text, html));
 }
 
+/** A completed turn's answer (or a turnless answer, by its message) as Markdown, read whole. */
+export async function readAnswerMarkdown(id: string, turnId?: string, messageId?: string): Promise<{ title: string; markdown: string; entries: TranscriptEntry[] }> {
+  const summary = await getSession(id);
+  if (!summary) throw new Error('Session not found');
+  const events = await readEvents(id);
+  // Only a turn the page reported as completed has an answer to hand out; an answer recorded
+  // outside any turn is final already, and is named by its message instead.
+  if (!messageId && (!turnId || !completedTurnIds(events).has(turnId))) throw new Error('This turn has not completed');
+  const entries = messageId ? messageAnswerEntries(events, messageId) : turnAnswerEntries(events, turnId!);
+  if (!entries.length) throw new Error('This turn has no answer to export');
+  const markdown = answerMarkdown(await Promise.all(entries.map(entry => fullText(id, entry.stored, entry.html))));
+  return { title: summary.title, markdown, entries };
+}
+
 /** Builds a completed turn's answer or the session transcript and copies or saves it. */
 export async function exportSessionMarkdown(request: MarkdownExportRequest, owner: BrowserWindow | null): Promise<MarkdownExportResult> {
-  const summary = await getSession(request.id);
-  if (!summary) throw new Error('Session not found');
-  const events = await readEvents(request.id);
   let markdown: string;
   let name: string;
   if (request.scope === 'answer') {
-    // Only a turn the page reported as completed has an answer to hand out; an answer recorded
-    // outside any turn is final already, and is named by its message instead.
-    if (!request.messageId && (!request.turnId || !completedTurnIds(events).has(request.turnId))) throw new Error('This turn has not completed');
-    const entries = request.messageId ? messageAnswerEntries(events, request.messageId) : turnAnswerEntries(events, request.turnId!);
-    if (!entries.length) throw new Error('This turn has no answer to export');
-    markdown = answerMarkdown(await Promise.all(entries.map(entry => fullText(request.id, entry.stored, entry.html))));
-    name = markdownFileName(summary.title, ' - answer');
+    const answer = await readAnswerMarkdown(request.id, request.turnId, request.messageId);
+    markdown = answer.markdown;
+    name = markdownFileName(answer.title, ' - answer');
   } else {
+    const summary = await getSession(request.id);
+    if (!summary) throw new Error('Session not found');
+    const events = await readEvents(request.id);
     const entries = transcriptEntries(events);
     markdown = sessionMarkdown(summary.title, await Promise.all(entries.map(async entry =>
       ({ role: entry.role, text: await fullText(request.id, entry.stored, entry.html) }))));
@@ -55,6 +66,11 @@ export async function exportSessionMarkdown(request: MarkdownExportRequest, owne
     await clipboard.writeText(markdown);
     return { done: 'copied' };
   }
+  return saveMarkdownFile(name, markdown, owner);
+}
+
+/** Asks where to save `markdown` (Downloads, named `name`) and writes it there. */
+export async function saveMarkdownFile(name: string, markdown: string, owner: BrowserWindow | null): Promise<MarkdownExportResult> {
   const options = {
     ...dialogLabel('Export as Markdown'),
     defaultPath: path.join(app.getPath('downloads'), name),

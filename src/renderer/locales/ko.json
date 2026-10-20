@@ -2777,5 +2777,15 @@
   "Chats sit under their project folders.": "채팅이 프로젝트 폴더 아래에 놓입니다.",
   "All chats in one list, active ones on top.": "모든 채팅을 한 목록에, 활성 채팅은 맨 위에.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "한 채팅이 동시에 실행할 수 있는 서브에이전트 채팅의 최대 수. 연결된 브라우저 확장 프로그램이 필요합니다.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "긴 작업은 도구 결과 직후 자동 계속으로 새 턴에서 이어집니다. 턴이 짧을수록 덜 끊깁니다. Goal 및 Loop 채팅에서도 사용됩니다. Pro 모델과 서브에이전트 자체 채팅에서는 사용되지 않습니다."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "긴 작업은 도구 결과 직후 자동 계속으로 새 턴에서 이어집니다. 턴이 짧을수록 덜 끊깁니다. Goal 및 Loop 채팅에서도 사용됩니다. Pro 모델과 서브에이전트 자체 채팅에서는 사용되지 않습니다.",
+  "Saved answers": "저장한 답변",
+  "Search saved answers": "저장한 답변 검색",
+  "Save answer": "답변 저장",
+  "Remove from saved answers": "저장한 답변에서 제거",
+  "Chat removed": "채팅이 삭제됨",
+  "Star an answer to keep it here.": "답변에 별표를 표시하면 여기에 보관됩니다.",
+  "No saved answers match": "일치하는 저장한 답변이 없습니다",
+  "The shelf holds at most 500 answers. Remove one first.": "답변은 최대 500개까지 저장할 수 있습니다. 먼저 하나를 제거하세요.",
+  "This answer is too long to save.": "이 답변은 너무 길어서 저장할 수 없습니다.",
+  "This saved answer was removed": "이 저장한 답변은 제거되었습니다"
 }

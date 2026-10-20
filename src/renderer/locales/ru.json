@@ -2912,5 +2912,15 @@
   "Chats sit under their project folders.": "Чаты лежат в папках своих проектов.",
   "All chats in one list, active ones on top.": "Все чаты в одном списке, активные сверху.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Сколько чатов субагентов один чат может запускать одновременно. Нужно подключённое расширение браузера.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Долгая работа продолжается в новом ходе с автоматическим «Продолжить» сразу после результата инструмента. Короткие ходы реже обрываются. Также в чатах с «Целью» и «Циклом»; не используется с моделями Pro и в собственных чатах субагентов."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Долгая работа продолжается в новом ходе с автоматическим «Продолжить» сразу после результата инструмента. Короткие ходы реже обрываются. Также в чатах с «Целью» и «Циклом»; не используется с моделями Pro и в собственных чатах субагентов.",
+  "Saved answers": "Сохранённые ответы",
+  "Search saved answers": "Поиск по сохранённым ответам",
+  "Save answer": "Сохранить ответ",
+  "Remove from saved answers": "Убрать из сохранённых ответов",
+  "Chat removed": "Чат удалён",
+  "Star an answer to keep it here.": "Отметьте ответ звёздочкой, чтобы сохранить его здесь.",
+  "No saved answers match": "Подходящих сохранённых ответов нет",
+  "The shelf holds at most 500 answers. Remove one first.": "Можно сохранить не больше 500 ответов. Сначала уберите один.",
+  "This answer is too long to save.": "Этот ответ слишком длинный для сохранения.",
+  "This saved answer was removed": "Этот сохранённый ответ убран"
 }
