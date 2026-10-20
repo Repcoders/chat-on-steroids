@@ -3336,6 +3336,33 @@ it.each(['cancelled', 'failed', 'transport'])('offers the existing diagnostics a
   expect(saveDiagnosticsReport).toHaveBeenCalledTimes(1);
 });
 
+it('previews a settings import with permission changes apart and applies it only on Apply', async () => {
+  const token = '11111111-2222-4333-8444-555555555555';
+  const previewSettingsImport = vi.fn(async () => ({ ok: true, data: { done: 'preview', token, name: 'backup.json', changes: [
+    { path: 'capabilities.command', before: 'true', after: 'false', permission: true },
+    { path: 'ui.theme', before: '"dark"', after: null, permission: false }
+  ] } }));
+  let applied: any;
+  const applySettingsImport = vi.fn(async () => applied);
+  const { window: w, state } = await mountChat({}, [], { previewSettingsImport, applySettingsImport });
+  applied = { ok: true, data: structuredClone(state) };
+  (w.document.getElementById('importSettings') as HTMLButtonElement).click();
+  const dialog = await vi.waitFor(() => {
+    const shown = w.document.getElementById('settingsImportDialog');
+    if (!shown) throw new Error('The preview is not shown yet');
+    return shown;
+  });
+  const lists = dialog.querySelectorAll('.settings-import-list');
+  expect(dialog.querySelector('.settings-import-permissions .settings-import-list')).toBe(lists[0]);
+  expect([...lists].map(list => list.querySelector('code')!.textContent)).toEqual(['capabilities.command', 'ui.theme']);
+  expect(lists[1]!.textContent).toContain('not set');
+  expect(applySettingsImport).not.toHaveBeenCalled();
+  const apply = [...dialog.querySelectorAll('button')].find(button => button.textContent === 'Apply')!;
+  apply.click();
+  await vi.waitFor(() => expect(w.document.getElementById('settingsImportDialog')).toBeNull());
+  expect(applySettingsImport).toHaveBeenCalledWith(token);
+});
+
 it('runs Update all once on explicit click and keeps it busy across state pushes, then allows retry', async () => {
   let resolve!: (reply: any) => void;
   const updateAll = vi.fn(() => new Promise<any>(done => { resolve = done; }));

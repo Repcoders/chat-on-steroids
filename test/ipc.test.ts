@@ -2264,6 +2264,51 @@ it('saves a diagnostics report through the renderer channel without personal det
   expect(shell.showItemInFolder).toHaveBeenCalledWith(target);
 });
 
+describe('settings backup', () => {
+  const tunnelId = 'tunnel_abababababababababababababababab';
+  const backup = () => path.join(dir, 'settings-backup.json');
+  const preview = () => handlers.get('settings:importPreview')!(null, undefined) as Promise<any>;
+  const applyImport = (token: unknown) => handlers.get('settings:importApply')!(null, { token }) as Promise<any>;
+  beforeEach(async () => {
+    currentWindow = { setBackgroundColor: vi.fn(), setTitleBarOverlay: vi.fn(), isDestroyed: () => false, webContents: { send: vi.fn() } };
+    const config = getConfig();
+    await saveConfig({ ...config, tunnel: { ...config.tunnel, tunnelId }, readOnly: false,
+      capabilities: { ...config.capabilities, command: true }, ui: { ...config.ui, theme: 'light' } });
+  });
+
+  it('exports without the tunnel, previews an import without applying it, and applies it only on confirmation', async () => {
+    vi.mocked(dialog.showSaveDialog).mockResolvedValueOnce({ canceled: false, filePath: backup() } as never);
+    expect(await handlers.get('settings:exportBackup')!(null, undefined)).toEqual({ ok: true, data: { done: 'saved', name: 'settings-backup.json' } });
+    const file = JSON.parse(await fs.readFile(backup(), 'utf8'));
+    expect(JSON.stringify(file)).not.toContain(tunnelId);
+    file.settings.ui.theme = 'dark';
+    file.settings.capabilities.command = false;
+    await fs.writeFile(backup(), JSON.stringify(file), 'utf8');
+    vi.mocked(dialog.showOpenDialog).mockResolvedValueOnce({ canceled: false, filePaths: [backup()] });
+    const shown = await preview();
+    expect(shown).toMatchObject({ ok: true, data: { done: 'preview', name: 'settings-backup.json', changes: [
+      { path: 'capabilities.command', before: 'true', after: 'false', permission: true },
+      { path: 'ui.theme', before: '"light"', after: '"dark"', permission: false }
+    ] } });
+    expect(getConfig().ui.theme).toBe('light');
+    expect(getConfig().capabilities.command).toBe(true);
+    expect(await applyImport(shown.data.token)).toMatchObject({ ok: true });
+    expect(getConfig()).toMatchObject({ ui: { theme: 'dark' }, capabilities: { command: false }, tunnel: { tunnelId } });
+    expect(await applyImport(shown.data.token)).toMatchObject({ ok: false, error: 'This import preview is no longer current. Choose the file again.' });
+  });
+
+  it('refuses a malformed backup before any preview', async () => {
+    const wrongType = { format: 'chat-on-steroids-settings', version: 1, settings: { capabilities: { command: 'yes' } } };
+    for (const text of ['{ not json', JSON.stringify(wrongType)]) {
+      await fs.writeFile(backup(), text, 'utf8');
+      vi.mocked(dialog.showOpenDialog).mockResolvedValueOnce({ canceled: false, filePaths: [backup()] });
+      expect(await preview()).toEqual({ ok: false, error: 'This file is not a valid Chat On Steroids settings backup.' });
+    }
+    expect(await applyImport('00000000-0000-4000-8000-000000000000')).toMatchObject({ ok: false });
+    expect(getConfig().capabilities.command).toBe(true);
+  });
+});
+
 describe('native worker checkout cleanup confirmation', () => {
   const offer = {
     runId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',

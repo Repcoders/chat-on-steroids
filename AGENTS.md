@@ -359,6 +359,20 @@ from the latest requested state, preserving fast successive edits. Disable side 
 ordered: revoke/park worker execution and durably retain history, cancel its commands while the
 bridge is available, then stop unnecessary bridge/publication resources.
 
+General › Backup (`settings-backup.ts`) exports and imports these settings as one JSON file
+(`format: "chat-on-steroids-settings"`, `version: 1`). `settings:exportBackup` writes
+capabilities, read-only, command rules, `ui`, sessions, compaction, multi-agent, Goal, MCP and
+the control API. It never writes `tunnel` (tunnel IDs, the tunnel program's path),
+`setupProfiles`, `roots` (approved folder paths), `connectorSuffix`, or the install's own `ui`
+entries (`lastSeenVersion`, `language`, `browserPreferences`, `cosBrowserTrayHint`,
+`autoRefreshPluginsAsked`); keys stay in `secrets.bin` and are never in the config.
+`settings:importPreview` reads the picked file and builds the `{base, patch}` of a normal
+`settings:save` against the current config (a setting the file does not name keeps its value,
+those excluded fields always come from the current config), validates it with the save's schema
+and returns every changed setting, permission changes first and flagged, plus a token. Nothing
+is applied then. `settings:importApply {token}` runs that exact request through the same save
+path; a malformed, foreign or newer-version file is refused before any preview.
+
 The BrowserWindow keeps context isolation, sandbox and web security on; Node integration and
 webviews off. CSP, permission denial, navigation/window restrictions and fixed preload methods
 remain intact. OS consent for Desktop is independent from the app's settings.

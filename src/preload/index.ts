@@ -19,6 +19,7 @@ import type { RunningToolActivity, SessionChange, SessionSearchReply, SessionSea
 import type { TurnTrace } from '../shared/turn-trace.js';
 import type { RunningExecProcess } from '../shared/background-exec.js';
 import type { PluginSnapshot, PluginInstallRequest, PluginConfigPatch } from '../shared/plugins.js';
+import type { SettingsBackupExport, SettingsBackupPreview } from '../shared/settings-backup.js';
 /**
  * The entire renderer-facing API.
  *
@@ -230,6 +231,12 @@ const api = {
   /** Sets an unreadable credentials file aside (kept as a backup) so keys can be saved again. */
   startFreshCredentials: () => call<{ state: AppState; setAside: boolean }>('credentials:start-fresh'),
   saveSettings: (patch: SettingsPatch, base: SettingsPatch) => call<AppState>('settings:save', { patch, base }),
+  /** Saves the settings to a backup file the person picks; keys, tunnel IDs, profiles and folders stay out. */
+  exportSettings: () => call<SettingsBackupExport>('settings:exportBackup'),
+  /** Reads a backup the person picks and lists what it would change; nothing is applied yet. */
+  previewSettingsImport: () => call<SettingsBackupPreview>('settings:importPreview'),
+  /** Applies the previewed backup through the Settings save. */
+  applySettingsImport: (token: string) => call<AppState>('settings:importApply', { token }),
   addRoot: () => call<AppState>('roots:add'),
   /** A folder dropped on the window; only the preload can learn a dropped File's path. */
   addRootPath: (file: File) => call<AppState>('roots:addPath', { path: webUtils.getPathForFile(file) }),
