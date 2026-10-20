@@ -299,6 +299,18 @@ itself quitting immediately; `app.quit()` alone does not stop module evaluation.
 second-instance/tray/Dock is gated until restore, CSP, permissions and IPC are ready. Once quit
 begins, no delayed startup callback may re-enable window creation.
 
+Answer links (`shared/answer-link.ts`): an answer's Copy link writes
+`chat-on-steroids://answer/<local session id>/<native message id>`. Packaged builds register the
+scheme at startup (`app.setAsDefaultProtocolClient`, the per-user class on Windows);
+`electron-builder.yml` `protocols` declares it in the macOS Info.plist and the Linux .desktop file.
+A link comes as this launch's argument, a second instance's argv, or macOS `open-url` (possibly
+before `ready`). `main/answer-link-delivery.ts` keeps the newest one until the activation gate lets
+a window exist, then pushes the parsed `{ sessionId, messageId }` as `answer-link:open` (preload
+`onOpenAnswerLink`) once the page has loaded. Anything but that exact shape is ignored. The
+renderer shows the chat page, reads a chat beyond the loaded sidebar pages by id, and reveals the
+answer through `sessions:locate-message`; a removed chat or a missing answer is a toast. Opening a
+link only selects and scrolls: it never sends, runs or changes anything.
+
 Startup initializes config/secrets/session/durable paths, restores the saved model catalog and
 plugin manager, loads Goal ledgers, exact correlations and blocked/trusted chat policy, then retired workers
 and every active/dormant prime family. Persistence hooks exist even when multi-agent is Off.

@@ -1,6 +1,7 @@
 import type { WorkspaceTerminalEvent, WorkspaceTerminalInfo } from '../shared/workspace-terminal.js';
 import type { ApprovalCardView } from '../shared/approval-wait.js';
 import type { DictationEvent } from '../shared/dictation.js';
+import type { AnswerLink } from '../shared/answer-link.js';
 import type { ChatModelCatalog } from '../shared/chat-models.js';
 import type { GoalModel } from '../shared/goal-reasoning.js';
 import type { TaskProgress } from '../shared/task-progress.js';
@@ -424,6 +425,12 @@ const api = {
     const wrapped = (_event: unknown, id: string): void => listener(id);
     ipcRenderer.on('session:write', wrapped);
     return () => ipcRenderer.removeListener('session:write', wrapped);
+  },
+  /** A `chat-on-steroids://answer/…` link the app was opened with; main has already parsed it. */
+  onOpenAnswerLink: (listener: (link: AnswerLink) => void): (() => void) => {
+    const wrapped = (_event: unknown, link: AnswerLink): void => listener(link);
+    ipcRenderer.on('answer-link:open', wrapped);
+    return () => ipcRenderer.removeListener('answer-link:open', wrapped);
   },
   onTaskProgress: (listener: (progress: TaskProgress) => void): (() => void) => {
     const wrapped = (_event: unknown, progress: TaskProgress): void => listener(progress);

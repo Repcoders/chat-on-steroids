@@ -6,6 +6,13 @@ directories:
   output: release
   buildResources: build
 
+# Answer links (`chat-on-steroids://answer/…`): the macOS Info.plist URL type and the Linux
+# .desktop scheme handler. Windows registers the scheme per user when the app starts (main/index.ts).
+protocols:
+  - name: Chat On Steroids answer link
+    schemes:
+      - chat-on-steroids
+
 # Only built output + runtime dependencies ship. Native prebuilds are narrowed again in each
 # platform section so a package never carries another OS/CPU's executable payload.
 files:

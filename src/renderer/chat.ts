@@ -10,6 +10,7 @@ import { imageStorageButton } from './image-storage.js';
 import { applyChatModels, applyComposerSessionModel, initChatModels, confirmedComposerModel, composerSendModel, ensureComposerModel, chatModelName } from './chat-models.js';
 import { marked, Marked, type TokenizerAndRendererExtension } from 'marked';
 import { safeExternalLink } from '../shared/external-link.js';
+import { answerLinkUrl, type AnswerLink } from '../shared/answer-link.js';
 import { AGENT_STATE_WORDS, createAgentPanel, workerName } from './agent-panel.js';
 import { KIND_ICON } from './agent-activity.js';
 import { createFilePanel } from './file-panel.js';
@@ -2299,6 +2300,33 @@ async function openBranchSource(sessionId: string, messageId: string): Promise<v
   const location = await run(api.locateMessage(sessionId, messageId));
   if (!location || selection !== selectionGeneration || selectedId !== sessionId) return;
   await revealChatLocation(sessionId, location);
+}
+
+/**
+ * Opens an answer link at its answer. The chat may sit beyond the sidebar's loaded pages, so it is
+ * read by id; a removed chat, or an answer it no longer holds, is said instead of opening nothing.
+ */
+export async function openAnswerLink(link: AnswerLink): Promise<void> {
+  let summary = sessions.find(row => row.id === link.sessionId);
+  if (!summary) {
+    const reply = await api.getSession(link.sessionId, { limit: 1 });
+    const found = reply.ok ? reply.data.summary : null;
+    if (!found) { toast(t('The chat this link points to was removed')); return; }
+    summary = found;
+    if (!sessions.some(row => row.id === found.id)) {
+      mergeSessionRows([found]);
+      // Rows older than the newest page are now held: refreshes must keep them, as after scrolling.
+      loadedOlderSessions = true;
+    }
+  }
+  pendingNewInput = null;
+  selectSession(summary.id);
+  showView('timeline');
+  const selection = selectionGeneration;
+  const location = await run(api.locateMessage(summary.id, link.messageId));
+  if (selection !== selectionGeneration || selectedId !== summary.id) return;
+  if (!location) { toast(t('This answer is no longer in the chat')); return; }
+  await revealChatLocation(summary.id, location);
 }
 
 /** The reply a new chat may branch from: a native reply in a chat ChatGPT knows, never a worker's. */
@@ -4597,6 +4625,16 @@ function answerActions(turnId: string | null, messageId?: string): HTMLElement {
   });
   menu.addEventListener('keydown', event => { if (event.key === 'Escape') { menu.open = false; trigger.focus(); } });
   bar.append(copy, menu);
+  const link = sessionId && messageId ? answerLinkUrl(sessionId, messageId) : null;
+  if (link) {
+    // A link that opens the app at this answer (`chat-on-steroids://answer/…`), pasted anywhere.
+    const button = el('button', 'answer-action answer-link') as HTMLButtonElement;
+    button.type = 'button';
+    button.append(icon('i-link'));
+    ui(button, 'title', () => t('Copy link to answer')); ui(button, 'aria-label', () => t('Copy link to answer'));
+    button.addEventListener('click', async () => { if (await run(api.writeClipboard(link))) toast(t('Link copied')); });
+    bar.append(button);
+  }
   const branch = branchPoint(messageId);
   if (branch) {
     // Branch in new chat (#482): ChatGPT's own branch at this reply, made with the first message.

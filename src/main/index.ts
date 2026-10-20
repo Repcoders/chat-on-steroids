@@ -120,6 +120,8 @@ import {
   shouldBeginAppBootstrap,
   shouldQuitOnWindowAllClosed
 } from './window-lifecycle.js';
+import { createAnswerLinkDelivery } from './answer-link-delivery.js';
+import { ANSWER_LINK_SCHEME, answerLinkInArgv, parseAnswerLink } from '../shared/answer-link.js';
 import { trayGuidArgsForPlatform, trayImageSpec } from './tray-image.js';
 import { browserWindowIconPath } from './window-icon.js';
 import { editContextMenuTemplate } from './edit-context-menu.js';
@@ -346,6 +348,16 @@ setBrowserWorkArea(() => screen.getPrimaryDisplay().workArea);
 // Until CSP/permission handlers and IPC are installed below, a re-launch is only a focus request
 // for the initial window that startup is already going to show, so do not construct one early.
 const windowActivation = createWindowActivationGate(showWindow);
+// Answer links (`chat-on-steroids://answer/…`) come as this launch's argument, a second launch's
+// argument, or macOS's `open-url`, which can fire before `ready`; each waits for the window.
+const answerLinks = createAnswerLinkDelivery(windowActivation.request,
+  () => (window && !window.isDestroyed() ? window.webContents : null));
+app.on('open-url', (event, url) => {
+  const link = parseAnswerLink(url);
+  if (!link) return;
+  event.preventDefault();
+  answerLinks.open(link);
+});
 
 /** Build the native tray image from encoded PNGs, never platform-dependent bitmap bytes. */
 function trayIcon(running: boolean): Electron.NativeImage {
@@ -405,7 +417,9 @@ function refreshTray(): void {
 }
 
 app.on('second-instance', (_event, argv) => {
-  if (!isBackgroundLaunch(argv)) windowActivation.request();
+  const link = answerLinkInArgv(argv);
+  if (link) answerLinks.open(link);
+  else if (!isBackgroundLaunch(argv)) windowActivation.request();
 });
 
 void app.whenReady().then(async () => {
@@ -648,8 +662,12 @@ void app.whenReady().then(async () => {
       app.quit();
     }
   );
+  // Packaged builds own the answer-link scheme; a dev build would register bare Electron for it.
+  if (app.isPackaged && !app.setAsDefaultProtocolClient(ANSWER_LINK_SCHEME)) logWarn('answer links: could not register the link scheme');
   windowActivation.enable();
   if (!isBackgroundLaunch(process.argv)) windowActivation.request();
+  const launchLink = answerLinkInArgv(process.argv);
+  if (launchLink) answerLinks.open(launchLink); else answerLinks.flush();
   // The desktop pet overlay is independent of the main window once started; it stays hidden
   // until a pet is enabled.
   await startPetOverlay(() => window, () => windowActivation.request());
