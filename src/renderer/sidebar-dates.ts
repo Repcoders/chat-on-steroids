@@ -17,7 +17,7 @@ export function dateGroup(at: number, now: number): DateGroup {
   return { kind: 'month', year: date.getFullYear(), month: date.getMonth() };
 }
 
-/** How far back a group lies: newer groups rank lower, so a list in date order never ranks down. */
+/** How far back a group lies: one number per group, so a run of one group is easy to find. */
 function rank(group: DateGroup, now: number): number {
   if (group.kind === 'today') return 0;
   if (group.kind === 'yesterday') return 1;
@@ -27,8 +27,9 @@ function rank(group: DateGroup, now: number): number {
 }
 
 /**
- * The label each chat stands under, keyed by the first chat of its group in drawn order. A list
- * sorted by hand out of date order gets no labels: one would misstate the dates of the rows below it.
+ * The label each chat stands under, keyed by the first chat of each run of one group in drawn
+ * order. A list sorted by hand can show a group twice; every label still tells the truth about
+ * the chats below it, up to the next label.
  */
 export function dateLabels(rows: ReadonlyArray<{ id: string; updatedAt: number }>, now: number): Map<string, DateGroup> {
   const labels = new Map<string, DateGroup>();
@@ -36,11 +37,16 @@ export function dateLabels(rows: ReadonlyArray<{ id: string; updatedAt: number }
   for (const row of rows) {
     const group = dateGroup(row.updatedAt, now);
     const at = rank(group, now);
-    if (last !== undefined && at < last) return new Map();
     if (at !== last) labels.set(row.id, group);
     last = at;
   }
   return labels;
+}
+
+/** The start of the local day after `now`, when the groups move on. */
+export function nextDayStart(now: number): number {
+  const today = new Date(now);
+  return new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).getTime();
 }
 
 /** The label's words in the interface language; a month of another year names the year too. */

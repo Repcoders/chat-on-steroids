@@ -1,6 +1,6 @@
 // Production renderer and real Chromium layout/input; synthetic conversations only.
 // Date labels in the Chats list: Today, Yesterday, Previous 7 days and months above the unpinned chats,
-// none above pinned ones; dragging inside a group keeps them, a list sorted out of date order has none.
+// none above pinned ones; dragging inside a group keeps them, and a chat moved below older chats gets its own label.
 const { app, BrowserWindow } = require('electron');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = process.env.COS_UI_ROOT || path.resolve(__dirname, '..');
@@ -65,11 +65,11 @@ app.whenReady().then(async () => {
   await moveDown('chat-1');
   assert.deepEqual((await drawn()).slice(1,4), ['# Today','chat-2','chat-1']);
   assert.equal((await drawn()).filter(n=>n.startsWith('# ')).length, 4);
-  // Moved below an older chat, the list is no longer in date order: no label would be true, so none is drawn.
+  // Moved below an older chat, it starts a run of its own: every label stays true for the chats below it.
   await moveDown('chat-1');
-  assert.deepEqual(await drawn(), ['chat-3','chat-2','chat-4','chat-1','chat-5','chat-6']);
+  assert.deepEqual(await drawn(), ['chat-3','# Today','chat-2','# Previous 7 days','chat-4','# Today','chat-1',`# ${monthLabel}`,'chat-5',`# ${older}`,'chat-6']);
   await capture('hand-sorted.png');
   assert.deepEqual(errors,[]);
-  console.log('PASS: date labels sit above the unpinned chats in date order, never above pinned ones, and leave a hand-sorted list alone');
+  console.log('PASS: date labels sit above each run of unpinned chats, never above pinned ones, and stay true in a hand-sorted list');
   win.destroy();await server.close();app.exit(0);
 }).catch(async error=>{fs.mkdirSync(output,{recursive:true});if(win&&!win.isDestroyed())fs.writeFileSync(path.join(output,'failure.png'),(await win.webContents.capturePage()).toPNG());console.error(error);await server?.close();app.exit(1);});

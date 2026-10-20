@@ -1,7 +1,7 @@
 import { JSDOM } from 'jsdom';
 import { afterEach, expect, it } from 'vitest';
 import { setLanguage } from '../src/renderer/i18n.js';
-import { dateGroup, dateGroupLabel, dateLabels } from '../src/renderer/sidebar-dates.js';
+import { dateGroup, dateGroupLabel, dateLabels, nextDayStart } from '../src/renderer/sidebar-dates.js';
 
 let dom: JSDOM | undefined;
 afterEach(() => {
@@ -41,11 +41,20 @@ it('labels the first chat of each group in a list in date order', () => {
   expect(dateLabels([], now).size).toBe(0);
 });
 
-it('keeps the labels for chats dragged inside their group and drops them all for a list sorted out of date order', () => {
+it('labels every run of one group in a list sorted by hand, so a label never stops being true', () => {
   const inGroup = [{ id: 'b', updatedAt: at(9, 19, 8) }, { id: 'a', updatedAt: at(9, 19, 9) }, { id: 'c', updatedAt: at(9, 18) }];
   expect([...dateLabels(inGroup, now).keys()]).toEqual(['b', 'c']);
-  const across = [{ id: 'c', updatedAt: at(9, 18) }, { id: 'a', updatedAt: at(9, 19, 9) }, { id: 'd', updatedAt: at(8, 1) }];
-  expect(dateLabels(across, now).size).toBe(0);
+  // A drag saves the whole order: a chat continued later keeps its old place below older chats.
+  const continued = [...inGroup, { id: 'd', updatedAt: at(9, 19, 9, 20) }, { id: 'e', updatedAt: at(8, 1) }];
+  expect([...dateLabels(continued, now)]).toEqual([
+    ['b', { kind: 'today' }], ['c', { kind: 'yesterday' }], ['d', { kind: 'today' }], ['e', { kind: 'month', year: 2026, month: 8 }]
+  ]);
+});
+
+it('knows when the next local day starts, so the labels can be redrawn then', () => {
+  expect(nextDayStart(now)).toBe(new Date(2026, 9, 20).getTime());
+  expect(nextDayStart(new Date(2026, 9, 19, 23, 59, 59).getTime())).toBe(new Date(2026, 9, 20).getTime());
+  expect(nextDayStart(new Date(2026, 11, 31, 12).getTime())).toBe(new Date(2027, 0, 1).getTime());
 });
 
 it('words the labels in the interface language, naming the year only for another year', () => {

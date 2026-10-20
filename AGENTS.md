@@ -4113,8 +4113,9 @@ the chat's row menu, keeping keyboard focus on the rebuilt row's menu button.
 the project tree layout: Today, Yesterday, Previous 7 days, then one per month (with its year when
 it is not this year), by the local calendar and each chat's `updatedAt`, the time its row's age shows.
 They are plain text, never folders: no disclosure, no saved state, not focusable and not a drag
-scope or drop target, so pins and manual order work as before. A list the person has sorted by
-hand out of date order shows no labels at all, since any label would misstate the chats below it.
+scope or drop target, so pins and manual order work as before. A label starts each run of one
+group in drawn order, so a list sorted by hand can show a group twice but no label misstates the
+chats below it. A timer repaints the list at local midnight, when the groups move on.
 The worker drawer is a read-only split view of the selected worker's own recorded conversation;
 opening it never switches the prime composer. Its cards show the scoped worker id, task, observed
 current-conversation model and broker status when known, falling back to recorded session activity.
