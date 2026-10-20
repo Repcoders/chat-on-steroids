@@ -120,6 +120,9 @@ export interface SearchRequest {
   signal?: AbortSignal;
 }
 
+/** The query, read as a regular expression, is not one: ripgrep or the fallback could not parse it. */
+export class SearchPatternError extends Error {}
+
 type FolderEntry = { name: string; isDirectory: boolean; isFile: boolean };
 
 /**
@@ -354,7 +357,11 @@ async function searchWithRipgrep(
       if (stoppedBecause !== null || code === 0 || code === 1) finish();
       // Never surface rg's raw stderr here. For an exact file it can echo the hidden native
       // approved-root path after a rename/ACL race; the model only needs the backend verdict.
-      else finish(new Error(`ripgrep search failed${code === null ? '' : ` (exit ${code})`}`));
+      else {
+        const message = `ripgrep search failed${code === null ? '' : ` (exit ${code})`}`;
+        // Exit 2 also covers unreadable files; only ripgrep's own parse report blames the pattern.
+        finish(req.regex && /regex parse error/.test(stderr) ? new SearchPatternError(message) : new Error(message));
+      }
     });
     const timer = setTimeout(() => {
       if (stoppedBecause === null) stoppedBecause = 'time';
@@ -600,7 +607,7 @@ async function scanOneFile(
     try {
       regex = new RegExp(req.query, req.caseSensitive ? '' : 'i');
     } catch (error) {
-      throw new Error(`Invalid search regex: ${error instanceof Error ? error.message : String(error)}`);
+      throw new SearchPatternError(`Invalid search regex: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   const results: Array<{ line: number; text: string }> = [];

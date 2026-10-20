@@ -86,6 +86,18 @@ it('says a regular expression ripgrep cannot read is the problem, and only for a
   expect((await searchProject(query(project.id, '(', { regex: false }))).hits.map(hit => hit.line)).toEqual([1]);
 });
 
+// chmod 000 keeps a file from its owner only off Windows and without root.
+it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('reports an unreadable file as a failed search, not as a bad regular expression', async () => {
+  await writeTree(projectPath, { 'a.txt': 'needle\n', 'locked.txt': 'needle\n' });
+  await fs.chmod(path.join(projectPath, 'locked.txt'), 0o000);
+  try {
+    const project = await addProject(projectPath);
+    await expect(searchProject(query(project.id, 'need.e', { regex: true }))).rejects.toThrow(/ripgrep search failed/);
+  } finally {
+    await fs.chmod(path.join(projectPath, 'locked.txt'), 0o644);
+  }
+});
+
 it('refuses a project id that is not a known project', async () => {
   await expect(searchProject(query('33333333-3333-4333-8333-333333333333', 'needle'))).rejects.toThrow(/not found/i);
 });

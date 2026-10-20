@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { DEFAULT_EXCLUDES, globToRegExp, search, searchOneFile } from '../src/main/search.js';
+import { DEFAULT_EXCLUDES, globToRegExp, search, searchOneFile, SearchPatternError } from '../src/main/search.js';
 import { ripgrepExecutableName } from '../src/main/ripgrep.js';
 import { makeTempDir, removeTempDir, writeTree } from './helpers.js';
 
@@ -370,6 +370,10 @@ describe('project search options', () => {
     } finally {
       await removeTempDir(tree);
     }
+  });
+
+  it('marks a regular expression it cannot parse with its own error type', async () => {
+    await expect(search(req({ query: '(', mode: 'content', regex: true }))).rejects.toBeInstanceOf(SearchPatternError);
   });
 
   it('stops when its signal aborts and says it was cancelled', async () => {

@@ -1,5 +1,5 @@
 import { projectFileTarget } from './project-files.js';
-import { DEFAULT_EXCLUDES, search } from './search.js';
+import { DEFAULT_EXCLUDES, search, SearchPatternError } from './search.js';
 import type { ProjectSearchQuery, ProjectSearchResult } from '../shared/project-files.js';
 
 /** Enough to scan by eye; a broader query is told to narrow instead of filling the IPC message. */
@@ -40,11 +40,7 @@ export async function searchProject(query: ProjectSearchQuery): Promise<ProjectS
       stoppedBecause: outcome.stoppedBecause
     };
   } catch (error) {
-    // ripgrep exits 2 on a pattern it cannot parse, and search() keeps its stderr out of the
-    // message. With regex off the query is a fixed string, so the same exit is something else.
-    if (query.regex && error instanceof Error && error.message.startsWith('ripgrep search failed')) {
-      throw new Error('The search failed. Check the regular expression.');
-    }
+    if (error instanceof SearchPatternError) throw new Error('The search failed. Check the regular expression.');
     throw error;
   } finally {
     if (running === controller) running = null;
