@@ -4047,7 +4047,7 @@ changes, once `lastTurnEndAt` is past the send with no active turn, it pushes `q
 ended another way than completed (an interrupted turn, which a fresh turn for long work causes, keeps
 it waiting). The page draws that Markdown with a small tag allowlist through `sanitize-html.ts`; links
 read as their text. Open chat focuses the main window and selects the chat with `session:write`, the
-way a turn-done notification does. The window hides on blur and Escape and keeps its last answer. The page remembers the last picked
+way a turn-done notification does; `quick-ask:openChat` opens only the chat this window started. The window hides on blur and Escape and keeps its last answer. The page remembers the last picked
 project in `localStorage` `cos.quickAsk.project` (owner: `renderer/quick-ask.ts`; a per-install
 convenience that survives restarts, never sent to main or the outbox). A saved id that is not in
 `QuickAskState.projects` any more selects No project instead.

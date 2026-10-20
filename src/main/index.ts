@@ -656,7 +656,8 @@ void app.whenReady().then(async () => {
   // until a pet is enabled.
   await startPetOverlay(() => window, () => windowActivation.request());
   // Opt-in; the shortcut is registered only while `ui.quickAsk` is on (ipc.ts follows changes).
-  startQuickAsk(() => window, () => windowActivation.request());
+  // Startup awaits above; a quit during them must not start the shortcut after shutdown.
+  if (!quitting) startQuickAsk(() => window, () => windowActivation.request());
   // macOS `activate` can fire on first launch, so do not wire it at module load where it could
   // create a BrowserWindow before Electron is ready. Once the initial window path is established,
   // Dock activation/re-launch can safely recreate or focus it.

@@ -227,3 +227,43 @@ it('does not show a window still loading when the setting is turned off', () => 
   win.webContents.emit('did-finish-load');
   expect(win.isVisible()).toBe(false);
 });
+
+it('does not show an earlier answer once a newer question is being sent', async () => {
+  mocks.config.ui.quickAsk = true;
+  startQuickAsk(() => owner as any, requestOwner);
+  const win = press();
+  const send = mocks.handlers.get('quick-ask:send')!;
+  const first = await send({ sender: win.webContents }, { text: 'First', projectId: null }) as any;
+  // The newer question is still being admitted when the earlier chat finishes.
+  let admit!: () => void;
+  mocks.send.mockImplementationOnce(() => new Promise(resolve => { admit = () => resolve({ id: 'second', sessionId: 'second', state: 'queued', createdAt: Date.now() } as any); }));
+  const second = send({ sender: win.webContents }, { text: 'Second', projectId: null });
+  mocks.session = { id: first.data.sessionId, activeTurnId: null, lastTurnEndAt: Date.now() + 1, lastTurnOutcome: 'completed' };
+  mocks.answer = 'The first answer';
+  mocks.sessionChange!({ sessionIds: [first.data.sessionId] });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  admit();
+  await second;
+  expect(win.webContents.send.mock.calls.filter((call: unknown[]) => call[0] === 'quick-ask:answer')).toHaveLength(0);
+});
+
+it('opens only the chat that quick ask started', async () => {
+  mocks.config.ui.quickAsk = true;
+  startQuickAsk(() => owner as any, requestOwner);
+  const win = press();
+  const reply = await mocks.handlers.get('quick-ask:send')!({ sender: win.webContents }, { text: 'Hi', projectId: null }) as any;
+  mocks.listeners.get('quick-ask:openChat')!({ sender: win.webContents }, { sessionId: 'a0b1c2d3-other-chat' });
+  expect(owner.webContents.send).not.toHaveBeenCalled();
+  mocks.listeners.get('quick-ask:openChat')!({ sender: win.webContents }, { sessionId: reply.data.sessionId });
+  expect(owner.webContents.send).toHaveBeenCalledWith('session:write', reply.data.sessionId);
+});
+
+it('does not register the shortcut for a setting saved after shutdown began', () => {
+  mocks.config.ui.quickAsk = true;
+  startQuickAsk(() => owner as any, requestOwner);
+  shutdownQuickAsk();
+  mocks.register.mockClear();
+  setQuickAskShortcut(true);
+  expect(mocks.register).not.toHaveBeenCalled();
+  expect(mocks.shortcuts.size).toBe(0);
+});

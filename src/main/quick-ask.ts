@@ -43,6 +43,8 @@ let started = false;
 let stopSessions: (() => void) | null = null;
 /** The one question this window waits on; a newer one replaces it. */
 let pending: { sessionId: string; sentAt: number } | null = null;
+/** The chat this window started; Open chat opens only that one. */
+let quickAskSessionId: string | null = null;
 
 function validSender(id: number): boolean { return !!win && !win.isDestroyed() && win.webContents.id === id; }
 function reply<T>(work: () => Promise<T>): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
@@ -79,9 +81,12 @@ async function send(raw: unknown): Promise<{ sessionId: string; error: string | 
   const { text, projectId } = sendArgs.parse(raw);
   if (projectId && !(await listProjects()).some(project => project.id === projectId && !project.ungrouped)) throw new Error('This project is no longer in the app.');
   const id = randomUUID(), sentAt = Date.now();
+  // A newer question replaces the one this window waits on, even before it is admitted.
+  pending = null;
   const entry = await sendDesktopInput({ id, sessionId: null, ...(projectId ? { projectId } : {}), text, mode: 'auto', dueAt: Date.now(), ...defaultModel(), authoredSource: 'text' });
   // A new chat's first message is filed under its own id.
   const sessionId = entry.sessionId ?? id;
+  quickAskSessionId = sessionId;
   pending = { sessionId, sentAt };
   logInfo(`quick ask: started chat ${sessionId}`);
   return { sessionId, error: entry.error ?? null };
@@ -123,7 +128,7 @@ function registerIpc(): void {
   ipcMain.handle('quick-ask:send', (event, payload: unknown) => validSender(event.sender.id) ? reply(() => send(payload)) : { ok: false, error: 'Not allowed' });
   ipcMain.on('quick-ask:openChat', (event, payload: unknown) => {
     const parsed = sessionArg.safeParse(payload);
-    if (validSender(event.sender.id) && parsed.success) openChat(parsed.data.sessionId);
+    if (validSender(event.sender.id) && parsed.success && parsed.data.sessionId === quickAskSessionId) openChat(parsed.data.sessionId);
   });
   ipcMain.on('quick-ask:hide', event => { if (validSender(event.sender.id)) win?.hide(); });
 }
@@ -172,6 +177,8 @@ export function toggleQuickAsk(): void {
 
 /** Registers or releases the shortcut. Throws when another app already holds it. */
 export function setQuickAskShortcut(enabled: boolean): void {
+  // A save that lands after shutdown began registers nothing; the next start applies the saved setting.
+  if (enabled && !started) return;
   if (!enabled) {
     if (registered) globalShortcut.unregister(QUICK_ASK_SHORTCUT);
     registered = false;
@@ -204,6 +211,7 @@ export function shutdownQuickAsk(): void {
   registered = false;
   stopSessions?.(); stopSessions = null;
   pending = null;
+  quickAskSessionId = null;
   const current = win; win = null;
   if (current && !current.isDestroyed()) current.destroy();
 }
