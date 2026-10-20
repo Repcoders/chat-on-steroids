@@ -96,11 +96,15 @@ import { APPROVAL_ANSWERED_TEXT, APPROVAL_PROGRESS_PREFIX, APPROVAL_WAITING_TEXT
 import { STRICT_REFUSAL_PROGRESS_PREFIX, UNPROVEN_WORKER_NOTICE, UNTRUSTED_NOTICE, UNTRUSTED_WORKER_NOTICE } from '../shared/trust-notices.js';
 import { openRowMenu, rowMenuOpenFor, toggleRowMenu, type RowMenuItem, type RowMenuOptions } from './row-menu.js';
 import { createSearchPopup } from './search-popup.js';
+import { createOutboxInspector } from './outbox-inspector.js';
 import { primaryShortcut } from './shortcuts.js';
 import { initSshProjectDialog } from './ssh-project-dialog.js';
 
 const api = window.api;
 let chatSearch: ChatSearch | null = null;
+let outboxInspector: ReturnType<typeof createOutboxInspector> | null = null;
+/** Chats the outbox inspector read because the sidebar had not loaded them. */
+const outboxSummaries = new Map<string, SessionSummary>();
 let chatFind: ReturnType<typeof initChatFind> | null = null;
 
 
@@ -7282,6 +7286,11 @@ function historicalAutomaticInput(entry: InputEntry): boolean {
     entry.state === 'cancelled' && !!entry.error;
 }
 
+/** What a chat's queue says about an outbox row: its error, or its state and what it waits for. */
+function inputStatus(entry: InputEntry, held = routeHeld(entry), waiting = queuedWaitReason(entry)): string {
+  return entry.error ? t(entry.error) : held ? t("Sending in a moment…") : waiting === 'extension' ? t("Waiting for the browser extension to connect") : waiting === 'tool-call' ? t("Waiting for the running tool call to finish") : waiting === 'chatgpt-project' ? t("Creating this project in ChatGPT…") : waiting === 'chatgpt-project-failed' ? t("This project's ChatGPT Project isn't available. Retry it from the project's menu.") : (entry.state === 'failed' ? t("Delivery not confirmed") : entry.state === 'decision' ? t("Preparing follow-up") : entry.state === 'browser' ? t("Delivery confirmation pending") : entry.state === 'tool' ? t("Sent to the active turn · awaiting receipt") : entry.dueAt > Date.now() ? t("Scheduled {0}", [new Date(entry.dueAt).toLocaleString(currentLanguage())]) : entry.delivery === 'tool' ? t("Waiting for the next tool call") : t("Queued"));
+}
+
 function inputMessageRow(entry: InputEntry, notice: boolean): HTMLElement {
   const row = el('div', 'pending-message');
   row.classList.toggle('is-delivered', !entry.error && ['sent', 'tool'].includes(entry.state));
@@ -7295,7 +7304,7 @@ function inputMessageRow(entry: InputEntry, notice: boolean): HTMLElement {
   if (!visibleInputIds.has(entry.id)) row.classList.add('is-entering');
   visibleInputIds.add(entry.id);
   if (visibleInputIds.size > 100) visibleInputIds.delete(visibleInputIds.values().next().value!);
-  const status = () => entry.error ? t(entry.error) : held ? t("Sending in a moment…") : waiting === 'extension' ? t("Waiting for the browser extension to connect") : waiting === 'tool-call' ? t("Waiting for the running tool call to finish") : waiting === 'chatgpt-project' ? t("Creating this project in ChatGPT…") : waiting === 'chatgpt-project-failed' ? t("This project's ChatGPT Project isn't available. Retry it from the project's menu.") : (entry.state === 'failed' ? t("Delivery not confirmed") : entry.state === 'decision' ? t("Preparing follow-up") : entry.state === 'browser' ? t("Delivery confirmation pending") : entry.state === 'tool' ? t("Sent to the active turn · awaiting receipt") : entry.dueAt > Date.now() ? t("Scheduled {0}", [new Date(entry.dueAt).toLocaleString(currentLanguage())]) : entry.delivery === 'tool' ? t("Waiting for the next tool call") : t("Queued"));
+  const status = () => inputStatus(entry, held, waiting);
   const files = el('div', 'message-attachments');
   if (entry.attachments?.length) files.append(...entry.attachments.map(file => attachmentCard(file)));
   for (const image of entry.images ?? []) { const preview = document.createElement('img'); preview.src = image.dataUrl; preview.alt = image.name; files.append(preview); }
@@ -7393,6 +7402,11 @@ async function adoptAcceptedOpening(entry: InputEntry): Promise<boolean> {
   inputDrafts.delete(from); imageDrafts.delete(from); newChatTasks.delete(from);
   return true;
 }
+/** A failed or cancelled row whose delivery notice (with Dismiss and Retry) is still shown. */
+function deliveryNotice(entry: InputEntry): boolean {
+  return entry.purpose !== 'decision' && entry.purpose !== 'rotation' &&
+    ['failed', 'cancelled'].includes(entry.state) && !!entry.error && !dismissedInputNotices.has(entry.id);
+}
 function paintPendingInputs(): void {
   const all = pendingComposerInputs;
   const belongsToSelection = (entry: InputEntry): boolean => selectedId === null
@@ -7401,8 +7415,7 @@ function paintPendingInputs(): void {
   // A pre-acceptance or failed-materialization row belongs only to its exact draft.
   // A fresh New Chat never inherits another opening.
   const unbound = (entry: InputEntry) => selectedId === null && pendingNewInput?.id === entry.id && pendingNewInput.generation === selectionGeneration && !entry.deliveredSessionId && entry.purpose !== 'decision' && ['queued', 'browser'].includes(entry.state);
-  const notice = (entry: InputEntry) => belongsToSelection(entry) && entry.purpose !== 'decision' && entry.purpose !== 'rotation' &&
-    ['failed', 'cancelled'].includes(entry.state) && !!entry.error && !dismissedInputNotices.has(entry.id);
+  const notice = (entry: InputEntry) => belongsToSelection(entry) && deliveryNotice(entry);
   const anchored = (entry: InputEntry) => detailFor === selectedId && (events.some(event =>
     event.kind === 'user_message' && (event.inputId === entry.id ||
       event.messageId === (entry.messageId ?? `input:${entry.id}`))) ||
@@ -7429,6 +7442,7 @@ function paintPendingInputs(): void {
   // Helper controls have their own owner and are refreshed by the queue read below.
   reconcileChildren(host, [...next, ...host.querySelectorAll<HTMLElement>(':scope > .queued-input')]);
   holdSentMessage();
+  outboxInspector?.update();
 }
 async function refreshInputQueue(): Promise<void> {
   const request = ++inputQueueGeneration;
@@ -7436,6 +7450,8 @@ async function refreshInputQueue(): Promise<void> {
   const [all, pausedHelpers] = await Promise.all([run(api.listInputs()), run(api.listPausedHelpers())]);
   if (!all || selection !== selectionGeneration || request !== inputQueueGeneration) return;
   pendingComposerInputs = all; composerInputsLoaded = true;
+  // The Outbox lists every chat, so it repaints even while the open chat's detail is still loading.
+  outboxInspector?.update();
   for (const id of dismissedInputNotices) if (!all.some(entry => entry.id === id)) dismissedInputNotices.delete(id);
   paintDeliveryControls();
   const accepted = pendingNewInput && all.find(entry => entry.id === pendingNewInput!.id);
@@ -7816,6 +7832,16 @@ async function sendComposer(delivery?: 'finish' | 'auto' | 'after-turn', plan?: 
 }
 
 // ------------------------------------------------------------------- wiring
+
+/** A chat as the outbox inspector names it; null for a reserved chat with nothing to open yet. */
+function outboxChat(summary: SessionSummary): { id: string; title: string } | null {
+  return summary.conversationId || summary.origin?.kind === 'desktop' ? { id: summary.id, title: shownSessionTitle(summary) } : null;
+}
+
+/** Opens the outbox inspector: every chat's waiting messages (the View menu). */
+export function openOutbox(): void {
+  outboxInspector?.open();
+}
 
 /** Opens the search dialog, as ⌘K / Ctrl+K does (the View menu). */
 export function openChatSearch(): void {
@@ -8452,6 +8478,39 @@ export function initChat(next: Deps): void {
     find: async (id, query) => (await run(api.findInChat(id, query))) ?? null,
     reveal: revealChatLocation,
     row: rowForLocation
+  });
+  outboxInspector = createOutboxInspector({
+    entries: () => pendingComposerInputs,
+    refresh: () => void refreshInputQueue(),
+    chat: id => {
+      const summary = sessions.find(row => row.id === id);
+      return summary ? outboxChat(summary) : undefined;
+    },
+    findChat: async id => {
+      const reply = await api.getSession(id, { limit: 1 });
+      if (!reply.ok) throw new Error(reply.error);
+      if (reply.data?.summary) outboxSummaries.set(id, reply.data.summary);
+      return reply.data?.summary ? outboxChat(reply.data.summary) : null;
+    },
+    // A queued follow-up waits for its chat's answer, as its card in that chat says.
+    status: entry => entry.error || !queuedFollowup(entry) ? inputStatus(entry)
+      : entry.recovery ? t('Automatic Continue')
+      : entry.state === 'queued' ? (entry.mode === 'after-turn' ? t("After the next completed answer") : t("At Session finish or after a completed answer"))
+      : t("Awaiting receipt"),
+    // The chat queue's own notice rule, without its selection check.
+    notice: entry => deliveryNotice(entry) && !historicalAutomaticInput(entry),
+    cancel: async id => {
+      const result = await run(api.cancelInput(id));
+      if (result) dismissInputNotice(id);
+      return result;
+    },
+    retryBrowser: id => run(api.retryInputBrowser(id)),
+    open: id => {
+      // An older chat joins the sidebar as an expanded project's older chats do, so refreshes keep it open.
+      const older = sessions.some(row => row.id === id) ? undefined : outboxSummaries.get(id);
+      if (older) { mergeSessionRows([older]); loadedOlderSessions = true; }
+      if (id !== selectedId) { pendingNewInput = null; selectSession(id); }
+    }
   });
   chatSearch = initChatSearch({
     select: (id, match) => {

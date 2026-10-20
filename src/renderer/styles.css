@@ -156,6 +156,18 @@
 .plugin-dialog-head .btn { color: var(--soft); }
 .plugin-dialog-body { padding: 24px; font-size: calc(13px * var(--text-scale, 1)); line-height: 1.6; }
 .plugin-dialog-body > p:first-child { margin-top: 0; }
+.outbox-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.outbox-row { display: grid; gap: 6px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.outbox-row:first-child { padding-top: 0; }
+.outbox-row-head { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.outbox-chat { min-width: 0; padding: 0; overflow: hidden; color: var(--ink); background: none; border: 0; font: inherit; font-weight: 550; text-align: start; text-overflow: ellipsis; white-space: nowrap; }
+button.outbox-chat { cursor: pointer; }
+button.outbox-chat:hover { text-decoration: underline; }
+.outbox-status { flex: 1 0 auto; max-width: 60%; margin-inline-start: auto; color: var(--soft); font-size: calc(11px * var(--text-scale, 1)); text-align: end; overflow-wrap: anywhere; }
+.outbox-status.is-problem { color: var(--red); }
+.outbox-text { display: -webkit-box; margin: 0; overflow: hidden; color: var(--soft); -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; unicode-bidi: plaintext; text-align: start; }
+.outbox-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.outbox-empty { margin: 0; color: var(--soft); }
 .plugin-detail-hero, .plugin-card-head { display: flex; align-items: center; gap: 17px; margin-bottom: 20px; }
 .plugin-detail-hero .plugin-icon { width: 60px; height: 60px; border-radius: 16px; }
 .plugin-detail-hero p, .plugin-card-head p { margin: 0; color: var(--soft); line-height: 1.6; }
