@@ -661,6 +661,10 @@ code {
   .is-search-hit .said:not(.is-user) { animation: none; background: var(--accent-wash); box-shadow: 0 0 0 8px var(--accent-wash); }
   .is-search-hit .said.is-user > .user-message-text { animation: none; box-shadow: 0 0 0 2px var(--accent-edge); }
 }
+/* A chat opened where its reader left it: a quiet rule above what arrived since. */
+.new-since-read { display: flex; align-items: center; gap: 10px; margin: 12px 0 4px; color: var(--accent);
+  font-size: calc(11px * var(--text-scale, 1)); font-weight: 600; line-height: 16px; }
+.new-since-read::before { content: ''; flex: 1; height: 1px; background: var(--accent-edge); }
 .search-status { padding: 8px 10px; color: var(--faint); font-size: calc(12px * var(--text-scale, 1)); }
 .sidebar-sessions h2 { font-size: calc(10px * var(--text-scale, 1)); padding: 10px 8px; }
 .sidebar-sessions .foot { border: 0; padding: 12px 8px; font-size: calc(10px * var(--text-scale, 1)); }

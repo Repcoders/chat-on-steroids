@@ -4985,6 +4985,177 @@ it('opens every selected chat at the bottom and preserves manual reading during 
   expect(w.document.getElementById('chatTitle')!.textContent).toBe(first.title);
 });
 
+describe('reading position memory', () => {
+  /** Two chats over one transcript, each row 100px tall in a 400px view. */
+  async function readingBoot(count: number, branchOf?: string) {
+    const rows = Array.from({ length: count }, (_, i): SessionEvent => ({ seq: i + 1, time: T0 + i,
+      source: 'extension', kind: 'user_message', messageId: `reading-${i + 1}`, message: text(`Reading item ${i + 1}`) }));
+    const first = summary(rows);
+    // `branchOf`: the other chat is a branch of the first one, from that message.
+    const second: SessionSummary = { ...summary(rows), id: '2026-09-02-test0002', title: 'Other chat', ...(branchOf ? {
+      conversationId: 'branch-chat', origin: { kind: 'desktop', fromSessionId: first.id, agentId: null, task: '',
+        branchOf: { conversationId: first.conversationId!, messageId: branchOf } } } : {}) };
+    const booted = await boot(rows, false, [], [], { sessions: [first, second] });
+    const { w } = booted;
+    const pane = w.document.getElementById('chatBody')!;
+    const timeline = w.document.getElementById('timeline')!;
+    const keyed = () => [...timeline.querySelectorAll<HTMLElement>('[data-timeline-key]')];
+    // Like a browser, the view stops at its bottom: scrollHeight - clientHeight.
+    let scrolled = 0;
+    Object.defineProperties(pane, { clientHeight: { value: 400 }, scrollHeight: { get: () => keyed().length * 100 },
+      scrollTop: { configurable: true, get: () => scrolled, set: (top: number) => { scrolled = Math.max(0, Math.min(top, pane.scrollHeight - 400)); } } });
+    const bottom = () => pane.scrollHeight - 400;
+    w.document.getElementById('timelineContent')!.getBoundingClientRect = () => ({ height: pane.scrollHeight } as DOMRect);
+    const layout = w.HTMLElement.prototype.getBoundingClientRect;
+    w.HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+      // The divider sits where the row after it starts.
+      const row = this.classList.contains('new-since-read') ? this.nextElementSibling as HTMLElement : this;
+      const index = row?.dataset.timelineKey ? keyed().indexOf(row) : -1;
+      if (index < 0) return layout.call(this);
+      const top = index * 100 - pane.scrollTop;
+      return { top, bottom: top + 100, height: 100, left: 0, right: 100, width: 100, x: 0, y: top, toJSON: () => ({}) } as DOMRect;
+    };
+    const select = async (id: string) => {
+      (w.document.querySelector(`#sessionList [data-id="${id}"]`) as HTMLElement).click();
+      await settleHistoryFrame(w); await settleHistoryFrame(w);
+    };
+    const readTo = (top: number) => {
+      pane.dispatchEvent(new w.WheelEvent('wheel', { deltaY: -100 }));
+      pane.scrollTop = top;
+      pane.dispatchEvent(new w.Event('scroll'));
+    };
+    /** The first row on screen and its distance from the top of the view. */
+    const onTop = () => {
+      const row = keyed().find(node => node.getBoundingClientRect().bottom > 0)!;
+      return { text: row.textContent, top: row.getBoundingClientRect().top };
+    };
+    return { ...booted, first, second, pane, timeline, select, readTo, onTop, bottom };
+  }
+
+  it('reopens a chat on the message its reader left, with New since you read above what arrived', async () => {
+    const { w, first, second, pane, timeline, select, readTo, onTop, append, bottom } = await readingBoot(30);
+    await select(first.id);
+    expect(pane.scrollTop).toBe(bottom());
+    readTo(1230);
+    const left = onTop();
+    expect(left.text).toContain('Reading item 13');
+    await select(second.id);
+    expect(pane.scrollTop).toBe(bottom());
+    await append([
+      { seq: 31, time: T0 + 31, source: 'extension', kind: 'user_message', messageId: 'reading-new', message: text('Question asked meanwhile') },
+      { seq: 32, time: T0 + 32, source: 'extension', kind: 'assistant_message', messageId: 'reading-answer', message: text('Answer written meanwhile'), final: true }
+    ]);
+    await select(first.id);
+    expect(onTop()).toEqual(left);
+    const divider = timeline.querySelector('.new-since-read')!;
+    expect(divider.textContent).toBe('New since you read');
+    expect(divider.nextElementSibling?.textContent).toContain('Question asked meanwhile');
+    expect(w.document.getElementById('jumpLatest')!.classList.contains('is-shown')).toBe(true);
+    // Left again before reaching it, what arrived is still new next time.
+    await select(second.id);
+    await select(first.id);
+    expect(onTop()).toEqual(left);
+    expect(timeline.querySelector('.new-since-read')?.nextElementSibling?.textContent).toContain('Question asked meanwhile');
+    // Once the reader has scrolled down to it, it is read, even after going back up.
+    const back = pane.scrollTop;
+    readTo(2450);
+    expect(timeline.querySelector('.new-since-read')!.getBoundingClientRect().top).toBeLessThan(400);
+    readTo(back);
+    await select(second.id);
+    await select(first.id);
+    expect(onTop()).toEqual(left);
+    expect(timeline.querySelector('.new-since-read')).toBeNull();
+    // Live output while reading there does not take the reader to the end.
+    await append([{ seq: 33, time: T0 + 33, source: 'extension', kind: 'user_message', messageId: 'reading-later', message: text('Later question') }]);
+    expect(onTop()).toEqual(left);
+    // Left at its end, the chat opens at its end again, without the divider.
+    pane.scrollTop = pane.scrollHeight;
+    await select(second.id);
+    await select(first.id);
+    expect(pane.scrollTop).toBe(bottom());
+    expect(timeline.querySelector('.new-since-read')).toBeNull();
+  });
+
+  it('keeps opening at the end when only the app moved the view', async () => {
+    const { first, second, pane, select, bottom } = await readingBoot(30);
+    await select(first.id);
+    pane.scrollTop = 1230;
+    await select(second.id);
+    await select(first.id);
+    expect(pane.scrollTop).toBe(bottom());
+  });
+
+  it('opens a branch source at its reply, without New since you read', async () => {
+    const { w, first, second, timeline, select, readTo, append } = await readingBoot(30, 'reading-27');
+    (w as any).api.locateMessage = vi.fn(async () => ({ ok: true, data: { seq: 27, kind: 'user_message', messageId: 'reading-27', position: 27 } }));
+    let centered: Element | null = null;
+    w.HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) { centered = this; };
+    await select(first.id);
+    readTo(1230);
+    await select(second.id);
+    await append([{ seq: 31, time: T0 + 31, source: 'extension', kind: 'user_message', messageId: 'reading-new', message: text('Question asked meanwhile') }]);
+    w.document.getElementById('chatBranchOrigin')!.click();
+    await settleHistoryFrame(w); await settleHistoryFrame(w);
+    expect(w.document.querySelector(`.sess.is-sel[data-id="${first.id}"]`)).not.toBeNull();
+    expect((w as any).api.locateMessage).toHaveBeenCalledWith(first.id, 'reading-27');
+    expect(centered!.textContent).toContain('Reading item 27');
+    expect(timeline.textContent).toContain('Question asked meanwhile');
+    expect(timeline.querySelector('.new-since-read')).toBeNull();
+  });
+
+  it('keeps the reading position when the reader leaves while it is still loading', async () => {
+    const { w, first, second, pane, timeline, select, readTo, onTop } = await readingBoot(100);
+    await select(first.id);
+    pane.scrollTop = 0; pane.dispatchEvent(new w.WheelEvent('wheel', { deltaY: -100 }));
+    await settleHistoryFrame(w);
+    readTo(150);
+    const left = onTop();
+    // Older than the 30 rows a chat opens with.
+    expect(Number(/Reading item (\d+)/.exec(left.text ?? '')![1])).toBeLessThan(71);
+    await select(second.id);
+    // The page around that message is slow to arrive; the reader goes elsewhere meanwhile.
+    const api = (w as any).api, original = api.getSession;
+    const held: Array<() => void> = [];
+    api.getSession = async (id: string, options: { before?: number }) => {
+      if (options?.before !== undefined) await new Promise<void>(resolve => held.push(resolve));
+      return original(id, options);
+    };
+    await select(first.id);
+    expect(held).toHaveLength(1);
+    await select(second.id);
+    api.getSession = original;
+    held.splice(0).forEach(release => release());
+    await settleHistoryFrame(w);
+    await select(first.id);
+    expect(onTop()).toEqual(left);
+    expect(timeline.textContent).not.toContain('Reading item 100');
+  });
+
+  it('loads older pages up to the message, and opens at the end when that message is gone', async () => {
+    const { w, live, first, second, pane, timeline, select, readTo, onTop, bottom } = await readingBoot(100);
+    await select(first.id);
+    expect(timeline.textContent).not.toContain('Reading item 60');
+    pane.scrollTop = 0; pane.dispatchEvent(new w.WheelEvent('wheel', { deltaY: -100 }));
+    await settleHistoryFrame(w);
+    expect(timeline.textContent).toContain('Reading item 60');
+    readTo(150);
+    const left = onTop();
+    // Older than the 30 rows a chat opens with.
+    expect(Number(/Reading item (\d+)/.exec(left.text ?? '')![1])).toBeLessThan(71);
+    await select(second.id);
+    await select(first.id);
+    expect(onTop()).toEqual(left);
+    expect(timeline.querySelector('.new-since-read')).toBeNull();
+    // An edit can replace the message: the chat then opens at its end.
+    const at = Number(/Reading item (\d+)/.exec(left.text ?? '')![1]);
+    await select(second.id);
+    live.events.splice(live.events.findIndex(event => event.seq === at), 1);
+    await select(first.id);
+    expect(pane.scrollTop).toBe(bottom());
+    expect(timeline.textContent).toContain('Reading item 100');
+  });
+});
+
 it.each(['empty', 'failed'])('keeps a fitting chat live after an %s older-page read', async outcome => {
   const { w, append } = await boot([{ seq: 12, time: T0, source: 'extension', kind: 'user_message',
     messageId: 'short', message: text('Short chat') }]);
