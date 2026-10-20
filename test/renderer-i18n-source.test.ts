@@ -122,7 +122,8 @@ it('translates every error the Files panel, projects, pets, skills and settings 
   // already exists" in English (2.1.41 pass).
   const literal = /throw new Error\('([^'\\$]{8,})'\)/g;
   const sources = ['src/main/project-files.ts', 'src/main/projects.ts', 'src/main/pet-library.ts', 'src/main/skills.ts',
-    'src/main/skill-github.ts', 'src/main/skill-metadata.ts', 'src/main/skill-package.ts', 'src/shared/skills.ts', 'src/main/ipc.ts'];
+    'src/main/skill-github.ts', 'src/main/skill-metadata.ts', 'src/main/skill-package.ts', 'src/shared/skills.ts', 'src/main/ipc.ts',
+    'src/main/screen-capture.ts'];
   // A snake_case code ("task_settings_changed") is translated where it is mapped, not as text.
   const messages = new Set(sources.flatMap(file => [...readFileSync(file, 'utf8').matchAll(literal)].map(match => match[1]!))
     .filter(message => !/^[a-z0-9_]+$/.test(message)));

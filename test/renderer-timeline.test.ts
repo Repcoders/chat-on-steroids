@@ -1321,6 +1321,28 @@ it.each(['image', 'txt', 'mixed', 'new-chat', 'after-turn'])('routes the compose
   expect(app.live.sent[0]!.attachmentDelivery).toBe(kind === 'image' ? 'tool' : undefined);
 });
 
+it('adds a captured part of the screen to the draft as an image chip and sends it only with the message', async () => {
+  const app = await boot([]);
+  const shot = { id: '33333333-2222-4333-8444-555555555555', name: 'screenshot-20261019-101500.png', mimeType: 'image/png', size: 4242 };
+  let captures = 0;
+  (app.w as any).api.captureScreen = async () => { captures++; return { ok: true, data: captures === 1 ? shot : null }; };
+  const button = app.w.document.getElementById('captureScreen')!;
+  expect(button.closest('#attachmentMenu')).not.toBeNull();
+  button.click(); await settle();
+  expect(app.w.document.querySelectorAll('#composerImages .image-remove')).toHaveLength(1);
+  expect(app.w.document.querySelector(`[aria-label="Remove ${shot.name}"]`)).not.toBeNull();
+  expect(app.w.document.activeElement?.id).toBe('chatInput');
+  expect(app.live.sent).toHaveLength(0);
+  // A cancelled capture leaves the draft as it was.
+  button.click(); await settle();
+  expect(captures).toBe(2);
+  expect(app.w.document.querySelectorAll('#composerImages .image-remove')).toHaveLength(1);
+  app.w.document.getElementById('composer')!.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true }));
+  await settle();
+  expect(app.live.sent).toHaveLength(1);
+  expect(app.live.sent[0]!.attachments).toEqual([shot]);
+});
+
 it('restores the image draft after rejected injection and removes native-only delivery when the document is removed', async () => {
   const app = await boot([]);
   const image = { id: '11111111-2222-4333-8444-555555555555', name: 'image.png', mimeType: 'image/png', size: 42 };

@@ -1734,6 +1734,15 @@ draft; the Folders card keeps its explicit folder-drop owner, and ordinary text 
 its native editor behavior. Async import results carry both the draft key and its replacement
 generation. Navigation, Send, accepted planning and retry replacement retire that owner so a
 late file cannot attach to a later draft, while ordinary edits and parallel imports remain valid.
+The composer's + menu "Capture part of the screen" calls the fixed preload method
+`captureScreen` (`sessions:captureScreen`). `main/screen-capture.ts` hides the app window, captures
+every display once with `desktopCapturer`, and covers each display with a still copy in its own
+frameless overlay (`renderer/screen-capture.html`: no preload, no Node; it gets the picture and
+returns the dragged rectangle only through `executeJavaScript`). The crop is taken from the full
+capture, mapped by the picture-to-display size ratio so scaled displays match, and staged through
+the same `stageInputAttachments` path as a pasted image; the reply is that attachment or null when
+Esc, a right click or a closed overlay cancels. The renderer adds it to the draft owner captured at
+the click. Nothing is sent, and one capture is open at a time. macOS needs Screen Recording.
 
 Bridge chunks are bounded to 512 KiB and require the exact pre-send claimed input and attachment
 membership. Native upload completion and final provider submission are separate checks.

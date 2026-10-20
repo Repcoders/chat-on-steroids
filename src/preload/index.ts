@@ -222,6 +222,8 @@ const api = {
     } catch { return { ok: false, error: 'Could not read the attachment' }; }
   },
   attachText: (text: string) => call<InputAttachment>('sessions:attachText', { text }),
+  /** Lets the person drag over part of a display; the crop comes back staged, or null when cancelled. */
+  captureScreen: () => call<InputAttachment | null>('sessions:captureScreen'),
   getUsage: () => call<UsageOverview>('usage:get'),
   /** Codex's and Claude Code's usage from their logs here; `fresh` skips the 30-second cache. */
   getProviderUsage: (fresh = false) => call<ProviderUsage>('usage:providers', { fresh }),

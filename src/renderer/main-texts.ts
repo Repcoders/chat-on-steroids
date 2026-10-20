@@ -51,6 +51,7 @@ export function mainTexts(): Record<MainText, string> {
     'Select the tunnel executable': t('Select the tunnel executable'),
     'Programs': t('Programs'),
     'Attach files': t('Attach files'),
+    'Drag over the part of the screen to add. Esc cancels.': t('Drag over the part of the screen to add. Esc cancels.'),
     'Import MCP bundle': t('Import MCP bundle'),
     'MCP bundles': t('MCP bundles'),
     'Remove worker Git checkout?': t('Remove worker Git checkout?'),
