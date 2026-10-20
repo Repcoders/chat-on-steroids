@@ -1093,6 +1093,20 @@ it.each(REASONING_EFFORTS)('retains canonical worker/helper effort %s across set
   expect(loaded.goal.helperReasoning).toBe(effort);
 });
 
+it('keeps saved sub-agent roles across reload and drops a malformed list without recovering the config', async () => {
+  const config = defaultConfig();
+  config.roots = [{ name: 'work', path: dir }];
+  config.multiAgent.roles = [{ name: 'Reviewer', model: 'placeholder-model', reasoning: 'high' }, { name: 'Scout', model: '', reasoning: '' }];
+  await saveConfig(config);
+  expect((await loadConfig()).multiAgent.roles).toEqual(config.multiAgent.roles);
+  await fs.writeFile(path.join(dir, 'config.json'), JSON.stringify({ ...config,
+    multiAgent: { ...config.multiAgent, roles: [{ name: 'Reviewer', model: '', reasoning: '' }, { name: 'REVIEWER ', model: '', reasoning: '' }] } }), 'utf8');
+  const loaded = await loadConfig();
+  expect(loaded.multiAgent.roles).toBeUndefined();
+  expect(loaded.roots).toEqual(config.roots);
+  expect(settingsRecovered()).toBe(false);
+});
+
 it('persists optional ordinary new-chat model defaults without inventing them for legacy config', async () => {
   const config = defaultConfig();
   expect(config.ui.defaultChatModel).toBeUndefined();

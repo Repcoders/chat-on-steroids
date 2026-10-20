@@ -2777,5 +2777,14 @@
   "Chats sit under their project folders.": "Các cuộc trò chuyện nằm dưới thư mục dự án của chúng.",
   "All chats in one list, active ones on top.": "Tất cả cuộc trò chuyện trong một danh sách, cái đang hoạt động ở trên cùng.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Số cuộc trò chuyện tác nhân phụ tối đa mà một cuộc trò chuyện có thể chạy cùng lúc. Cần tiện ích mở rộng trình duyệt đã kết nối.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Công việc dài tiếp tục trong một lượt mới với Tiếp tục tự động, ngay sau một kết quả công cụ. Lượt ngắn hơn ít bị ngắt hơn. Cũng dùng trong các cuộc trò chuyện có Goal và Loop; không dùng với mô hình Pro hay trong cuộc trò chuyện riêng của tác nhân phụ."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Công việc dài tiếp tục trong một lượt mới với Tiếp tục tự động, ngay sau một kết quả công cụ. Lượt ngắn hơn ít bị ngắt hơn. Cũng dùng trong các cuộc trò chuyện có Goal và Loop; không dùng với mô hình Pro hay trong cuộc trò chuyện riêng của tác nhân phụ.",
+  "Sub-agent roles": "Vai trò tác nhân phụ",
+  "Named model and reasoning pairs. Ask for a role by name when you want a sub-agent on it.": "Các cặp mô hình và suy luận có tên. Gọi vai trò theo tên khi bạn muốn tác nhân phụ dùng nó.",
+  "Add role": "Thêm vai trò",
+  "Role name, e.g. Reviewer": "Tên vai trò, ví dụ Reviewer",
+  "Role name": "Tên vai trò",
+  "Role model": "Mô hình của vai trò",
+  "Role reasoning": "Suy luận của vai trò",
+  "Remove role {0}": "Xóa vai trò {0}",
+  "Another role already has this name": "Đã có vai trò khác dùng tên này"
 }

@@ -8,6 +8,7 @@ import { currentLanguage, ui, t, tn } from './i18n.js';
 import { APP_COMMANDS, initSkills } from './skills.js';
 import { imageStorageButton } from './image-storage.js';
 import { applyChatModels, applyComposerSessionModel, initChatModels, confirmedComposerModel, composerSendModel, ensureComposerModel, chatModelName } from './chat-models.js';
+import { applyWorkerRoles, initWorkerRoles, workerRolesValue } from './worker-roles.js';
 import { marked, Marked, type TokenizerAndRendererExtension } from 'marked';
 import { safeExternalLink } from '../shared/external-link.js';
 import { AGENT_STATE_WORDS, createAgentPanel, workerName } from './agent-panel.js';
@@ -6633,6 +6634,7 @@ export function chatSettingsPatch(current: Config): {
     multiAgent: {
       defaultModel: $<HTMLSelectElement>('workerModel').value,
       defaultReasoning: $<HTMLSelectElement>('workerReasoning').value as Config['multiAgent']['defaultReasoning'],
+      roles: workerRolesValue(),
       // The exposure switch lives with every other ChatGPT tool switch, on Home. Settings owns
       // the per-family worker limit and the optional broker-wide admission cap below.
       enabled: $<HTMLInputElement>('homeMaEnabled').checked,
@@ -7104,6 +7106,7 @@ export function chatApply(state: AppState, previous?: Config): void {
   if (visible && selectedId) void refreshSessionControls();
   paintContextMeter(sessions.find(session => session.id === selectedId) ?? null, config, confirmedComposerModel());
   applyChatModels(config, previous);
+  applyWorkerRoles(config);
 
   applyChatChecked($<HTMLInputElement>('autoCompact'), config.compaction.auto, previous?.compaction.auto);
   applyChatValue(
@@ -8612,6 +8615,7 @@ export function initChat(next: Deps): void {
   for (const id of CHAT_INPUTS) {
     $(id).addEventListener('change', () => void deps.save());
   }
+  initWorkerRoles(() => void deps.save());
 
   wireGoal(() => deps.save());
 

@@ -707,7 +707,7 @@ describe('surface boundaries', () => {
     const agentsTool = toolList(await core('tools/list')).find((tool) => tool.name === 'agents')!;
     const worker = agentsTool.inputSchema.properties.workers.items;
 
-    expect(Object.keys(worker.properties).sort()).toEqual(['label', 'model', 'reasoning_effort', 'task']);
+    expect(Object.keys(worker.properties).sort()).toEqual(['label', 'model', 'reasoning_effort', 'role', 'task']);
     // Only `task` is required: omitting both keeps exactly the previous behaviour, which is
     // the account default, or whatever the user chose in settings.
     expect(worker.required).toEqual(['task']);
@@ -772,6 +772,12 @@ describe('surface boundaries', () => {
     expect(worker.properties.reasoning_effort.description).toBe(
       'Only for an effort the user asked for; app settings supply the default. Selects reasoning only, never a model.'
     );
+    // A saved role is looked up by name at admission; the cached schema names none of them.
+    expect(worker.properties.role).toMatchObject({ type: 'string', minLength: 1, maxLength: 40 });
+    expect(worker.properties.role.description).toBe(
+      'Only for a saved role the user named, e.g. Reviewer; it fills model/reasoning_effort left unset. Unknown names list the roles.'
+    );
+    expect(Buffer.byteLength(`,"role":${JSON.stringify(worker.properties.role)}`, 'utf8')).toBe(197);
     const targetRunOverhead = Buffer.byteLength(
       `,"target_run_id":${JSON.stringify(agentsTool.inputSchema.properties.target_run_id)}`,
       'utf8'
@@ -1027,9 +1033,10 @@ describe('surface boundaries', () => {
           : tool.name === 'apply_patch'
             ? 5_000
             : tool.name === 'agents'
-              // Main's 3,400-byte guardrail plus the measured 148-byte target_run_id property and
-              // the measured 97-byte revival label (messages[].label).
-              ? 3_645
+              // Main's 3,400-byte guardrail plus the measured 148-byte target_run_id property,
+              // the measured 97-byte revival label (messages[].label) and the measured 197-byte
+              // worker role (workers[].role).
+              ? 3_842
               : tool.name === 'exec_command'
                 // Windows carries `WINDOWS_SHELL_GUIDANCE` in the same description, and that text
                 // carries Codex's own shell advice in full (reworded for #1417) — it is not ours

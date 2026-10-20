@@ -21,6 +21,7 @@ import { liveConnectorName } from './mcp/surfaces.js';
 import { workerBrief, workerOwnTask } from '../shared/worker-brief.js';
 import { getChatModels, refreshForUnoffered } from './chat-models.js';
 import { resolveChatModel, type ChatModelOption } from '../shared/chat-models.js';
+import { findWorkerRole, type WorkerRole } from '../shared/worker-roles.js';
 import { logInfo, logWarn } from './logger.js';
 import { inheritWorkspace, releasePrimeWorkspace, bindAgentWorkspace } from './workspace.js';
 import { requestCorrelation } from './session/correlation.js';
@@ -1678,7 +1679,7 @@ export function hasRetiredWorkerLeases(): boolean {
 // -------------------------------------------------------------------- spawn
 
 export interface SpawnInput {
-  workers: ReadonlyArray<{ label?: string; task: string; model?: string | null; reasoning_effort?: string | null }>;
+  workers: ReadonlyArray<{ label?: string; task: string; model?: string | null; reasoning_effort?: string | null; role?: string | null }>;
   /**
    * What every worker in this spawn needs to know, written once.
    *
@@ -1850,20 +1851,40 @@ function usableDefaults(
   return { model, effort };
 }
 
-function validateWorkerModel(index: number, model: string | null, effort: ReasoningEffort | null, models: ChatModelOption[]): void {
+function validateWorkerModel(
+  index: number, model: string | null, effort: ReasoningEffort | null, models: ChatModelOption[],
+  fromRole: { model?: string; effort?: string } = {}
+): void {
   // No observation is not an empty entitlement list. Preserve the requested settings for
   // native confirmation; never guess an account default or manufacture a model alias.
   if (!models.length) return;
   const choices = model ? models.filter(choice => choice.id === model || choice.aliases?.includes(model)) : models;
   const available = models.map(choice => `${choice.id} (${choice.efforts.join(', ')})`).join('; ');
+  const saved = (role?: string) => role ? ` saved in role "${role}"` : '';
   if (model && choices.length !== 1) {
-    throw new AgentError(`Worker ${index + 1}'s model "${model}" is ${choices.length ? 'ambiguous' : 'not observed'} in the ChatGPT account. Observed model ids and reasoning: ${available}`);
+    throw new AgentError(`Worker ${index + 1}'s model "${model}"${saved(fromRole.model)} is ${choices.length ? 'ambiguous' : 'not observed'} in the ChatGPT account. Observed model ids and reasoning: ${available}`);
   }
   if (effort && !choices.some(choice => choice.efforts.includes(effort))) {
-    throw new AgentError(`Worker ${index + 1}'s reasoning_effort "${effort}" is not observed${model ? ` for model "${model}"` : ' in the ChatGPT account'}. Observed model ids and reasoning: ${available}`);
+    throw new AgentError(`Worker ${index + 1}'s reasoning_effort "${effort}"${saved(fromRole.effort)} is not observed${model ? ` for model "${model}"` : ' in the ChatGPT account'}. Observed model ids and reasoning: ${available}`);
   }
   // Keep provider aliases exact: reducing a lane-specific slug to its family without an
   // explicit effort can change the requested lane. The native picker still proves the pair.
+}
+
+/**
+ * The saved role a worker names. Like an explicit model, a role is a request: an unknown name
+ * fails the spawn with the saved names, and its model and reasoning are checked as strictly as
+ * tool arguments, so a stale role never quietly runs on some other model.
+ */
+function workerRole(index: number, name: string | null | undefined): WorkerRole | null {
+  if (name === undefined || name === null) return null;
+  const roles = getConfig().multiAgent.roles ?? [];
+  const role = findWorkerRole(roles, name);
+  if (role) return role;
+  throw new AgentError(
+    `Worker ${index + 1}'s role "${name.trim()}" is not saved in Settings. ` +
+      (roles.length ? `Saved roles: ${roles.map(saved => saved.name).join(', ')}` : 'No worker roles are saved in Settings → Agents & automation.')
+  );
 }
 
 /**
@@ -2084,16 +2105,22 @@ export function spawn(input: SpawnInput, options: SpawnOptions = {}): SpawnResul
     const task = worker.task.trim();
     if (!task) throw new AgentError(`Worker ${index + 1} has no task. Every worker needs one.`);
     if (task.length > MAX_TASK_CHARS) throw new AgentError(`Worker ${index + 1}'s task is too long`);
-    const label = worker.label?.trim() ?? '';
+    const role = workerRole(index, worker.role);
+    const label = worker.label?.trim() || role?.name || '';
     if (label.length > MAX_LABEL_CHARS) {
       throw new AgentError(`Worker ${index + 1}'s label is too long (limit ${MAX_LABEL_CHARS} characters)`);
     }
+    // Explicit arguments win over the role, and an empty half of a role keeps the saved default.
+    const roleModel = worker.model === undefined && role?.model ? role.model : undefined;
+    const roleEffort = worker.reasoning_effort === undefined && role?.reasoning ? role.reasoning : undefined;
     const requested = usableDefaults(
-      normalizeModel(index, worker.model === undefined ? getConfig().multiAgent.defaultModel : worker.model),
-      normalizeReasoningEffort(index, worker.reasoning_effort === undefined ? getConfig().multiAgent.defaultReasoning : worker.reasoning_effort),
-      worker.model === undefined, worker.reasoning_effort === undefined, observedModels, defaultNotes);
+      normalizeModel(index, worker.model === undefined ? roleModel ?? getConfig().multiAgent.defaultModel : worker.model),
+      normalizeReasoningEffort(index, worker.reasoning_effort === undefined ? roleEffort ?? getConfig().multiAgent.defaultReasoning : worker.reasoning_effort),
+      worker.model === undefined && !roleModel, worker.reasoning_effort === undefined && !roleEffort, observedModels, defaultNotes);
     const model = requested.model, reasoningEffort = requested.effort;
-    validateWorkerModel(index, model, reasoningEffort, observedModels);
+    validateWorkerModel(index, model, reasoningEffort, observedModels, {
+      model: roleModel && role!.name, effort: roleEffort && role!.name
+    });
     // Composed once, here, and stored as *the* task. Everything downstream — the bootstrap
     // the browser types, the repeated-spawn match, the status table, the snapshot — then
     // sees the same single string a worker actually receives, with no second field to keep

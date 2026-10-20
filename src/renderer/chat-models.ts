@@ -43,12 +43,12 @@ function chooseAutomatic(): void {
   paintPair('composerModel', 'composerReasoning', '', '');
   paintStatus();
 }
-const pairs = [
+const pairs: Array<readonly [string, string, boolean]> = [
   ['composerModel', 'composerReasoning', false],
   ['defaultChatModel', 'defaultChatReasoning', true],
   ['workerModel', 'workerReasoning', false],
   ['helperModel', 'helperReasoning', false]
-] as const;
+];
 const effortNames: Record<string, string> = { none: "Instant", minimal: "Minimal", low: "Low", medium: "Medium", high: "High", xhigh: "Extra high", max: "Max", ultra: "Ultra", pro: 'Pro' } satisfies Record<ReasoningEffort, string>;
 const composerEfforts = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra', 'pro'] as const;
 const effortLabel = (effort: string): string => effortNames[effort] ? t(effortNames[effort]) : effort;
@@ -562,27 +562,41 @@ export function initChatModels(onPaint?: () => void): void {
     if (!modelMenu.open) closeModelChoices();
     else if (!catalog.models.length) $('refreshComposerModels').click();
   });
-  for (const [modelId, effortId, allowEmpty] of pairs) {
-    document.getElementById(modelId)?.addEventListener('change', () => {
-      if (modelId === 'composerModel' && composerContext) {
-        composerContext.edited = true;
-        if ($<HTMLSelectElement>(modelId).value) composerContext.automatic = false;
-      }
-      const model = $<HTMLSelectElement>(modelId);
-      const effort = $<HTMLSelectElement>(effortId);
-      const supported = catalog.models.find(item => item.id === model.value)?.efforts ?? [];
-      const nextEffort = allowEmpty
-        ? supported.includes(effort.value as ReasoningEffort) ? effort.value : ''
-        : model.value ? supported.includes('high') ? 'high' : supported[0] ?? '' : '';
-      paintPair(modelId, effortId, model.value, nextEffort, allowEmpty);
-      paintStatus();
-    });
-    document.getElementById(effortId)?.addEventListener('change', () => {
-      if (effortId === 'composerReasoning' && composerContext) composerContext.edited = true;
-      paintStatus();
-    });
-  }
+  for (const [modelId, effortId, allowEmpty] of pairs) wirePair(modelId, effortId, allowEmpty);
   for (const id of ['refreshChatModels', 'refreshComposerModels']) document.getElementById(id)?.addEventListener('click', () => { void discoverModels(); });
   for (const [modelId, effortId, allowEmpty] of pairs) paintPair(modelId, effortId, undefined, undefined, allowEmpty);
   paintStatus();
+}
+
+/**
+ * Paints a settings pair added after startup, such as a worker role row, from the same catalog
+ * as the fixed pairs, and keeps it repainted until the returned call drops it.
+ */
+export function trackModelPair(modelId: string, effortId: string, model: string, effort: string): () => void {
+  const pair = [modelId, effortId, false] as const;
+  pairs.push(pair);
+  wirePair(modelId, effortId, false);
+  paintPair(modelId, effortId, model, effort);
+  return () => { const at = pairs.indexOf(pair); if (at >= 0) pairs.splice(at, 1); };
+}
+
+function wirePair(modelId: string, effortId: string, allowEmpty: boolean): void {
+  document.getElementById(modelId)?.addEventListener('change', () => {
+    if (modelId === 'composerModel' && composerContext) {
+      composerContext.edited = true;
+      if ($<HTMLSelectElement>(modelId).value) composerContext.automatic = false;
+    }
+    const model = $<HTMLSelectElement>(modelId);
+    const effort = $<HTMLSelectElement>(effortId);
+    const supported = catalog.models.find(item => item.id === model.value)?.efforts ?? [];
+    const nextEffort = allowEmpty
+      ? supported.includes(effort.value as ReasoningEffort) ? effort.value : ''
+      : model.value ? supported.includes('high') ? 'high' : supported[0] ?? '' : '';
+    paintPair(modelId, effortId, model.value, nextEffort, allowEmpty);
+    paintStatus();
+  });
+  document.getElementById(effortId)?.addEventListener('change', () => {
+    if (effortId === 'composerReasoning' && composerContext) composerContext.edited = true;
+    paintStatus();
+  });
 }

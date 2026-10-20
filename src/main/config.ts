@@ -42,6 +42,7 @@ import {
   SUPERSEDED_GOAL_OBJECTIVE_SYSTEM_PROMPTS,
   SUPERSEDED_GOAL_SYSTEM_PROMPTS
 } from '../shared/goal.js';
+import { workerRolesSchema } from '../shared/worker-roles.js';
 import { DEFAULT_HANDOFF_LENGTH, DEFAULT_HANDOFF_PROMPT, HANDOFF_LENGTHS, MAX_HANDOFF_PROMPT_CHARS } from '../shared/handoff.js';
 import { logError, logWarn } from './logger.js';
 import { APP_VERSION } from './version.js';
@@ -436,6 +437,8 @@ const configSchema = z.object({
       enabled: z.boolean().optional().default(DEFAULT_MULTI_AGENT.enabled),
     defaultModel: z.string().max(80).optional(),
     defaultReasoning: z.enum(['', ...REASONING_EFFORTS]).optional(),
+      // A malformed list is dropped rather than sending the whole config to recovery.
+      roles: workerRolesSchema.optional().catch(undefined),
       maxWorkers: z.number().int().min(1).max(8).optional().default(DEFAULT_MULTI_AGENT.maxWorkers),
       globalMaxWorkers: z.number().int().min(0).max(64).optional().default(DEFAULT_MULTI_AGENT.globalMaxWorkers ?? 0),
       allowUnattributedCalls: z.boolean().optional().default(DEFAULT_MULTI_AGENT.allowUnattributedCalls),

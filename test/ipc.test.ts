@@ -126,6 +126,24 @@ it('saves Auto-select Skills through Settings and preserves it across a stale un
   expect(getConfig().ui.autoSelectSkills).toBe(wanted);
 });
 
+it('saves sub-agent roles through Settings, keeps them across a stale unrelated save and refuses a repeated name', async () => {
+  const base = getConfig();
+  const roles = [{ name: 'Reviewer', model: 'placeholder-model', reasoning: 'high' as const }];
+  try {
+    expect(await save({ ...base, multiAgent: { ...base.multiAgent, roles } }, base)).toMatchObject({ ok: true });
+    expect(getConfig().multiAgent.roles).toEqual(roles);
+    expect(await save({ ...base, ui: { ...base.ui, theme: base.ui.theme === 'light' ? 'dark' : 'light' } }, base)).toMatchObject({ ok: true });
+    expect(getConfig().multiAgent.roles).toEqual(roles);
+    const current = getConfig();
+    expect(await save({ ...current, multiAgent: { ...current.multiAgent, roles: [...roles, { name: ' reviewer', model: '', reasoning: '' }] } }, current))
+      .toMatchObject({ ok: false });
+    expect(getConfig().multiAgent.roles).toEqual(roles);
+  } finally {
+    const current = getConfig();
+    await save({ ...current, ui: { ...current.ui, theme: base.ui.theme }, multiAgent: { ...current.multiAgent, roles: [] } }, current);
+  }
+});
+
 it('names a chat with one clean line, and clears the name for an empty one (#1107)', async () => {
   expect(cleanSessionName('  Release\nprep\t\u0000now  ')).toBe('Release prep now');
   expect(cleanSessionName('x'.repeat(300))).toHaveLength(120);

@@ -43,6 +43,7 @@ import type { Capabilities, Root } from '../../shared/types.js';
 import { commandHasSameArguments, evaluateCommandAllowlist } from '../../shared/command-allowlist.js';
 import type { FileChange } from '../../shared/session.js';
 import { REASONING_EFFORTS } from '../../shared/session.js';
+import { MAX_WORKER_ROLE_NAME_CHARS } from '../../shared/worker-roles.js';
 import { DEFAULT_EXCLUDES, MAX_CONTENT_FILE_BYTES, globToRegExp, search, searchOneFile } from '../search.js';
 import {
   ApplyPatchError,
@@ -1293,7 +1294,14 @@ function registerAgentsTool(reg: SurfaceRegistrar): void {
                 .optional()
                 .describe(
                   'Only for an effort the user asked for; app settings supply the default. Selects reasoning only, never a model.'
-                )
+                ),
+              role: z
+                .string()
+                .trim()
+                .min(1)
+                .max(MAX_WORKER_ROLE_NAME_CHARS)
+                .optional()
+                .describe('Only for a saved role the user named, e.g. Reviewer; it fills model/reasoning_effort left unset. Unknown names list the roles.')
             }).strict()
           )
           .min(1)

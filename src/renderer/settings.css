@@ -462,3 +462,11 @@ details.connector[open] > summary .connector-chevron { transform: rotate(90deg);
 .is-found { animation: setting-found 1600ms ease-out; }
 @keyframes setting-found { from, 35% { background-color: var(--accent-wash); box-shadow: 0 0 0 8px var(--accent-wash); } }
 @media (prefers-reduced-motion: reduce) { .is-found { animation: none; background-color: var(--accent-wash); box-shadow: 0 0 0 8px var(--accent-wash); } }
+
+/* Sub-agent roles: one row per role under its setting, name first, then its model pair. */
+.worker-roles { flex: 1 1 100%; display: grid; gap: 8px; min-width: 0; }
+.worker-roles:empty { display: none; }
+.worker-role { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.worker-role input.worker-role-name { flex: 1 1 10rem; width: auto; min-width: 0; }
+.worker-role select { width: 160px; }
+.worker-role input.worker-role-name[aria-invalid='true'] { border-color: var(--red); }

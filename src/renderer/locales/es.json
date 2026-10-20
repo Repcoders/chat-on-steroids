@@ -2867,5 +2867,14 @@
   "Chats sit under their project folders.": "Los chats aparecen bajo las carpetas de sus proyectos.",
   "All chats in one list, active ones on top.": "Todos los chats en una lista, los activos arriba.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "El máximo de chats de subagentes que un chat puede tener a la vez. Necesita la extensión del navegador conectada.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "El trabajo largo sigue en un turno nuevo con un Continuar automático, justo después de un resultado de herramienta. Los turnos cortos se cortan menos. También en los chats con Objetivo y Bucle; no con modelos Pro ni en los chats de los subagentes."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "El trabajo largo sigue en un turno nuevo con un Continuar automático, justo después de un resultado de herramienta. Los turnos cortos se cortan menos. También en los chats con Objetivo y Bucle; no con modelos Pro ni en los chats de los subagentes.",
+  "Sub-agent roles": "Roles de subagente",
+  "Named model and reasoning pairs. Ask for a role by name when you want a sub-agent on it.": "Pares con nombre de modelo y razonamiento. Pide un rol por su nombre cuando quieras un subagente con él.",
+  "Add role": "Añadir rol",
+  "Role name, e.g. Reviewer": "Nombre del rol, p. ej. Reviewer",
+  "Role name": "Nombre del rol",
+  "Role model": "Modelo del rol",
+  "Role reasoning": "Razonamiento del rol",
+  "Remove role {0}": "Eliminar el rol {0}",
+  "Another role already has this name": "Otro rol ya tiene este nombre"
 }
