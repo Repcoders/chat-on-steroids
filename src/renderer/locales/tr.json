@@ -2822,5 +2822,14 @@
   "Switch at any time. Your chats stay as they are.": "İstediğin zaman değiştirebilirsin. Sohbetlerin olduğu gibi kalır.",
   "Chats sit under their project folders.": "Sohbetler proje klasörlerinin altında durur.",
   "All chats in one list, active ones on top.": "Tüm sohbetler tek listede, etkin olanlar üstte.",
-  "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Bir sohbetin aynı anda çalıştırabileceği en fazla yardımcı ajan sohbeti sayısı. Bağlı tarayıcı eklentisi gerekir."
+  "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Bir sohbetin aynı anda çalıştırabileceği en fazla yardımcı ajan sohbeti sayısı. Bağlı tarayıcı eklentisi gerekir.",
+  "Chat map": "Sohbet haritası",
+  "Open a chat to see its map": "Haritasını görmek için bir sohbet açın",
+  "Chat map filter": "Sohbet haritası filtresi",
+  "Errors": "Hatalar",
+  "Edits": "Düzenlemeler",
+  "Start of chat": "Sohbetin başı",
+  "No errors in the loaded part of this chat": "Bu sohbetin yüklenen kısmında hata yok",
+  "No edited questions in the loaded part of this chat": "Bu sohbetin yüklenen kısmında düzenlenmiş soru yok",
+  "Nothing to map yet": "Henüz gösterilecek bir şey yok"
 }

@@ -2822,5 +2822,14 @@
   "Switch at any time. Your chats stay as they are.": "Du kannst jederzeit wechseln. Deine Chats bleiben, wie sie sind.",
   "Chats sit under their project folders.": "Chats stehen unter ihren Projektordnern.",
   "All chats in one list, active ones on top.": "Alle Chats in einer Liste, aktive oben.",
-  "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Wie viele Unteragenten-Chats ein Chat höchstens gleichzeitig ausführen darf. Benötigt die verbundene Browser-Erweiterung."
+  "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Wie viele Unteragenten-Chats ein Chat höchstens gleichzeitig ausführen darf. Benötigt die verbundene Browser-Erweiterung.",
+  "Chat map": "Chat-Übersicht",
+  "Open a chat to see its map": "Öffne einen Chat, um seine Übersicht zu sehen",
+  "Chat map filter": "Filter der Chat-Übersicht",
+  "Errors": "Fehler",
+  "Edits": "Bearbeitungen",
+  "Start of chat": "Chatbeginn",
+  "No errors in the loaded part of this chat": "Keine Fehler im geladenen Teil dieses Chats",
+  "No edited questions in the loaded part of this chat": "Keine bearbeiteten Fragen im geladenen Teil dieses Chats",
+  "Nothing to map yet": "Noch nichts zu zeigen"
 }

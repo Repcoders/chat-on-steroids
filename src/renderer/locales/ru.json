@@ -2912,5 +2912,14 @@
   "Switch at any time. Your chats stay as they are.": "Переключиться можно в любой момент. Чаты останутся как есть.",
   "Chats sit under their project folders.": "Чаты лежат в папках своих проектов.",
   "All chats in one list, active ones on top.": "Все чаты в одном списке, активные сверху.",
-  "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Сколько чатов субагентов один чат может запускать одновременно. Нужно подключённое расширение браузера."
+  "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Сколько чатов субагентов один чат может запускать одновременно. Нужно подключённое расширение браузера.",
+  "Chat map": "Карта чата",
+  "Open a chat to see its map": "Откройте чат, чтобы увидеть его карту",
+  "Chat map filter": "Фильтр карты чата",
+  "Errors": "Ошибки",
+  "Edits": "Правки",
+  "Start of chat": "Начало чата",
+  "No errors in the loaded part of this chat": "В загруженной части этого чата нет ошибок",
+  "No edited questions in the loaded part of this chat": "В загруженной части этого чата нет изменённых вопросов",
+  "Nothing to map yet": "Пока нечего показать"
 }

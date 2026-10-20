@@ -2777,5 +2777,14 @@
   "Switch at any time. Your chats stay as they are.": "可随时切换，聊天内容保持不变。",
   "Chats sit under their project folders.": "聊天显示在各自的项目文件夹下。",
   "All chats in one list, active ones on top.": "所有聊天在同一列表中，进行中的排在最前。",
-  "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "一个聊天可同时运行的子智能体聊天上限。需要已连接的浏览器扩展。"
+  "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "一个聊天可同时运行的子智能体聊天上限。需要已连接的浏览器扩展。",
+  "Chat map": "聊天地图",
+  "Open a chat to see its map": "打开一个聊天以查看其地图",
+  "Chat map filter": "聊天地图筛选",
+  "Errors": "错误",
+  "Edits": "编辑",
+  "Start of chat": "聊天开头",
+  "No errors in the loaded part of this chat": "此聊天已加载的部分中没有错误",
+  "No edited questions in the loaded part of this chat": "此聊天已加载的部分中没有编辑过的问题",
+  "Nothing to map yet": "暂无可显示的内容"
 }
