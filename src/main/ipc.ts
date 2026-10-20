@@ -92,6 +92,7 @@ import { inFlightToolCalls } from './mcp/call-context.js';
 import { RESERVED_ROOT_NAMES, uniqueRootName, validateNewRoot, SandboxError, resolvePath } from './sandbox.js';
 import { addProject, addRemoteProject, expireArmedProjectCreates, getSessionProject, listProjects, localProjectPath, onProjectLinkChange, projectWorkspace, removeProject, retryProjectCreate, setProjectColor } from './projects.js';
 import { createProjectEntry, listProjectDirectory, previewProjectFile, projectFileTarget, renameProjectEntry, revalidateProjectFileTarget, saveProjectTextFile, serverFileSnapshot } from './project-files.js';
+import { cancelProjectSearch, searchProject } from './project-search.js';
 import { ProjectFileWatchSet } from './project-file-watcher.js';
 import { ProjectGitWatchSet, readProjectGitDiff, readProjectGitSnapshot } from './project-git.js';
 import { hasSecret, isEncryptionAvailable, secureStorageStatus, setAsideUnreadableSecrets, setSecret, storedSecretsUnreadable } from './secrets.js';
@@ -1098,6 +1099,13 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     const { projectId, path } = z.object({ projectId: projectFileId, path: projectRelativePath.min(1) }).strict().parse(payload);
     return previewProjectFile(projectId, path);
   });
+  handle('projectFiles:search', async payload => {
+    const query = z.object({ projectId: projectFileId, query: z.string().min(1).max(1000), include: z.string().max(256),
+      excludeFolders: z.array(z.string().min(1).max(255).regex(/^[^\\/\0]+$/)).max(32),
+      caseSensitive: z.boolean(), regex: z.boolean() }).strict().parse(payload);
+    return searchProject(query);
+  });
+  handle('projectFiles:cancelSearch', async () => cancelProjectSearch());
   handle('projectFiles:create', async payload => {
     const { projectId, directory, name, kind } = z.object({ projectId: projectFileId, directory: projectRelativePath.default(''),
       name: z.string().min(1).max(255), kind: z.enum(['file', 'directory']) }).strict().parse(payload);

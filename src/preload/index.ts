@@ -11,7 +11,7 @@ import type { UsageOverview } from '../shared/usage.js';
 import type { ProviderUsage } from '../shared/provider-usage.js';
 import type { InputArgs, InputEntry } from '../main/session/input.js';
 import type { LocalProject, ProjectColor } from '../shared/projects.js';
-import type { ProjectDirectoryListing, ProjectFileMutationResult, ProjectFilePreview, ProjectFileSaveResult, ProjectFilesChanged } from '../shared/project-files.js';
+import type { ProjectDirectoryListing, ProjectFileMutationResult, ProjectFilePreview, ProjectFileSaveResult, ProjectFilesChanged, ProjectSearchQuery, ProjectSearchResult } from '../shared/project-files.js';
 import type { ProjectGitChanged, ProjectGitDiff, ProjectGitSnapshot } from '../shared/project-git.js';
 import type { PetLibraryState, PetOverlayControlState, PetRuntimeAsset } from '../shared/pets.js';
 import type { SkillSummary, ManagedSkill, GitHubSkillUpdateCheck, SkillLibrary, SkillsDraftScope } from '../shared/skills.js';
@@ -291,6 +291,8 @@ const api = {
     return () => ipcRenderer.removeListener('projectFiles:changed', wrapped);
   },
   previewProjectFile: (projectId: string, path: string) => call<ProjectFilePreview>('projectFiles:preview', { projectId, path }),
+  searchProject: (query: ProjectSearchQuery) => call<ProjectSearchResult>('projectFiles:search', query),
+  cancelProjectSearch: () => call<boolean>('projectFiles:cancelSearch', {}),
   createProjectFileEntry: (projectId: string, directory: string, name: string, kind: 'file' | 'directory') =>
     call<ProjectFileMutationResult>('projectFiles:create', { projectId, directory, name, kind }),
   renameProjectFileEntry: (projectId: string, path: string, name: string) => call<ProjectFileMutationResult>('projectFiles:rename', { projectId, path, name }),

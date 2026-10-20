@@ -8,7 +8,7 @@ import type { ProjectDirectoryListing, ProjectFilePreview, ProjectFilesChanged }
 import type { ProjectGitChanged, ProjectGitDiff, ProjectGitSnapshot } from '../src/shared/project-git.js';
 
 const createPdfViewer = vi.hoisted(() => vi.fn());
-const codeMount = vi.hoisted(() => ({ wait: null as Promise<void> | null, calls: 0 }));
+const codeMount = vi.hoisted(() => ({ wait: null as Promise<void> | null, calls: 0, revealed: [] as number[] }));
 vi.mock('../src/renderer/file-pdf-viewer.js', () => ({ createProjectPdfViewer: createPdfViewer }));
 vi.mock('../src/renderer/file-code-editor.js', () => ({
   createProjectCodeEditor: async (options: { parent: HTMLElement; text: string; onChange?: (text: string) => void }) => {
@@ -17,7 +17,8 @@ vi.mock('../src/renderer/file-code-editor.js', () => ({
     const input = document.createElement('textarea'); input.className = 'test-code-input'; input.value = options.text;
     options.parent.append(input);
     input.addEventListener('input', () => options.onChange?.(input.value));
-    return { getValue: () => input.value, focus: () => input.focus(), destroy: () => input.remove(), language: 'Plain text' };
+    return { getValue: () => input.value, focus: () => input.focus(), destroy: () => input.remove(), language: 'Plain text',
+      revealLine: (line: number) => { codeMount.revealed.push(line); } };
   },
   createProjectDiffViewer: async (options: { parent: HTMLElement; baseText: string; currentText: string }) => {
     const view = document.createElement('pre');
@@ -94,7 +95,7 @@ it('rearms a lost watch without resending watches for ordinary file changes or a
 });
 
 beforeEach(() => {
-  codeMount.wait = null; codeMount.calls = 0;
+  codeMount.wait = null; codeMount.calls = 0; codeMount.revealed = [];
   dom = new JSDOM('<body><section id="host"></section><button id="toggle"></button></body>', { url: 'https://cos.local/' });
   vi.stubGlobal('window', dom.window);
   vi.stubGlobal('document', dom.window.document);
@@ -1217,6 +1218,26 @@ it('does not restart a pending code mount when the directory watcher refreshes',
 
 // #1469: a project on a server is browsed and previewed in Files, but v1 changes its files only
 // through ChatGPT's tools. The panel offers no action that could only fail there.
+it('opens a search hit at its line: unfolds its folder, previews the file and selects the line', async () => {
+  const main = { ...preview, path: 'src/main.ts', name: 'main.ts', text: 'one\ntwo\nthree\n' };
+  vi.mocked(window.api.previewProjectFile).mockImplementation(() => ok(main));
+  const panel = createFilePanel({ host, toggle });
+  panel.update(projectA);
+  expect(await panel.openFile(projectA.id, 'src/main.ts', 3)).toBe(true);
+  await tick(); await tick();
+  expect(window.api.listProjectFiles).toHaveBeenCalledWith(projectA.id, 'src');
+  expect(window.api.previewProjectFile).toHaveBeenCalledWith(projectA.id, 'src/main.ts');
+  expect(host.querySelector('.file-tree-row.is-selected')?.getAttribute('data-path')).toBe('src/main.ts');
+  expect(codeMount.revealed).toEqual([3]);
+  // Another hit in the open file moves the viewer without reading the file again.
+  expect(await panel.openFile(projectA.id, 'src/main.ts', 1)).toBe(true);
+  expect(codeMount.revealed).toEqual([3, 1]);
+  expect(window.api.previewProjectFile).toHaveBeenCalledTimes(1);
+  // A hit from a project that is no longer the open one opens nothing.
+  expect(await panel.openFile(projectB.id, 'src/main.ts', 2)).toBe(false);
+  expect(codeMount.revealed).toEqual([3, 1]);
+});
+
 it('offers no file changes for a project on a server, and still previews it', async () => {
   const panel = createFilePanel({ host, toggle });
   panel.update({ ...projectA, path: 'me@devbox:/srv/alpha', remote: { host: 'me@devbox', path: '/srv/alpha' } });

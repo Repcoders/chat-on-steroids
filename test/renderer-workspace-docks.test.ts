@@ -185,6 +185,19 @@ it('opens a view from Ctrl+Shift+digit as the browser really reports it', () => 
   expect(files).toHaveBeenCalledOnce();
 });
 
+it('opens Search from Ctrl+Shift+5 and says why it is unavailable without a project', () => {
+  const { docks } = setup();
+  let available = false;
+  const search = vi.fn();
+  docks.register('search', 'Search', 'i-search', search, vi.fn(), () => available);
+  const quick = document.querySelector<HTMLButtonElement>('#workDockRight .work-dock-quick[data-view=search]')!;
+  expect(quick.querySelector('kbd')?.textContent).toBe('Ctrl+Shift+5');
+  expect(quick.disabled).toBe(true); expect(quick.title).toBe('Open a project to search its files');
+  available = true; docks.sync();
+  document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: '%', code: 'Digit5', ctrlKey: true, shiftKey: true }));
+  expect(search).toHaveBeenCalledOnce();
+});
+
 it('resizes the bottom dock from its top edge with drag feedback', () => {
   setup();
   const app = document.querySelector<HTMLElement>('.app')!, bottom = document.getElementById('workDockBottom')!;

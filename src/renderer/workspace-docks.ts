@@ -4,7 +4,9 @@ import { attachWorkPanelResize } from './work-panel-resize.js';
 import { moveWorkDock } from './panel-motion.js';
 import { enableTabReorder, reorderKey } from './tab-reorder.js';
 
-export type DockView = 'review' | 'files' | 'agents' | 'terminal';
+export type DockView = 'review' | 'files' | 'agents' | 'terminal' | 'search';
+/** Launcher order, which is also the Ctrl+Shift+digit order. */
+const DOCK_ORDER: readonly DockView[] = ['review', 'terminal', 'files', 'agents', 'search'];
 type AdoptableView = Exclude<DockView, 'terminal'>;
 type DockTab = AdoptableView | `terminal:${string}`;
 type View = { label: string; glyph: string; available: () => boolean;
@@ -121,14 +123,15 @@ export function createWorkspaceDocks(host: HTMLElement) {
     else views.get(key as AdoptableView)?.show(body);
   };
   const refreshControls = (): void => {
-    for (const kind of ['review', 'terminal', 'files', 'agents'] as DockView[]) {
+    for (const kind of DOCK_ORDER) {
       const enabled = kind === 'terminal' ? rightTerminal?.canCreate() ?? false : views.get(kind)?.available() ?? false;
       // A greyed-out entry says why, instead of leaving the user to guess.
       for (const button of [menu, launch].map(root => root.querySelector<HTMLButtonElement>(`[data-view="${kind}"]`))) {
         if (!button) continue;
         button.toggleAttribute('disabled', !enabled);
         // Bound, so the reason follows a language change; an enabled entry has no title.
-        ui(button, 'title', () => enabled ? '' : kind === 'agents' ? t('Open a chat to see its sub-agents') : t('Open a project to use Files and Review'));
+        ui(button, 'title', () => enabled ? '' : kind === 'agents' ? t('Open a chat to see its sub-agents')
+          : kind === 'search' ? t('Open a project to search its files') : t('Open a project to use Files and Review'));
         if (enabled) button.removeAttribute('title');
       }
     }
@@ -259,7 +262,7 @@ export function createWorkspaceDocks(host: HTMLElement) {
     const quick = el('button', 'btn work-dock-quick') as HTMLButtonElement;
     quick.type = 'button'; quick.dataset.view = kind;
     quick.append(icon(glyph), el('span', '', () => t(label)));
-    quick.append(el('kbd', '', `Ctrl+Shift+${['review', 'terminal', 'files', 'agents'].indexOf(kind) + 1}`));
+    quick.append(el('kbd', '', `Ctrl+Shift+${DOCK_ORDER.indexOf(kind) + 1}`));
     quick.addEventListener('click', () => activate(kind)); launch.append(quick);
     refreshControls();
   };
@@ -314,9 +317,9 @@ export function createWorkspaceDocks(host: HTMLElement) {
     if (!event.shiftKey && event.key === '`') { event.preventDefault(); setBottomOpen(!bottomOpen); return; }
     // With Shift held, `key` is the shifted character (!, ", § … by layout), never the digit;
     // `code` names the physical key.
-    const digit = /^Digit([1-4])$/.exec(event.code)?.[1];
+    const digit = /^Digit([1-5])$/.exec(event.code)?.[1];
     if (!event.shiftKey || !digit) return;
-    event.preventDefault(); activate((['review', 'terminal', 'files', 'agents'] as DockView[])[Number(digit) - 1]!);
+    event.preventDefault(); activate(DOCK_ORDER[Number(digit) - 1]!);
   });
   paint();
   return { body, bottomBody, rightToggle, bottomToggle, register, registerTerminal, activate, adopt,

@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { DEFAULT_EXCLUDES, globToRegExp, search, searchOneFile } from '../src/main/search.js';
+import { DEFAULT_EXCLUDES, globToRegExp, search, searchOneFile, SearchPatternError } from '../src/main/search.js';
 import { ripgrepExecutableName } from '../src/main/ripgrep.js';
 import { makeTempDir, removeTempDir, writeTree } from './helpers.js';
 
@@ -349,6 +349,51 @@ describe('content search', () => {
       expect(out.filesScanned).toBe(3);
     } finally {
       await removeTempDir(tree);
+    }
+  });
+});
+
+describe('project search options', () => {
+  it('skips what the tree\'s .gitignore excludes when asked, even outside a Git repository', async () => {
+    const tree = await makeTempDir('clf-search-ignore-');
+    try {
+      await writeTree(tree, {
+        '.gitignore': 'generated/\n*.log\n',
+        'src/kept.ts': 'needle\n',
+        'generated/out.ts': 'needle\n',
+        'debug.log': 'needle\n'
+      });
+      const tools = await search(req({ realDir: tree, query: 'needle', mode: 'content', exclude: [] }));
+      expect(tools.hits.map((hit) => hit.path).sort()).toEqual(['/root/debug.log', '/root/generated/out.ts', '/root/src/kept.ts']);
+      const panel = await search(req({ realDir: tree, query: 'needle', mode: 'content', exclude: [], respectIgnore: true }));
+      expect(panel.hits.map((hit) => hit.path)).toEqual(['/root/src/kept.ts']);
+    } finally {
+      await removeTempDir(tree);
+    }
+  });
+
+  it('marks a regular expression it cannot parse with its own error type', async () => {
+    await expect(search(req({ query: '(', mode: 'content', regex: true }))).rejects.toBeInstanceOf(SearchPatternError);
+  });
+
+  it('stops when its signal aborts and says it was cancelled', async () => {
+    const flood = await makeTempDir('clf-search-cancel-');
+    try {
+      const lines = Array.from({ length: 4000 }, (_, i) => `needle ${i}`).join('\n');
+      await writeTree(flood, Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`f${i}.txt`, `${lines}\n`])));
+      const already = new AbortController();
+      already.abort();
+      const before = await search(req({ realDir: flood, query: 'needle', mode: 'content', exclude: [], signal: already.signal }));
+      expect(before).toMatchObject({ hits: [], truncated: true, stoppedBecause: 'cancelled' });
+      const controller = new AbortController();
+      const running = search(req({ realDir: flood, query: 'needle', mode: 'content', exclude: [], maxResults: 1_000_000, signal: controller.signal }));
+      controller.abort();
+      const out = await running;
+      expect(out.stoppedBecause).toBe('cancelled');
+      expect(out.truncated).toBe(true);
+      expect(out.hits.length).toBeLessThan(160_000);
+    } finally {
+      await removeTempDir(flood);
     }
   });
 });

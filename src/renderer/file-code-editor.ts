@@ -9,6 +9,8 @@ export interface ProjectCodeEditor {
   language: string;
   getValue(): string;
   focus(): void;
+  /** Selects one line (1-based, clamped) and scrolls it to the middle, as a search hit opens it. */
+  revealLine(line: number): void;
   destroy(): void;
 }
 
@@ -129,6 +131,11 @@ export async function createProjectCodeEditor(options: {
     language: description?.name ?? 'Plain text',
     getValue: () => view.state.sliceDoc(),
     focus: () => view.focus(),
+    revealLine: line => {
+      const target = view.state.doc.line(Math.min(Math.max(1, Math.trunc(line) || 1), view.state.doc.lines));
+      view.dispatch({ selection: { anchor: target.from, head: target.to },
+        effects: EditorView.scrollIntoView(target.from, { y: 'center' }) });
+    },
     destroy: () => view.destroy()
   };
 }

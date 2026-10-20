@@ -2790,5 +2790,21 @@
   "{0} sub-agents need attention": "対応が必要なサブエージェント {0}件",
   "A tool call from an untrusted chat was refused. To allow it, open this chat's ⋯ menu in the sidebar (or right-click its row) and choose Trust chat.": "信頼されていないチャットからのツール呼び出しが拒否されました。許可するには、サイドバーでこのチャットの ⋯ メニューを開き（または行を右クリックし）、「チャットを信頼」を選んでください。",
   "A tool call from a worker whose main chat is not currently allowed was refused. Open that main chat's ⋯ menu in the sidebar and choose Trust chat if it is untrusted, or Release chat if it is blocked.": "メインチャットが現在許可されていないワーカーからのツール呼び出しが拒否されました。サイドバーでそのメインチャットの ⋯ メニューを開き、信頼されていなければ「チャットを信頼」、ブロックされていれば「ブロックを解除」を選んでください。",
-  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "アプリが作成したワーカーからのツール呼び出しが、それを開始したメインチャットがまだ確認できないため拒否されました。サイドバーでそのメインチャットに戻り、行が表示されたら ⋯ メニューを開いて「チャットを信頼」（ブロックされていれば「ブロックを解除」）を選び、ワーカーがそこで接続または復旧してから再試行してください。"
+  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "アプリが作成したワーカーからのツール呼び出しが、それを開始したメインチャットがまだ確認できないため拒否されました。サイドバーでそのメインチャットに戻り、行が表示されたら ⋯ メニューを開いて「チャットを信頼」（ブロックされていれば「ブロックを解除」）を選び、ワーカーがそこで接続または復旧してから再試行してください。",
+  "Search this project": "このプロジェクトを検索",
+  "Match case": "大文字と小文字を区別",
+  "Use regular expression": "正規表現を使用",
+  "Files to include": "対象のファイル",
+  "Folders to exclude": "除外するフォルダー",
+  "Search results": "検索結果",
+  "Search stopped.": "検索を停止しました。",
+  "Showing the first {0} matches. Narrow the search to see the rest.": "最初の {0} 件を表示しています。残りを見るには検索を絞り込んでください。",
+  "The search ran out of time. Narrow it to see the rest.": "検索が時間切れになりました。残りを見るには絞り込んでください。",
+  "Searching…": "検索中…",
+  "The search failed. Check the regular expression.": "検索に失敗しました。正規表現を確認してください。",
+  "Open a project to search its files": "ファイルを検索するにはプロジェクトを開いてください",
+  "{0} matches": "{0} 件",
+  "{0} files": "{0} ファイル",
+  "One file pattern, such as *.ts or src/**": "ファイルのパターン 1 つ（例: *.ts、src/**）",
+  "Folder names, separated by commas": "フォルダー名（コンマ区切り）"
 }

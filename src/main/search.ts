@@ -90,7 +90,7 @@ export interface SearchOutcome {
   filesScanned: number;
   truncated: boolean;
   /** Why the search stopped early, if it did. */
-  stoppedBecause: 'limit' | 'time' | 'files' | 'size' | null;
+  stoppedBecause: 'limit' | 'time' | 'files' | 'size' | 'cancelled' | null;
   elapsedMs: number;
 }
 
@@ -111,7 +111,17 @@ export interface SearchRequest {
    * same limits, and matches a regex itself, since ripgrep only searches this computer.
    */
   server?: ProjectFs;
+  /**
+   * Skip what the tree's .gitignore/.ignore files exclude, as the project Search panel does. The
+   * tools leave it off and search everything. Only ripgrep reads ignore files.
+   */
+  respectIgnore?: boolean;
+  /** Stops the search; what was found so far comes back with stoppedBecause 'cancelled'. */
+  signal?: AbortSignal;
 }
+
+/** The query, read as a regular expression, is not one: ripgrep or the fallback could not parse it. */
+export class SearchPatternError extends Error {}
 
 type FolderEntry = { name: string; isDirectory: boolean; isFile: boolean };
 
@@ -226,13 +236,17 @@ async function searchWithRipgrep(
   if (deadline <= started) {
     return { hits: [], filesScanned: 0, truncated: true, stoppedBecause: 'time', elapsedMs: 0 };
   }
+  if (req.signal?.aborted) {
+    return { hits: [], filesScanned: 0, truncated: true, stoppedBecause: 'cancelled', elapsedMs: 0 };
+  }
   const args = [
     '--json',
     '--line-number',
     '--color',
     'never',
     '--hidden',
-    '--no-ignore',
+    // A project need not be a Git repository for its .gitignore to say what is generated.
+    req.respectIgnore ? '--no-require-git' : '--no-ignore',
     '--max-filesize',
     String(MAX_CONTENT_FILE_BYTES)
   ];
@@ -260,6 +274,7 @@ async function searchWithRipgrep(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      req.signal?.removeEventListener('abort', cancel);
       if (error) {
         reject(error);
         return;
@@ -342,12 +357,21 @@ async function searchWithRipgrep(
       if (stoppedBecause !== null || code === 0 || code === 1) finish();
       // Never surface rg's raw stderr here. For an exact file it can echo the hidden native
       // approved-root path after a rename/ACL race; the model only needs the backend verdict.
-      else finish(new Error(`ripgrep search failed${code === null ? '' : ` (exit ${code})`}`));
+      else {
+        const message = `ripgrep search failed${code === null ? '' : ` (exit ${code})`}`;
+        // Exit 2 also covers unreadable files; only ripgrep's own parse report blames the pattern.
+        finish(req.regex && /regex parse error/.test(stderr) ? new SearchPatternError(message) : new Error(message));
+      }
     });
     const timer = setTimeout(() => {
       if (stoppedBecause === null) stoppedBecause = 'time';
       child.kill();
     }, Math.max(1, deadline - Date.now()));
+    function cancel(): void {
+      if (stoppedBecause === null) stoppedBecause = 'cancelled';
+      child.kill();
+    }
+    req.signal?.addEventListener('abort', cancel, { once: true });
   });
 }
 
@@ -369,6 +393,10 @@ export async function search(req: SearchRequest): Promise<SearchOutcome> {
   const candidates: Array<{ real: string; rel: string }> = [];
 
   const outOfBudget = (): boolean => {
+    if (req.signal?.aborted) {
+      stoppedBecause = 'cancelled';
+      return true;
+    }
     if (Date.now() > deadline) {
       stoppedBecause = 'time';
       return true;
@@ -448,7 +476,7 @@ async function scanContents(
   candidates: Array<{ real: string; rel: string }>,
   hits: SearchHit[],
   deadline: number,
-  stop: (reason: 'limit' | 'time') => void
+  stop: (reason: 'limit' | 'time' | 'cancelled') => void
 ): Promise<void> {
   let index = 0;
   let done = false;
@@ -456,6 +484,11 @@ async function scanContents(
   const worker = async (): Promise<void> => {
     for (;;) {
       if (done) return;
+      if (req.signal?.aborted) {
+        done = true;
+        stop('cancelled');
+        return;
+      }
       if (Date.now() > deadline) {
         done = true;
         stop('time');
@@ -574,7 +607,7 @@ async function scanOneFile(
     try {
       regex = new RegExp(req.query, req.caseSensitive ? '' : 'i');
     } catch (error) {
-      throw new Error(`Invalid search regex: ${error instanceof Error ? error.message : String(error)}`);
+      throw new SearchPatternError(`Invalid search regex: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   const results: Array<{ line: number; text: string }> = [];
