@@ -2122,6 +2122,17 @@ window/sidebar width and zoom, tool disclosures, history controls and tail reser
 change prose width or line wrapping. `scripts/verify-chat-width.cjs` checks these transitions
 in real Electron at narrow/wide widths and multiple zoom levels.
 
+The words of a turn's "Worked for" / "Working for" line are a button that opens the chat's run log
+(`src/renderer/run-log.ts`), a drawer listing what the app did about the chat while it worked,
+oldest first, with times. `sessions:events` with `runLog: true` reads only those rows from the
+whole recorded history, past the recent-tail byte budget (`src/shared/run-log.ts`): app `progress` rows of browser repairs
+(`browser-repair:`, hidden from the timeline outside developer mode) and approval-card waits
+(`approval-wait:`), `chat_error`, app-reopened `turn_start` (with `detail`), notes and handoffs.
+ChatGPT's own commentary is `progress` too and never counts; rows are picked by kind, source and id
+prefix, never by text, and the later snapshots of one progress row fold into it as a time span.
+The rows of the clicked line's work (its question until the next) are marked. The log adds no
+recorded field and decides nothing.
+
 ### Context pressure and Usage are different measurements
 
 Session `contextTokens` estimates current frontend pressure and resets at durable A→B rebind.

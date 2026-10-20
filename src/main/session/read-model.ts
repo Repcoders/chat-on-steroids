@@ -10,7 +10,7 @@ import { blockedChatIds } from './blocked-chats.js';
 import { trustedChatIds } from './trusted-chats.js';
 import { findSessionByConversation, getSession, listSessionPage, readEvents, readRecentEvents } from './store.js';
 import type { SessionListCursor } from './store.js';
-import type { SessionEventKind, SessionSummary } from '../../shared/session.js';
+import type { SessionEvent, SessionEventKind, SessionSummary } from '../../shared/session.js';
 
 /**
  * The session list and event pages as clients read them.
@@ -84,7 +84,9 @@ export async function readSessionList(options: { cursor?: SessionListCursor; lim
 /** Null when there is no such session. */
 export async function readSessionEvents(
   id: string,
-  options: { from?: number; before?: number; after?: number; limit?: number; kinds?: readonly SessionEventKind[] }
+  options: { from?: number; before?: number; after?: number; limit?: number; kinds?: readonly SessionEventKind[];
+    /** Only the events it accepts are returned; on the tail they alone count toward `limit`. */
+    accept?: (event: SessionEvent) => boolean }
 ) {
   const summary = await getSession(id);
   if (!summary) return null;
@@ -97,11 +99,11 @@ export async function readSessionEvents(
     // Navigation uses immutable origins. `from` alone is a publication cursor
     // for live revisions and must never decide which history page owns a row.
     // A long turn's final answer is paged beside the turn's end, where it is drawn (`residenceOf`).
-    const events = await readRecentEvents(id, cap, { before: options.before, after: options.after, kinds: options.kinds, byResidence: true });
+    const events = await readRecentEvents(id, cap, { before: options.before, after: options.after, kinds: options.kinds, byResidence: true, acceptEvent: options.accept });
     const nextFrom = events.reduce((cursor, event) => Math.max(cursor, event.seq + 1), 0);
     return { summary, events, total: summary.events, nextFrom };
   }
   const events = await readEvents(id, { from: options.from, limit: cap, kinds: options.kinds });
   const nextFrom = events.reduce((cursor, event) => Math.max(cursor, event.seq + 1), options.from);
-  return { summary, events, total: summary.events, nextFrom };
+  return { summary, events: options.accept ? events.filter(options.accept) : events, total: summary.events, nextFrom };
 }

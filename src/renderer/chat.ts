@@ -29,6 +29,7 @@ import { toolResultText } from './tool-result.js';
 import { renderEditCards } from './tool-artifacts.js';
 import { chatErrorPresentation, duplicateChatErrors } from './chat-error.js';
 import { renderRecoveryCountdowns } from './recovery.js';
+import { createRunLog } from './run-log.js';
 import type { RecoveryCountdown } from '../shared/recovery.js';
 import { communicationTitle, foldAgentCommunication, participatingWorkers, workerAvatar } from './agent-communication.js';
 import { structureTimeline, type RoundPart } from './timeline-rounds.js';
@@ -6169,12 +6170,28 @@ function pollRunningTools(): void {
   });
 }
 
-/** A turn line: the text sits in its own span so the working shimmer spans the words, not the rule. */
+/**
+ * A turn line: the text sits in its own button so the working shimmer spans the words, not the rule.
+ * The words open the chat's run log, with the rows of this line's work marked.
+ */
 function turnLine(className: string): HTMLElement {
   const line = el('div', className);
-  line.append(el('span', 'turn-worked-label'));
+  const label = el('button', 'turn-worked-label') as HTMLButtonElement;
+  label.type = 'button';
+  ui(label, 'title', () => t('Run log'));
+  label.onclick = () => {
+    if (!selectedId) return;
+    const from = Number(line.dataset.askedAt);
+    const next = events.filter(event => event.kind === 'user_message' && event.time > from).map(event => event.time);
+    void runLog.open(selectedId, Number.isFinite(from) ? { from, to: next.length ? Math.min(...next) : Number.POSITIVE_INFINITY } : undefined);
+  };
+  line.append(label);
   return line;
 }
+const runLog = createRunLog({
+  load: async id => (await run(api.getSession(id, { runLog: true, limit: 500 })))?.events ?? null,
+  localize: approvalRowText
+});
 const workedLines = new Map<string, HTMLElement>();
 
 /**
@@ -6202,6 +6219,7 @@ function exchangeDurations(list: readonly SessionEvent[]): Map<number, number> {
 
 function workedLine(asked: number, seconds: number): HTMLElement {
   const line = workedLines.get(String(asked)) ?? turnLine('turn-worked');
+  line.dataset.askedAt = String(asked);
   ui(line.firstElementChild as HTMLElement, 'textContent', () => t("{0} for {1}{2}s", [t("Worked"), seconds >= 60 ? `${t('{0}m', [Math.floor(seconds / 60)])} ` : '', seconds % 60]));
   workedLines.set(String(asked), line);
   return line;
@@ -6228,13 +6246,15 @@ function placeTurnLines(rows: HTMLElement[], workedSeconds: ReadonlyMap<number, 
   // the running turn answers, so it keeps its own worked line and the live one stays off it.
   const live = working && timelineReachesEnd();
   const used = new Set<string>();
+  // The live line names its question only where it opens that question's work.
+  delete turnStatusLine.dataset.askedAt;
   // Insert from the end so earlier indices stay valid.
   for (let i = asks.length - 1; i >= 0; i--) {
     const { index, asked } = asks[i]!;
     const latest = i === asks.length - 1;
     // An edit's earlier versions fold right under its question (#365); the turn's line follows them.
     const at = rows[index + 1]?.matches('.earlier-version') ? index + 2 : index + 1;
-    if (latest && live && (!pending || runningBefore)) { rows.splice(at, 0, turnStatusLine); rows.push(turnNow); continue; }
+    if (latest && live && (!pending || runningBefore)) { turnStatusLine.dataset.askedAt = String(asked); rows.splice(at, 0, turnStatusLine); rows.push(turnNow); continue; }
     const seconds = workedSeconds.get(asked);
     if (seconds === undefined || (latest && live)) continue;
     rows.splice(at, 0, workedLine(asked, seconds)); used.add(String(asked));
