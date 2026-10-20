@@ -23,6 +23,14 @@ export function createTaskbarProgress(options: { sessions: () => Promise<readonl
   let again = false;
   let disposed = false;
   let force = false;
+  // A failed session read clears the deadline timer, so it is retried soon, then less often.
+  let retryMs = 1_000;
+  const retry = (): void => {
+    if (disposed || timer) return;
+    timer = setTimeout(() => { void refresh(); }, retryMs);
+    timer.unref?.();
+    retryMs = Math.min(60_000, retryMs * 2);
+  };
   const show = (count: number): void => {
     try { options.show(count); shown = count; } catch { /* A closed window shows nothing; the next refresh tries again. */ }
   };
@@ -30,6 +38,7 @@ export function createTaskbarProgress(options: { sessions: () => Promise<readonl
     if (timer) { clearTimeout(timer); timer = null; }
     const { count, nextAt } = options.enabled() ? workingChats(await options.sessions(), Date.now()) : { count: 0, nextAt: null };
     if (disposed) return;
+    retryMs = 1_000;
     if (count !== shown || (force && count > 0)) show(count);
     force = false;
     if (nextAt !== null) {
@@ -40,7 +49,7 @@ export function createTaskbarProgress(options: { sessions: () => Promise<readonl
   const refresh = (): Promise<void> => {
     if (disposed) return Promise.resolve();
     if (running) { again = true; return running; }
-    running = once().catch(() => undefined).finally(() => {
+    running = once().catch(retry).finally(() => {
       running = null;
       if (again) { again = false; void refresh(); }
     });

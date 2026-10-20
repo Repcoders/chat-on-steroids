@@ -63,6 +63,26 @@ it('shows the count while chats work, clears it when they finish or it is switch
   expect(shown.at(-1)).toBe(0);
 });
 
+it('tries again soon when reading the sessions fails, not only at the next minute', async () => {
+  vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+  vi.setSystemTime(NOW);
+  let fail = 2;
+  const shown: number[] = [];
+  const progress = createTaskbarProgress({
+    sessions: async () => { if (fail-- > 0) throw new Error('store busy'); return [chat('a', NOW + 600_000), chat('b', NOW + 600_000)]; },
+    enabled: () => true,
+    show: count => { shown.push(count); }
+  });
+  await progress.refresh();
+  expect(shown).toEqual([]);
+  await vi.advanceTimersByTimeAsync(1_000);
+  expect(shown).toEqual([]);
+  // The second retry waits longer.
+  await vi.advanceTimersByTimeAsync(2_000);
+  expect(shown).toEqual([2]);
+  progress.dispose();
+});
+
 it('never shows anything while switched off', async () => {
   const shown: number[] = [];
   const progress = createTaskbarProgress({ sessions: async () => [chat('a', Date.now() + 60_000)], enabled: () => false, show: count => { shown.push(count); } });
