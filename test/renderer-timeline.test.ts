@@ -2178,6 +2178,50 @@ it('sorts the project tree by activity or name from its Sort menu and finds the 
   expect(w.localStorage.getItem('chat-on-steroids.sidebar-sort')).toBe('manual');
 });
 
+async function sortTreeBy(w: { document: Document }, action: string): Promise<void> {
+  (w.document.getElementById('sidebarSort') as HTMLButtonElement).click(); await settle();
+  w.document.querySelector<HTMLButtonElement>(`[data-row-action="${action}"]`)!.click(); await settle();
+}
+
+it("ranks a project by its shown chats' activity, not a quiet worker's or a diagnostic row's", async () => {
+  const [zeta, alpha] = ['aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', 'bbbbbbbb-cccc-4ddd-8eee-ffffffffffff'];
+  const projects: LocalProject[] = [{ id: zeta, name: 'Zeta', path: '/zeta', createdAt: 1 }, { id: alpha, name: 'Alpha', path: '/alpha', createdAt: 2 }];
+  const at = (minute: number) => T0 + minute * 60_000;
+  const sessions: SessionSummary[] = [
+    { ...summary([]), id: 'zeta-chat', conversationId: 'conversation-zeta', projectId: zeta, updatedAt: at(1) },
+    { ...summary([]), id: 'zeta-worker', conversationId: 'conversation-worker', projectId: zeta, updatedAt: at(5),
+      origin: { kind: 'worker', fromSessionId: 'zeta-chat', agentId: 'worker-1', task: 'Inspect' } },
+    { ...summary([]), id: 'zeta-diagnostic', conversationId: null, projectId: zeta, updatedAt: at(6) },
+    { ...summary([]), id: 'alpha-chat', conversationId: 'conversation-alpha', projectId: alpha, updatedAt: at(3) }
+  ];
+  const { w } = await boot([], false, [], projects, { sessions });
+  await sortTreeBy(w, 'sort-recent');
+  expect([...w.document.querySelectorAll<HTMLElement>('.project-group')].map(group => group.dataset.projectId)).toEqual([alpha, zeta]);
+});
+
+it('keeps projects with no chat in the newest page of history in the hand order, even once one is expanded', async () => {
+  const [rho, pi, nu] = ['aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', 'bbbbbbbb-cccc-4ddd-8eee-ffffffffffff', 'cccccccc-dddd-4eee-8fff-aaaaaaaaaaaa'];
+  const projects: LocalProject[] = [rho, pi, nu].map((id, index) => ({ id, name: ['Rho', 'Pi', 'Nu'][index]!, path: `/${index}`, createdAt: index }));
+  const newest = [
+    { ...summary([]), id: 'recent-unfiled', projectId: undefined, updatedAt: T0 + 400 },
+    { ...summary([]), id: 'nu-chat', conversationId: 'conversation-nu', projectId: nu, updatedAt: T0 + 300 }
+  ];
+  // Pi's chat is older than the whole newest page; Rho's, unread, could be anywhere in between.
+  const piChat = { ...summary([]), id: 'pi-chat', conversationId: 'conversation-pi', projectId: pi, updatedAt: T0 + 2 };
+  const { w, append } = await boot([], false, [], projects, { sessions: newest });
+  (w as any).api.listSessions = async (options: any) => ({ ok: true, data: {
+    sessions: options?.projectId === pi ? [piChat] : options?.projectId || options?.cursor ? [] : newest,
+    total: 9, nextCursor: options?.projectId || options?.cursor ? null : { updatedAt: T0 + 300, id: 'nu-chat' }, activeId: null, pressure: [], blocked: []
+  } });
+  await append([]);
+  await sortTreeBy(w, 'sort-recent');
+  const projectIds = () => [...w.document.querySelectorAll<HTMLElement>('.project-group')].map(group => group.dataset.projectId);
+  expect(projectIds()).toEqual([nu, rho, pi]);
+  w.document.querySelector<HTMLElement>(`[data-project-id="${pi}"] summary`)!.click(); await settle();
+  expect(w.document.querySelector(`[data-project-id="${pi}"] [data-id="pi-chat"]`)).not.toBeNull();
+  expect(projectIds()).toEqual([nu, rho, pi]);
+});
+
 it('keeps working state per chat and marks only completed background chats as unseen until opened', async () => {
   const startedAt = Date.now();
   const chats: SessionSummary[] = [

@@ -1945,12 +1945,19 @@ function paintSessions(): void {
     };
     return [...ordered(true), ...ordered(false)];
   });
+  // A project's activity is its latest shown chat's. Below the newest page of all history only
+  // expanded projects have chats here, so an older time cannot outrank a project not yet read:
+  // both are quiet and keep the hand order.
+  const quietBefore = sessionPageCursor?.updatedAt ?? 0;
+  const projectActive = new Map<string, number>();
   for (const entry of orderedSessions) {
     if (entry.origin?.kind === 'worker') continue;
     if (!entry.conversationId && entry.origin?.kind !== 'desktop') { diagnostics.push(entry); continue; }
     const projectId = groupOf(entry.projectId);
     const workers = children.get(entry.id);
     if (projectId) {
+      const activeAt = chatKeys.recent(entry);
+      if (activeAt >= quietBefore) projectActive.set(projectId, Math.max(projectActive.get(projectId) ?? 0, activeAt));
       const tasks = projectRows.get(projectId) ?? [];
       tasks.push({ entry, workers, selected: entry.id === selectedId || workers?.some(worker => worker.id === selectedId) === true });
       projectRows.set(projectId, tasks);
@@ -1963,12 +1970,6 @@ function paintSessions(): void {
   const history = workerHistory(children.get('other-workers') ?? []);
   if (history) rows.push(history);
   const projectEntries = projectSortEntries(groupOf);
-  // A project's activity is its latest chat's.
-  const projectActive = new Map<string, number>();
-  for (const entry of sessions) {
-    const id = groupOf(entry.projectId);
-    if (id) projectActive.set(id, Math.max(projectActive.get(id) ?? 0, entry.updatedAt));
-  }
   const orderedProjects = sidebarOrder?.ordered(SIDEBAR_PROJECT_SCOPE, projectEntries, {
     recent: ({ id }) => projectActive.get(id) ?? 0, name: ({ id }) => projects.find(row => row.id === id)?.name ?? ''
   }) ?? projectEntries;

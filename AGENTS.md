@@ -4103,8 +4103,9 @@ unfiled group. A drag beyond the group clamps to its first/last visible slot; it
 project ownership. Pointer custody defers row replacement during live refresh and revalidates
 membership before saving. Off-page order survives partial list refreshes.
 The project tree's Sort menu (Projects heading) shows that hand order (Manual) or orders projects
-and chats by latest activity (a chat's busy sub-agents count, a project takes its latest chat's) or
-by name. Pinned chats still lead, ties keep the hand order and a sort never rewrites it; drag and
+and chats by latest activity (a chat's busy sub-agents count, a project takes its latest shown
+chat's; a project with no chat in the loaded newest page of history counts as quiet) or by name.
+Pinned chats still lead, ties keep the hand order and a sort never rewrites it; drag and
 Alt+Up/Down work only in Manual. The choice is a localStorage preference
 (`chat-on-steroids.sidebar-sort`); the inbox keeps its own order.
 `renderer/sidebar-pins.ts` keeps pinned chats (#1133) as a bounded localStorage preference (500 ids;
