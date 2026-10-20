@@ -14,7 +14,8 @@ const mocks = vi.hoisted(() => ({
   session: null as Partial<SessionSummary> | null,
   answer: null as string | null,
   sessionChange: null as ((change: SessionChange) => void) | null,
-  catalog: { state: 'unknown', models: [] } as any
+  catalog: { state: 'unknown', models: [] } as any,
+  loading: false
 }));
 vi.mock('electron', async () => {
   const { EventEmitter } = await import('node:events');
@@ -23,7 +24,7 @@ vi.mock('electron', async () => {
     focused = false;
     dead = false;
     webContents = Object.assign(new EventEmitter(), {
-      id: 7, isDestroyed: () => false, isLoadingMainFrame: () => false, isDevToolsOpened: () => false, send: vi.fn(),
+      id: 7, isDestroyed: () => false, isLoadingMainFrame: () => mocks.loading, isDevToolsOpened: () => false, send: vi.fn(),
       setWindowOpenHandler: vi.fn()
     });
     constructor(readonly options: Record<string, unknown>) { super(); mocks.windows.push(this); }
@@ -82,7 +83,7 @@ beforeEach(() => {
   mocks.send.mockReset(); owner.webContents.send.mockClear(); requestOwner.mockClear();
   mocks.config = { ui: { quickAsk: false, theme: 'dark' } };
   mocks.projects = [{ id: PROJECT, name: 'demo-app', path: '/home/you/demo-app', createdAt: 1 }];
-  mocks.session = null; mocks.answer = null; mocks.catalog = { state: 'unknown', models: [] };
+  mocks.session = null; mocks.answer = null; mocks.catalog = { state: 'unknown', models: [] }; mocks.loading = false;
   mocks.send.mockImplementation(async (input: { id: string }) => ({ ...input, sessionId: input.id, state: 'queued', createdAt: Date.now() }));
 });
 afterEach(() => shutdownQuickAsk());
@@ -206,4 +207,23 @@ it('sends with the composer default model, and High when no effort was saved', a
   mocks.config.ui.defaultChatReasoning = 'high';
   await send({ sender: win.webContents }, { text: 'Four', projectId: null });
   expect(sent()).toMatchObject({ model: null, reasoningEffort: null });
+});
+
+it('opens nothing for a press that arrives after the setting was turned off', () => {
+  mocks.config.ui.quickAsk = true;
+  startQuickAsk(() => owner as any, requestOwner);
+  const callback = mocks.shortcuts.get(QUICK_ASK_SHORTCUT)!;
+  setQuickAskShortcut(false);
+  callback();
+  expect(mocks.windows).toHaveLength(0);
+});
+
+it('does not show a window still loading when the setting is turned off', () => {
+  mocks.config.ui.quickAsk = true;
+  startQuickAsk(() => owner as any, requestOwner);
+  mocks.loading = true;
+  const win = press();
+  setQuickAskShortcut(false);
+  win.webContents.emit('did-finish-load');
+  expect(win.isVisible()).toBe(false);
 });

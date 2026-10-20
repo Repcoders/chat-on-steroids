@@ -38,7 +38,7 @@ let activateOwner: (() => void) | null = null;
 let win: BrowserWindow | null = null;
 let registered = false;
 let ipcReady = false;
-/** Between start and shutdown; a shortcut press outside it opens nothing. */
+/** Between start and shutdown; with `registered`, a shortcut press outside it opens nothing. */
 let started = false;
 let stopSessions: (() => void) | null = null;
 /** The one question this window waits on; a newer one replaces it. */
@@ -153,7 +153,8 @@ function ensureWindow(): BrowserWindow {
 
 /** The shortcut toggles the window, centered near the top of the display under the pointer. */
 export function toggleQuickAsk(): void {
-  if (!started) return;
+  // A press Electron queued before the shortcut was released (quit, or the setting turned off).
+  if (!started || !registered) return;
   const current = win && !win.isDestroyed() ? win : null;
   if (current?.isVisible() && current.isFocused()) { current.hide(); return; }
   const target = ensureWindow();
@@ -161,7 +162,8 @@ export function toggleQuickAsk(): void {
   const [width] = target.getSize() as [number, number];
   target.setPosition(Math.round(area.x + (area.width - width) / 2), Math.round(area.y + area.height / 5));
   const show = (): void => {
-    if (target.isDestroyed()) return;
+    // Still loading when the setting went off: it stays hidden.
+    if (target.isDestroyed() || !registered) return;
     target.show(); target.focus();
     target.webContents.send('quick-ask:shown');
   };
