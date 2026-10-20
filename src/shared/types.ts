@@ -192,6 +192,8 @@ export interface UiPrefs {
   minimizeToTray: boolean;
   autoConnect: boolean;
   startAtLogin?: boolean;
+  /** A global shortcut opens the quick-ask window from any app (src/main/quick-ask.ts). Off unless true. */
+  quickAsk?: boolean;
   /** A notification when a chat finishes a turn while the window is in the background. Missing means on. */
   turnNotifications?: boolean;
   /**

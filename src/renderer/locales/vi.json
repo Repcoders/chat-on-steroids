@@ -2777,5 +2777,10 @@
   "Chats sit under their project folders.": "Các cuộc trò chuyện nằm dưới thư mục dự án của chúng.",
   "All chats in one list, active ones on top.": "Tất cả cuộc trò chuyện trong một danh sách, cái đang hoạt động ở trên cùng.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Số cuộc trò chuyện tác nhân phụ tối đa mà một cuộc trò chuyện có thể chạy cùng lúc. Cần tiện ích mở rộng trình duyệt đã kết nối.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Công việc dài tiếp tục trong một lượt mới với Tiếp tục tự động, ngay sau một kết quả công cụ. Lượt ngắn hơn ít bị ngắt hơn. Cũng dùng trong các cuộc trò chuyện có Goal và Loop; không dùng với mô hình Pro hay trong cuộc trò chuyện riêng của tác nhân phụ."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Công việc dài tiếp tục trong một lượt mới với Tiếp tục tự động, ngay sau một kết quả công cụ. Lượt ngắn hơn ít bị ngắt hơn. Cũng dùng trong các cuộc trò chuyện có Goal và Loop; không dùng với mô hình Pro hay trong cuộc trò chuyện riêng của tác nhân phụ.",
+  "Quick ask": "Hỏi nhanh",
+  "Waiting for the answer…": "Đang chờ câu trả lời…",
+  "The chat ended without an answer. Open it to see what happened.": "Cuộc trò chuyện kết thúc mà không có câu trả lời. Mở nó để xem chuyện gì đã xảy ra.",
+  "Open chat": "Mở cuộc trò chuyện",
+  "{0} opens a small window from any app. Ask a question for a project there and read the answer; the chat also appears in the sidebar.": "{0} mở một cửa sổ nhỏ từ bất kỳ ứng dụng nào. Đặt câu hỏi cho một dự án ở đó và đọc câu trả lời; cuộc trò chuyện cũng xuất hiện trong thanh bên."
 }

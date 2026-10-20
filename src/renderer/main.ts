@@ -750,6 +750,7 @@ function save(over: { readOnly?: boolean; theme?: 'light' | 'dark'; appearance?:
       autoSelectSkills: $<HTMLInputElement>('autoSelectSkills').checked,
       autoConnect: $<HTMLInputElement>('autoConnect').checked,
       startAtLogin: $<HTMLInputElement>('startAtLogin').checked,
+      quickAsk: $<HTMLInputElement>('quickAsk').checked,
       turnNotifications: $<HTMLInputElement>('turnNotifications').checked,
       localAppUsage: $<HTMLInputElement>('localAppUsage').checked,
       keepAwake: $<HTMLSelectElement>('keepAwake').value !== 'off',
@@ -1688,6 +1689,10 @@ function apply(next: AppState): void {
   $('startAtLoginRow').hidden = next.loginStartupAvailable !== true;
   $<HTMLInputElement>('startAtLogin').disabled = next.loginStartupAvailable !== true;
   applyChecked($<HTMLInputElement>('startAtLogin'), config.ui.startAtLogin === true, previousState?.config.ui.startAtLogin);
+  applyChecked($<HTMLInputElement>('quickAsk'), config.ui.quickAsk === true, previousState?.config.ui.quickAsk);
+  // The keys src/main/quick-ask.ts registers: Command+Shift+Space on macOS, Control+Alt+Space elsewhere.
+  ui($('quickAskHint'), 'textContent', () => t('{0} opens a small window from any app. Ask a question for a project there and read the answer; the chat also appears in the sidebar.',
+    [next.platform?.family === 'macos' ? primaryShiftShortcut('Space') : `${t('Ctrl')}+Alt+Space`]));
   applyChecked($<HTMLInputElement>('turnNotifications'), config.ui.turnNotifications !== false, previousState ? previousState.config.ui.turnNotifications !== false : undefined);
   applyChecked($<HTMLInputElement>('localAppUsage'), config.ui.localAppUsage !== false, previousState ? previousState.config.ui.localAppUsage !== false : undefined);
   // The saved switch, not the click, decides what the main process reads.
@@ -2782,6 +2787,7 @@ $('removeApiKey').addEventListener('click', async () => {
 for (const id of [
   'autoConnect',
   'startAtLogin',
+  'quickAsk',
   'keepAwake',
   'minimizeToTray',
   'developerMode',
