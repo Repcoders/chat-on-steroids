@@ -5386,15 +5386,25 @@ it('lists saved answers on the shelf, searches them and opens one at its answer'
   expect(api.locateSavedAnswer).not.toHaveBeenCalled();
   expect(unfold.getAttribute('aria-expanded')).toBe('true');
   expect(orphan.querySelector('.search-snippet')!.textContent).toBe('Keep the receipts.\n\nFile them by month.');
-  unfold.click(); await settle();
-  expect(unfold.getAttribute('aria-expanded')).toBe('false');
-  orphan.querySelector<HTMLButtonElement>('.saved-answer-actions .answer-action')!.click(); await settle();
+  // The rows are rebuilt on a repaint; the unfolded answer stays unfolded.
+  (w.document.getElementById('savedAnswersSearch') as HTMLInputElement).dispatchEvent(new w.Event('input'));
+  const repainted = rows()[1]!;
+  expect(repainted).not.toBe(orphan);
+  expect(repainted.querySelector('.search-result')!.getAttribute('aria-expanded')).toBe('true');
+  expect(repainted.querySelector('.search-snippet')!.textContent).toBe('Keep the receipts.\n\nFile them by month.');
+  repainted.querySelector<HTMLButtonElement>('.search-result')!.click(); await settle();
+  expect(repainted.querySelector('.search-result')!.getAttribute('aria-expanded')).toBe('false');
+  repainted.querySelector<HTMLButtonElement>('.saved-answer-actions .answer-action')!.click(); await settle();
   expect(api.writeClipboard).toHaveBeenCalledWith('Keep the receipts.\n\nFile them by month.\n');
 
   // Every word must match, case and accents ignored.
   const field = w.document.getElementById('savedAnswersSearch') as HTMLInputElement;
   field.value = 'CAFE receipts'; field.dispatchEvent(new w.Event('input'));
   expect(rows().map(row => row.querySelector('b')!.textContent)).toEqual(['Café notes']);
+  // Enter acts on the first match, here the removed chat's entry, which unfolds.
+  field.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Enter' })); await settle();
+  expect(rows()[0]!.querySelector('.search-result')!.getAttribute('aria-expanded')).toBe('true');
+  expect(dialog.open).toBe(true);
   field.value = 'cafe trip'; field.dispatchEvent(new w.Event('input'));
   expect(rows()).toHaveLength(0);
   expect(dialog.querySelector('.search-status')!.textContent).toBe('No saved answers match');

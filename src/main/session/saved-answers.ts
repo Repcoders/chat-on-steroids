@@ -49,7 +49,12 @@ function ready(): Promise<void> {
     if (saved?.version !== STATE_VERSION || !Array.isArray(saved.entries)) return;
     let chars = 0;
     entries = saved.entries.filter(validEntry).slice(0, MAX_SAVED_ANSWERS)
-      .filter(entry => (chars += entry.markdown.length) <= MAX_SHELF_CHARS);
+      .filter(entry => {
+        // Only an entry that is kept counts toward the budget; a later one that fits stays.
+        if (chars + entry.markdown.length > MAX_SHELF_CHARS) return false;
+        chars += entry.markdown.length;
+        return true;
+      });
   })();
   return restoring;
 }

@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, expect, it, vi } from 'vitest';
 import type { SessionEvent } from '../src/shared/session.js';
-import { flushDurable, initDurableStore, resetDurableForTests } from '../src/main/durable.js';
+import { flushDurable, initDurableStore, resetDurableForTests, writeDurableNow } from '../src/main/durable.js';
 import { makeTempDir, removeTempDir } from './helpers.js';
 
 const electron = vi.hoisted(() => ({
@@ -116,4 +116,17 @@ it('refuses an answer once the shelf holds as many characters as it keeps', asyn
   const saved = await shelf.listSavedAnswers();
   expect(saved).toHaveLength(20);
   expect(saved.reduce((sum, entry) => sum + entry.markdown.length, 0)).toBeLessThanOrEqual(shelf.MAX_SHELF_CHARS);
+});
+
+it('keeps an entry that fits after one the restored shelf had no room for', async () => {
+  const entry = (n: number, chars: number) => ({ id: `entry-${n}`, sessionId: 'session-a', turnId: `turn-${n}`, messageId: null,
+    anchorMessageId: `m-${n}`, title: 'Trip plan', markdown: 'x'.repeat(chars), savedAt: n });
+  await writeDurableNow('saved-answers', { version: 1, entries: [
+    ...Array.from({ length: 20 }, (_, n) => entry(n, 99_000)), entry(20, 30_000), entry(21, 10_000)
+  ] });
+  shelf.resetSavedAnswersForTests();
+  const restored = await shelf.listSavedAnswers();
+  expect(restored).toHaveLength(21);
+  expect(restored.map(saved => saved.id)).toContain('entry-21');
+  expect(restored.map(saved => saved.id)).not.toContain('entry-20');
 });

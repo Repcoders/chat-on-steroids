@@ -107,6 +107,8 @@ export function initSavedAnswers(options: SavedAnswersOptions): { open(): void }
   const field = $<HTMLInputElement>('savedAnswersSearch');
   const results = $('savedAnswersList');
   const opener = $<HTMLButtonElement>('sidebarSavedAnswers');
+  /** Removed chats' entries the person unfolded; rows are rebuilt on every repaint. */
+  const unfolded = new Set<string>();
 
   const close = (): void => {
     if (!dialog.open || dialog.classList.contains('is-closing')) return;
@@ -141,12 +143,16 @@ export function initSavedAnswers(options: SavedAnswersOptions): { open(): void }
     const meta = el('span', 'saved-answer-meta', () => entry.orphaned ? `${date} · ${t('Chat removed')}` : date);
     open.append(title, snippet, meta);
     if (entry.orphaned) {
-      // No chat to open it in: the row unfolds to the whole answer instead.
-      open.setAttribute('aria-expanded', 'false');
+      // No chat to open it in: the row unfolds to the whole answer instead, and stays so across repaints.
+      const unfold = (on: boolean): void => {
+        item.classList.toggle('is-expanded', on);
+        open.setAttribute('aria-expanded', String(on));
+        snippet.textContent = on ? entry.markdown.trim() : preview;
+      };
+      unfold(unfolded.has(entry.id));
       open.addEventListener('click', () => {
-        const expanded = item.classList.toggle('is-expanded');
-        open.setAttribute('aria-expanded', String(expanded));
-        snippet.textContent = expanded ? entry.markdown.trim() : preview;
+        if (!unfolded.delete(entry.id)) unfolded.add(entry.id);
+        unfold(unfolded.has(entry.id));
       });
     } else open.addEventListener('click', () => { close(); options.open(entry); });
     const actions = el('div', 'saved-answer-actions');
@@ -165,6 +171,7 @@ export function initSavedAnswers(options: SavedAnswersOptions): { open(): void }
 
   const paint = (): void => {
     if (!dialog.open) return;
+    for (const id of unfolded) if (!shelf.some(entry => entry.id === id)) unfolded.delete(id);
     const query = field.value.trim();
     const matches = matchingSavedAnswers(shelf, query);
     const list = el('div', 'search-list');
@@ -192,7 +199,7 @@ export function initSavedAnswers(options: SavedAnswersOptions): { open(): void }
   field.addEventListener('input', paint);
   field.addEventListener('keydown', event => {
     if (event.key === 'Escape') { event.preventDefault(); close(); }
-    else if (event.key === 'Enter') results.querySelector<HTMLButtonElement>('.saved-answer:not(.is-orphaned) > .search-result')?.click();
+    else if (event.key === 'Enter') results.querySelector<HTMLButtonElement>('.saved-answer > .search-result')?.click();
   });
   opener.addEventListener('click', open);
   dialog.addEventListener('click', event => { if (event.target === dialog) close(); });
