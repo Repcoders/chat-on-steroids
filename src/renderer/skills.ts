@@ -342,10 +342,11 @@ export function initSkills(options: Options) {
       loadedKey = key; files = null; indexedFiles = []; quotes = null; paintInline();
       if (!projectId) { loading = false; paintInline(); return; }
       // Answers are offered beside the project's top-level entries; whichever of the two lists comes
-      // first is shown first. An unreadable list of answers only leaves them out.
+      // first is shown first. An unreadable list of answers only leaves them out. Rows are lowercased
+      // the way skillCompletion lowercases the query, not by the host locale.
       if (range.directory === undefined && options.listQuotes) void options.listQuotes(projectId).catch(() => null).then(rows => {
         if (!rows || request !== epoch || owner !== options.owner() || scopeKey() !== JSON.stringify(scope) || fragment()?.kind !== 'file' || fragment()?.directory !== undefined) return;
-        quotes = { projectId, rows: rows.map(quote => ({ quote, block: quotedAnswer(quote.title, quote.text), normalized: `${quote.title}\n${quote.text}`.toLocaleLowerCase() })) };
+        quotes = { projectId, rows: rows.map(quote => ({ quote, block: quotedAnswer(quote.title, quote.text), normalized: `${quote.title}\n${quote.text}`.toLowerCase() })) };
         if (!host.hidden) paintInline();
       });
       try {

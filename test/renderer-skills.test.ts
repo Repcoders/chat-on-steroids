@@ -411,6 +411,23 @@ it('flags a draft with a quote only when it is longer than one message can hold'
   expect(draftSize(`> ${'x'.repeat(96_000)}`)).toEqual({ chars: 96_002, over: true });
 });
 
+it('finds an answer by a chat name with an I on a Turkish-locale system', async () => {
+  // A Turkish host lowercases I to a dotless ı when no locale is given.
+  const lower = String.prototype.toLocaleLowerCase;
+  const turkish = vi.spyOn(String.prototype, 'toLocaleLowerCase').mockImplementation(function (this: string, locales?: Intl.LocalesArgument) {
+    return lower.call(this, locales ?? 'tr-TR');
+  });
+  try {
+    expect('I'.toLocaleLowerCase()).toBe('ı');
+    const f = await fixture();
+    f.listQuotes.mockResolvedValue([{ sessionId: 'session-i', title: 'Index fix', worker: false, text: 'Rebuild it.' }]);
+    for (const typed of ['@index', '@Index']) {
+      f.type(typed); await settle();
+      expect([...f.host.querySelectorAll<HTMLElement>('[data-quote-session]')].map(row => row.dataset.quoteSession)).toEqual(['session-i']);
+    }
+  } finally { turkish.mockRestore(); }
+});
+
 it('shows the answers while the project folder is still being read', async () => {
   const f = await fixture();
   f.listFiles.mockReturnValue(new Promise(() => undefined));
