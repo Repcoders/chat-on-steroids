@@ -4303,6 +4303,18 @@ it('offers which key sends, starting at Enter, and saves Cmd/Ctrl+Enter', async 
   expect(mounted.calls.at(-1)?.ui.enterSends).toBe(false);
 });
 
+// A spawn of several workers waits for the person only when switched on (spawn-review.ts).
+it('offers reviewing workers before they start, off by default, and saves it', async () => {
+  const mounted = await mountChat({});
+  const w = mounted.window;
+  const review = w.document.getElementById('reviewSpawns') as HTMLInputElement;
+  expect(review.checked).toBe(false);
+  review.checked = true;
+  review.dispatchEvent(new w.Event('change', { bubbles: true }));
+  await settle();
+  expect(mounted.calls.at(-1)?.multiAgent.reviewSpawns).toBe(true);
+});
+
 // #1460: worker chats leave ChatGPT's chat list once retired, only when switched on.
 it('offers archiving retired worker chats, off by default, and saves it', async () => {
   const mounted = await mountChat({});

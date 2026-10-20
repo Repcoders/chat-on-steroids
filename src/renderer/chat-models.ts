@@ -51,7 +51,7 @@ const pairs = [
 ] as const;
 const effortNames: Record<string, string> = { none: "Instant", minimal: "Minimal", low: "Low", medium: "Medium", high: "High", xhigh: "Extra high", max: "Max", ultra: "Ultra", pro: 'Pro' } satisfies Record<ReasoningEffort, string>;
 const composerEfforts = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra', 'pro'] as const;
-const effortLabel = (effort: string): string => effortNames[effort] ? t(effortNames[effort]) : effort;
+export const effortLabel = (effort: string): string => effortNames[effort] ? t(effortNames[effort]) : effort;
 function observedModel(value: string) {
   return resolveChatModel(catalog.models, value);
 }
@@ -158,6 +158,13 @@ function distinctModelChoices(models: ChatModelCatalog['models']): Array<{ id: s
     return { id: model.id, label: lane && variantCounts.get(`${model.label}\0${lane}`) === 1
       ? () => `${model.label} · ${t(lane)}` : `${model.label} · ${model.id}` };
   });
+}
+
+export type ModelChoice = { id: string; label: string | (() => string); efforts: readonly string[] };
+/** The account's observed models as the worker selects name them, with each one's efforts (spawn review). */
+export function observedModelChoices(): ModelChoice[] {
+  const efforts = new Map(catalog.models.map(model => [model.id, model.efforts]));
+  return distinctModelChoices(catalog.models).map(choice => ({ ...choice, efforts: efforts.get(choice.id) ?? [] }));
 }
 
 function paintPair(modelId: string, effortId: string, modelValue?: string, effortValue?: string, allowEmpty = false): void {

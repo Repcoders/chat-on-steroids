@@ -2790,5 +2790,17 @@
   "{0} sub-agents need attention": "{0} 个子智能体需要处理",
   "A tool call from an untrusted chat was refused. To allow it, open this chat's ⋯ menu in the sidebar (or right-click its row) and choose Trust chat.": "来自未受信任聊天的工具调用已被拒绝。要允许它，请在侧边栏中打开此聊天的 ⋯ 菜单（或右键点击其所在行），然后选择“信任聊天”。",
   "A tool call from a worker whose main chat is not currently allowed was refused. Open that main chat's ⋯ menu in the sidebar and choose Trust chat if it is untrusted, or Release chat if it is blocked.": "一个工作者的工具调用已被拒绝，因为它的主聊天当前未被允许。请在侧边栏中打开该主聊天的 ⋯ 菜单，若未受信任则选择“信任聊天”，若已被阻止则选择“解除阻止”。",
-  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "一个由应用创建的工作者的工具调用已被拒绝，因为启动它的主聊天尚未得到确认。请回到侧边栏中的该主聊天；其所在行出现后，打开 ⋯ 菜单并选择“信任聊天”（若已被阻止则选择“解除阻止”），待工作者在那里连接或恢复后再重试。"
+  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "一个由应用创建的工作者的工具调用已被拒绝，因为启动它的主聊天尚未得到确认。请回到侧边栏中的该主聊天；其所在行出现后，打开 ⋯ 菜单并选择“信任聊天”（若已被阻止则选择“解除阻止”），待工作者在那里连接或恢复后再重试。",
+  "Review these workers": "检查这些子智能体",
+  "A chat asked to start these workers. Change or drop any of them before they start.": "一个聊天请求启动这些子智能体。在它们启动前，你可以修改或移除其中任意一个。",
+  "If you don't answer by {0}, none of them starts.": "如果你在 {0} 前没有回应，它们都不会启动。",
+  "Shared instructions": "共享说明",
+  "Drop": "移除",
+  "Keep": "保留",
+  "App default": "应用默认",
+  "Start {0} of {1}": "启动 {1} 个中的 {0} 个",
+  "Start none": "全部不启动",
+  "Start": "启动",
+  "Review workers before they start": "启动前检查子智能体",
+  "When a chat starts more than one worker at once, show them here first so you can change each task, model and reasoning, or drop some. The chat waits up to 2 minutes for your answer; without one, no worker starts.": "当一个聊天一次启动多个子智能体时，先在这里显示它们，让你修改每个的任务、模型和推理强度，或移除其中一些。聊天最多等待你 2 分钟；没有回应时，不会启动任何子智能体。"
 }

@@ -404,6 +404,11 @@ export interface MultiAgentSettings {
    * archive; nothing is deleted. Off by default.
    */
   archiveWorkerChats?: boolean;
+  /**
+   * Show a spawn of several workers to the person before any is admitted, to edit or drop each
+   * one (`spawn-review.ts`). Off by default.
+   */
+  reviewSpawns?: boolean;
 }
 
 /** The user's own additions to what each MCP connector tells the model about itself. */

@@ -98,6 +98,7 @@ import { openRowMenu, rowMenuOpenFor, toggleRowMenu, type RowMenuItem, type RowM
 import { createSearchPopup } from './search-popup.js';
 import { primaryShortcut } from './shortcuts.js';
 import { initSshProjectDialog } from './ssh-project-dialog.js';
+import { initSpawnReview } from './spawn-review.js';
 
 const api = window.api;
 let chatSearch: ChatSearch | null = null;
@@ -6675,6 +6676,7 @@ export function chatSettingsPatch(current: Config): {
       strictChatAllowlist: $<HTMLInputElement>('strictChatAllowlist').checked,
       recoverAgentTabs: $<HTMLInputElement>('recoverAgentTabs').checked,
       waitForSubAgents: $<HTMLInputElement>('waitForSubAgents').checked,
+      reviewSpawns: $<HTMLInputElement>('reviewSpawns').checked,
       autoWorktrees: $<HTMLInputElement>('autoWorktrees').checked,
       endSleepingWorkerProcesses: $<HTMLInputElement>('endSleepingWorkerProcesses').checked,
       archiveWorkerChats: $<HTMLInputElement>('archiveWorkerChats').checked
@@ -7081,6 +7083,7 @@ const CHAT_INPUTS = [
   'strictChatAllowlist',
   'recoverAgentTabs',
   'waitForSubAgents',
+  'reviewSpawns',
   'autoWorktrees',
   'endSleepingWorkerProcesses',
   'archiveWorkerChats',
@@ -7188,6 +7191,11 @@ export function chatApply(state: AppState, previous?: Config): void {
     $<HTMLInputElement>('waitForSubAgents'),
     config.multiAgent.waitForSubAgents === true,
     previous?.multiAgent.waitForSubAgents
+  );
+  applyChatChecked(
+    $<HTMLInputElement>('reviewSpawns'),
+    config.multiAgent.reviewSpawns === true,
+    previous?.multiAgent.reviewSpawns
   );
   applyChatChecked(
     $<HTMLInputElement>('autoWorktrees'),
@@ -8272,6 +8280,7 @@ export function initChat(next: Deps): void {
   $('composerFolder').addEventListener('click', () => void addLocalProject());
   let sshDialogGeneration = 0;
   const sshProjectDialog = initSshProjectDialog(api, project => showAddedProject(project, sshDialogGeneration));
+  initSpawnReview(api);
   // A folder on this computer, or one on a server (#1469).
   $('addProject').addEventListener('click', event => {
     event.preventDefault();

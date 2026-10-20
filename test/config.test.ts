@@ -682,6 +682,13 @@ describe('shipped defaults', () => {
     expect(loaded.readOnly).toBe(true);
   });
 
+  it('reviews spawns only once the person turns it on, and keeps that choice', async () => {
+    expect(defaultConfig().multiAgent.reviewSpawns).toBe(false);
+    const config = defaultConfig();
+    await saveConfig({ ...config, multiAgent: { ...config.multiAgent, reviewSpawns: true } });
+    expect((await loadConfig()).multiAgent.reviewSpawns).toBe(true);
+  });
+
   it('keeps a saved choice to archive retired worker chats (#1460)', async () => {
     const config = defaultConfig();
     await saveConfig({ ...config, multiAgent: { ...config.multiAgent, archiveWorkerChats: true } });

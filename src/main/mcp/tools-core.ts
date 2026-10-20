@@ -39,6 +39,8 @@ import { SandboxError, isAbsoluteVirtualPath, isNativeWindowsPath, resolvePath, 
 import { currentWorkspace, primeWorkspace } from '../workspace.js';
 import { getSessionProject } from '../projects.js';
 import { acceptAgentMutation, measureSleepingWorkers, spawnAgentWorkers } from '../agent-admission.js';
+import { reviewSpawn, SPAWN_REVIEW_MS } from '../spawn-review.js';
+import type { SpawnReviewWorker } from '../../shared/spawn-review.js';
 import type { Capabilities, Root } from '../../shared/types.js';
 import { commandHasSameArguments, evaluateCommandAllowlist } from '../../shared/command-allowlist.js';
 import type { FileChange } from '../../shared/session.js';
@@ -1376,11 +1378,29 @@ function registerAgentsTool(reg: SurfaceRegistrar): void {
           // A stale managed worker whose family and ordinary retired-worker TTL have expired
           // must not bootstrap a new prime family to regain local mutation authority. Session
           // origin and durable managed tombstones are denial-only, not adoption credentials.
-          if (await managedWorkerIsolationRequired(spawnCaller) && !managedWorkerAllocationIdentity(spawnCaller)) {
-            return fail('WORKTREE_OWNER_UNAVAILABLE: a retired worker cannot create a prime run after its isolated checkout owner was lost.');
+          const ownerLost = async () => await managedWorkerIsolationRequired(spawnCaller) && !managedWorkerAllocationIdentity(spawnCaller);
+          const OWNER_LOST = 'WORKTREE_OWNER_UNAVAILABLE: a retired worker cannot create a prime run after its isolated checkout owner was lost.';
+          if (await ownerLost()) return fail(OWNER_LOST);
+          // The person sees a batch before anything is staged (spawn-review.ts); they may edit or drop workers.
+          let workers: readonly SpawnReviewWorker[] = input.workers;
+          let reviewed: { dropped: number; edited: number } | null = null;
+          if (getConfig().multiAgent.reviewSpawns === true && workers.length > 1) {
+            const review = await reviewSpawn(workers, input.context ?? null);
+            if (review.outcome !== 'accepted') {
+              return fail({
+                declined: 'SPAWN_DECLINED: the user reviewed this spawn and started none of its workers.',
+                expired: `SPAWN_REVIEW_EXPIRED: the user did not answer the spawn review within ${SPAWN_REVIEW_MS / 60_000} minutes.`,
+                unavailable: 'SPAWN_REVIEW_UNAVAILABLE: the app window that shows the spawn review is not open.'
+              }[review.outcome] + ' Nothing was spawned.');
+            }
+            // Multi-agent mode or the caller's checkout owner may have gone while the sheet was open.
+            if (!reg.agentToolsLive) return reg.featureDisabled('Multi-agent mode', 'Multi-agent mode (experimental)');
+            if (await ownerLost()) return fail(OWNER_LOST);
+            workers = review.workers;
+            reviewed = { dropped: review.dropped, edited: review.edited };
           }
           const { created, becamePrime, runId, defaultNotes, isolationNotes } = await spawnAgentWorkers({
-            workers: input.workers,
+            workers,
             context: input.context ?? null,
             caller: spawnCaller
           }, async () => {
@@ -1402,6 +1422,9 @@ function registerAgentsTool(reg: SurfaceRegistrar): void {
                 text:
                   (becamePrime ? `This ${currentCaller().conversationId ? 'conversation' : 'request'} is now the prime agent of run ${runId}. ` : '') +
                   `${created.length} worker(s) matched: ${created.map((info) => `${info.id} (${info.label}, ${info.state}${info.model ? `, model ${info.model}` : ''}${info.reasoningEffort ? `, reasoning ${info.reasoningEffort}` : ''})`).join(', ')}. ` +
+                  (reviewed && (reviewed.dropped || reviewed.edited)
+                    ? `The user reviewed this spawn: ${reviewed.dropped} of ${input.workers.length} worker(s) dropped and ${reviewed.edited} edited before it started. `
+                    : '') +
                   (invited.length > 0 ? 'New worker chats are opening with their briefs already in them. ' : '') +
                   (defaultNotes?.length ? `${defaultNotes.join(' ')} ` : '') +
                   (isolationNotes.length ? `${isolationNotes.join(' ')} ` : '') +
@@ -1419,7 +1442,8 @@ function registerAgentsTool(reg: SurfaceRegistrar): void {
               run_id: runId,
               self: PRIME_ID,
               became_prime: becamePrime,
-              workers: created.map((info) => ({ id: info.id, label: info.label, state: info.state, model: info.model, reasoning_effort: info.reasoningEffort }))
+              workers: created.map((info) => ({ id: info.id, label: info.label, state: info.state, model: info.model, reasoning_effort: info.reasoningEffort })),
+              ...(reviewed ? { reviewed } : {})
             }
           };
         }

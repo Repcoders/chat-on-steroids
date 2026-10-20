@@ -202,6 +202,7 @@ define the tool/config/wire contract. README and worklogs are secondary and can 
 | Unattributed allowance | True on first launch. | Relaxes ambiguity fences only; known blocked/retired/superseded ownership stays enforced. |
 | Auto-select Skills | Off. | When on, ordinary human-authored input with no explicit Skill directive may select at most one managed/imported Skill whose full id/name/display name is literally present after case and hyphen/whitespace normalization. Ambiguous or unnamed input selects none; explicit `/id` or `/prompt id` always wins. |
 | Strict chat allowlist | Off. | When on, every model-facing tool call needs exact attribution. Existing/direct browser chats require explicit Trust from the chat list. A fresh chat opened by the CoS composer gains an explicit Trust entry only after its exact opening row authoritatively binds to the new conversation. Broker-owned workers follow their exact owning prime and a committed Compact & Resume successor follows its durable source lineage. Block still wins, revocation is dynamic, and unattributed calls are refused even when the ordinary unattributed allowance is on. |
+| Review workers before they start | Off (`multiAgent.reviewSpawns`). | An `agents action=spawn` call with more than one worker waits for the person before anything is staged. See §16 "A person can review a spawn before it starts". |
 | Archive worker chats | Off (`multiAgent.archiveWorkerChats`). | #1460, #1701. A worker chat queues 2 min after its worker reports done (`onWorkerFinished`, from `publishFinish`; `dueAt`), and every chat the broker retires for good queues at once (`onWorkerChatsRetired`: an ended run, Clear workers retiring parked histories, or a parked history expiring after 7 days), in `worker-archive.ts` (`state/worker-archive.json`, which also remembers the chats it archived). A wake for such a chat is held in the bridge's `onReviveRequest` (`readyForWake`): a not-yet-started archive is dropped; an archived (or being-archived) chat gets an unarchive job first, handed out before archives as `{ conversationId: null, unarchive }` (an old extension reads nothing), retried from 15 s, and the wake is queued on `onWorkerChatReady` (unarchived, given up, or 90 s at most). Unarchiving ignores the setting. The extension's alarm pass takes one via `POST /worker-archive/next` (leased 2 min), asks any registered ChatGPT page (`clf-archive-chat`) to `PATCH /backend-api/conversation/<id>` `{ is_archived: true }` with the signed-in account, and reports `archived`/`unarchived`/`failed`/`deferred` to `POST /worker-archive/result`. `deferred` (no page) costs no attempt; failures back off from 5 min, 6 attempts or a week at most. ChatGPT's own reversible archive: nothing is deleted. Temporary Chats were rejected: tools work there, but a reload loses the conversation (2026-10-14). |
 | Recover ordinary/agent tabs | Off. | Goal/Loop can independently justify recovery; history alone cannot. |
 | Automatic Continue | On. | Unfinished-response recovery also serves enabled Goal/Loop. This switch controls ordinary chats; explicit Off survives and malformed config disables it. See §14. |
@@ -3739,6 +3740,31 @@ in the same transaction. A newly attributed fleet joins an already-open handoff,
 commit publication gap. Old source requests retain their historical proof and cannot reacquire
 prime authority in the successor. Distinct fleets remain distinct; process custody stays with
 the same durable session.
+
+### A person can review a spawn before it starts
+
+With `multiAgent.reviewSpawns` on, an MCP `agents action=spawn` call that asks for more than one
+worker is shown to the person first (`spawn-review.ts::reviewSpawn`). The call waits while the
+sheet is open, and nothing is staged yet: no slot or global reservation, no worktree, no chat, so a
+dropped worker leaves nothing to roll back. The person can change each worker's task, model and
+reasoning (empty means the saved app default, as when the field is omitted) or drop it. The kept
+workers then go through the unchanged `spawnAgentWorkers`, which validates the edited batch like
+any other; the shared `context` is shown, not edited, and labels stay the prime's.
+
+Main pushes `spawnReview:show` with `{ id, workers, context, expiresAt }` (preload `onSpawnReview`)
+and brings the window forward. The renderer answers `spawnReview:answer { id, kept }` (preload
+`answerSpawnReview`), where `kept` lists `{ index, task, model, reasoningEffort }` by position in
+the request, or is null. Positions only, so an answer can drop and edit workers but never add one;
+an unknown or repeated index is refused, and a refused answer keeps the sheet open with the reason.
+A second batch queues behind the open sheet. The renderer also closes a sheet at its `expiresAt`
+and never shows a request already past it, so a request that reached a page still loading cannot
+outlive its call. After an accepted review the handler checks again that multi-agent mode is on and
+that a retired worker caller still has its checkout owner, since either can change during the wait.
+The wait is bounded by `SPAWN_REVIEW_MS` (two minutes); then `spawnReview:close` closes the sheet
+and the call fails `SPAWN_REVIEW_EXPIRED`. Start none or Escape fails it `SPAWN_DECLINED`, and no
+window to show the sheet fails it `SPAWN_REVIEW_UNAVAILABLE`; in each case nothing was spawned.
+When workers were dropped or edited, the result says how many and carries `reviewed: { dropped,
+edited }`. A single-worker spawn and the local control API's spawns are not reviewed.
 
 ### A chat's automatic step waits for its own workers
 
