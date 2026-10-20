@@ -7,7 +7,7 @@ import { EventEmitter } from 'node:events';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { defaultConfig, initConfigPath, saveConfig } from '../src/main/config.js';
 import { initDurableStore, resetDurableForTests } from '../src/main/durable.js';
-import { gitExecutable, ProjectGitWatchSet, readProjectGitDiff, readProjectGitSnapshot } from '../src/main/project-git.js';
+import { commitProjectGit, gitExecutable, ProjectGitWatchSet, readProjectGitDiff, readProjectGitSnapshot, setProjectGitStaged } from '../src/main/project-git.js';
 import { addProject } from '../src/main/projects.js';
 import { validateNewRoot } from '../src/main/sandbox.js';
 
@@ -308,6 +308,7 @@ it('shows merge conflicts as conflicts, with a readable diff for every kind of c
   const snapshot = await readProjectGitSnapshot(id);
   const byPath = Object.fromEntries(snapshot.changes.map(change => [change.path, change.status]));
   expect(byPath).toMatchObject({ 'both.txt': 'C', 'added.txt': 'C', 'ours-deletes.txt': 'C', 'theirs-deletes.txt': 'C' });
+  await expect(commitProjectGit(id, 'Merge', ['clean.txt'])).rejects.toThrow('Finish the merge');
   const both = await readProjectGitDiff(id, 'both.txt', undefined, snapshot.revision);
   expect(both).toMatchObject({ status: 'C', baseText: 'main\n' });
   expect(both.currentText).toContain('<<<<<<<');
@@ -338,4 +339,158 @@ it('shows a file renamed differently on both sides as conflicts, even with no wo
   expect(byPath['moved.txt']).toBe('C');
   // Deleted on both sides: no working file and no HEAD version, still a readable (empty) diff.
   expect(await readProjectGitDiff(id, 'moved.txt', undefined, snapshot.revision)).toMatchObject({ status: 'C', currentText: '' });
+});
+
+const lastSubject = async (root: string): Promise<string> =>
+  (await exec('git', ['log', '-1', '--format=%s'], { cwd: root })).stdout.trim();
+const headFiles = async (root: string): Promise<string[]> =>
+  (await exec('git', ['show', '--name-only', '--format=%s', 'HEAD'], { cwd: root })).stdout.trim().split(/\r?\n/);
+
+it('stages one of two changed files and commits only it, refusing an index Review did not show', async () => {
+  const { root, id } = await committedProject();
+  await fs.writeFile(path.join(root, 'modified.ts'), 'export const value = 2;\n');
+  await fs.writeFile(path.join(root, 'added.ts'), 'export const added = true;\n');
+  // Brackets are pathspec glob syntax: staging this file must not also stage `a.ts`.
+  await fs.writeFile(path.join(root, '[a].ts'), 'bracketed\n');
+  await fs.writeFile(path.join(root, 'a.ts'), 'plain\n');
+
+  await setProjectGitStaged(id, 'added.ts', true);
+  await setProjectGitStaged(id, '[a].ts', true);
+  let byPath = new Map((await readProjectGitSnapshot(id)).changes.map(change => [change.path, change]));
+  expect(byPath.get('added.ts')).toMatchObject({ status: 'A', staged: 'all' });
+  expect(byPath.get('[a].ts')).toMatchObject({ status: 'A', staged: 'all' });
+  expect(byPath.get('a.ts')).toMatchObject({ status: 'U' });
+  expect(byPath.get('a.ts')?.staged).toBeUndefined();
+  expect(byPath.get('modified.ts')?.staged).toBeUndefined();
+
+  await setProjectGitStaged(id, '[a].ts', false);
+  await git(root, 'add', 'modified.ts');
+  await fs.writeFile(path.join(root, 'modified.ts'), 'export const value = 3;\n');
+  byPath = new Map((await readProjectGitSnapshot(id)).changes.map(change => [change.path, change]));
+  expect(byPath.get('[a].ts')).toMatchObject({ status: 'U' });
+  expect(byPath.get('modified.ts')).toMatchObject({ status: 'M', staged: 'partial' });
+  // Something else staged modified.ts after Review was read: nothing is committed.
+  await expect(commitProjectGit(id, 'Add file', ['added.ts'])).rejects.toThrow('The staged files changed');
+  expect(await lastSubject(root)).toBe('baseline');
+
+  await setProjectGitStaged(id, 'modified.ts', false);
+  const commit = await commitProjectGit(id, 'Add file', ['added.ts']);
+  expect(commit.oid).toBe((await exec('git', ['rev-parse', 'HEAD'], { cwd: root })).stdout.trim());
+  expect(await headFiles(root)).toEqual(['Add file', '', 'added.ts']);
+  byPath = new Map((await readProjectGitSnapshot(id)).changes.map(change => [change.path, change]));
+  expect(byPath.has('added.ts')).toBe(false);
+  expect(byPath.get('modified.ts')).toMatchObject({ status: 'M' });
+  await expect(commitProjectGit(id, 'Nothing', ['modified.ts'])).rejects.toThrow('Stage files to commit them.');
+});
+
+it('refuses to stage or commit in Read-only mode and says so in the snapshot', async () => {
+  const { root, id } = await committedProject();
+  await fs.writeFile(path.join(root, 'added.ts'), 'export const added = true;\n');
+  await git(root, 'add', 'added.ts');
+  await saveConfig({ ...defaultConfig(), roots: [{ name: 'work', path: approved }], readOnly: true });
+
+  expect(await readProjectGitSnapshot(id)).toMatchObject({ state: 'ready', readOnly: true });
+  await expect(setProjectGitStaged(id, 'added.ts', false)).rejects.toThrow('Read-only mode is on');
+  await expect(commitProjectGit(id, 'Add file', ['added.ts'])).rejects.toThrow('Read-only mode is on');
+  expect(await lastSubject(root)).toBe('baseline');
+  expect((await readProjectGitSnapshot(id)).changes).toMatchObject([{ path: 'added.ts', staged: 'all' }]);
+});
+
+it('unstages before the first commit and never commits a file staged outside the project', async () => {
+  const root = path.join(approved, 'fresh');
+  const nested = path.join(root, 'app');
+  await fs.mkdir(nested, { recursive: true });
+  await git(root, 'init');
+  await git(root, 'config', 'user.email', 'test@example.com');
+  await git(root, 'config', 'user.name', 'CoS Test');
+  await fs.writeFile(path.join(nested, 'inside.txt'), 'inside\n');
+  await fs.writeFile(path.join(root, 'outside.txt'), 'outside\n');
+  const { id } = await addProject(nested);
+
+  await setProjectGitStaged(id, 'inside.txt', true);
+  expect((await readProjectGitSnapshot(id)).changes).toMatchObject([{ path: 'inside.txt', status: 'A', staged: 'all' }]);
+  await setProjectGitStaged(id, 'inside.txt', false);
+  expect((await readProjectGitSnapshot(id)).changes).toMatchObject([{ path: 'inside.txt', status: 'U' }]);
+
+  await setProjectGitStaged(id, 'inside.txt', true);
+  await git(root, 'add', 'outside.txt');
+  await expect(commitProjectGit(id, 'First', ['inside.txt'])).rejects.toThrow('Files outside this project are staged');
+  await expect(exec('git', ['rev-parse', '--verify', 'HEAD'], { cwd: root })).rejects.toThrow();
+  await git(root, 'rm', '--cached', '--quiet', 'outside.txt');
+  await commitProjectGit(id, 'First', ['inside.txt']);
+  expect(await headFiles(root)).toEqual(['First', '', 'app/inside.txt']);
+});
+
+it('commits from Review without running repository hooks or a configured signing program', async () => {
+  const { root, id } = await committedProject();
+  // Hooks and Git config are plain files an agent with file access can write; a Commit click must not run them.
+  const marker = path.join(directory, 'ran.txt');
+  const script = `#!/bin/sh\necho "$0" >> '${marker.replaceAll(path.sep, '/')}'\n`;
+  for (const hook of ['pre-commit', 'prepare-commit-msg', 'commit-msg', 'post-commit', 'post-index-change']) {
+    await fs.writeFile(path.join(root, '.git', 'hooks', hook), script, { mode: 0o755 });
+  }
+  const signer = path.join(directory, 'signer.sh');
+  await fs.writeFile(signer, script, { mode: 0o755 });
+  await git(root, 'config', 'commit.gpgSign', 'true');
+  await git(root, 'config', 'gpg.program', signer.replaceAll(path.sep, '/'));
+  await fs.writeFile(path.join(root, 'added.ts'), 'export const added = true;\n');
+
+  await setProjectGitStaged(id, 'added.ts', true);
+  await commitProjectGit(id, 'Add file', ['added.ts']);
+  expect(await headFiles(root)).toEqual(['Add file', '', 'added.ts']);
+  await expect(fs.readFile(marker, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+});
+
+it('refuses to stage a file that goes through a Git filter instead of running the filter', async () => {
+  const { root, id } = await committedProject();
+  // A clean filter is a command named in .git/config and chosen by .gitattributes: both files an agent can write.
+  const marker = path.join(directory, 'filtered.txt');
+  const filter = path.join(directory, 'filter.sh');
+  await fs.writeFile(filter, `#!/bin/sh\necho ran >> '${marker.split(path.sep).join('/')}'\ncat\n`, { mode: 0o755 });
+  await git(root, 'config', 'filter.demo.clean', `sh '${filter.split(path.sep).join('/')}'`);
+  await fs.writeFile(path.join(root, '.gitattributes'), '*.dat filter=demo\n');
+  await fs.writeFile(path.join(root, 'data.dat'), 'payload\n');
+
+  await expect(setProjectGitStaged(id, 'data.dat', true)).rejects.toThrow('Git filter');
+  await expect(fs.readFile(marker, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+  expect((await readProjectGitSnapshot(id)).changes.find(change => change.path === 'data.dat')).toMatchObject({ status: 'U' });
+  // A file the filter does not apply to still stages.
+  await setProjectGitStaged(id, '.gitattributes', true);
+  expect((await readProjectGitSnapshot(id)).changes.find(change => change.path === '.gitattributes')).toMatchObject({ staged: 'all' });
+});
+
+it('unstages a filtered file without the index refresh that would run its clean filter', async () => {
+  const { root, id } = await committedProject();
+  await fs.writeFile(path.join(root, '.gitattributes'), '*.dat filter=demo\n');
+  await fs.writeFile(path.join(root, 'data.dat'), 'first\n');
+  await git(root, 'add', '.gitattributes', 'data.dat'); await git(root, 'commit', '-m', 'data');
+  await fs.writeFile(path.join(root, 'data.dat'), 'second\n');
+  // An older file time keeps the staged entry from looking racily clean, so Review's own status read
+  // has no reason to hash the file; only a refresh after the reset would.
+  const past = new Date(Date.now() - 3_600_000);
+  await fs.utimes(path.join(root, 'data.dat'), past, past);
+  await git(root, 'add', 'data.dat');
+  // The driver appears only now, after the file was staged elsewhere.
+  const marker = path.join(directory, 'filtered.txt');
+  const filter = path.join(directory, 'filter.sh');
+  await fs.writeFile(filter, `#!/bin/sh\necho ran >> '${marker.split(path.sep).join('/')}'\ncat\n`, { mode: 0o755 });
+  await git(root, 'config', 'filter.demo.clean', `sh '${filter.split(path.sep).join('/')}'`);
+
+  await setProjectGitStaged(id, 'data.dat', false);
+  await expect(fs.readFile(marker, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+  expect((await exec('git', ['diff', '--cached', '--name-only'], { cwd: root })).stdout.trim()).toBe('');
+});
+
+it('stages both sides of a rename Git found in the working tree', async () => {
+  const { root, id } = await committedProject();
+  await fs.rename(path.join(root, 'old-name.ts'), path.join(root, 'new-name.ts'));
+  await git(root, 'add', '-N', 'new-name.ts');
+  const before = (await readProjectGitSnapshot(id)).changes.find(change => change.path === 'new-name.ts');
+  expect(before).toMatchObject({ status: 'R', previousPath: 'old-name.ts' });
+  expect(before?.staged).toBeUndefined();
+
+  await setProjectGitStaged(id, 'new-name.ts', true);
+  const after = (await readProjectGitSnapshot(id)).changes;
+  expect(after.find(change => change.path === 'new-name.ts')).toMatchObject({ status: 'R', previousPath: 'old-name.ts', staged: 'all' });
+  expect(after.some(change => change.path === 'old-name.ts')).toBe(false);
 });

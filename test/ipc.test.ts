@@ -532,6 +532,10 @@ it('adds picker-selected projects, reuses containing approval, and leaves cancel
   expect(await handlers.get('projects:remove')!(null, { id: folder })).toMatchObject({ ok: false });
   expect(await handlers.get('projectGit:snapshot')!(null, { projectId: folder })).toMatchObject({ ok: false });
   expect(await handlers.get('projectGit:diff')!(null, { projectId: first.data.id, path: '' })).toMatchObject({ ok: false });
+  expect(await handlers.get('projectGit:stage')!(null, { projectId: first.data.id, path: '', staged: true })).toMatchObject({ ok: false });
+  expect(await handlers.get('projectGit:stage')!(null, { projectId: first.data.id, path: 'a.ts', staged: 'yes' })).toMatchObject({ ok: false });
+  expect(await handlers.get('projectGit:commit')!(null, { projectId: first.data.id, message: '', staged: ['a.ts'] })).toMatchObject({ ok: false });
+  expect(await handlers.get('projectGit:commit')!(null, { projectId: first.data.id, message: 'Fix', staged: [] })).toMatchObject({ ok: false });
   expect(await handlers.get('sessions:toolEditReview')!(null, {
     sessionId: first.data.id, callId: 'not-a-uuid', changeIndex: 0
   })).toMatchObject({ ok: false });

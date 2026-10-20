@@ -4545,12 +4545,26 @@ Directories load one level at a time (500 entries); at most 128 expanded directo
 retained. Collapse, panel hiding, renderer reload/destruction and root removal retire watchers.
 Files uses one action toolbar with Refresh; its tab close hides the panel. Its shared
 work slot can grow to host width minus 360 px for chat, without a fixed maximum pixel width.
-`src/main/project-git.ts` is the sole owner of the read-only Review projection. The renderer
-passes only a LocalProject UUID and project-relative path through fixed IPC; main re-resolves the
-approved project/root and Git metadata before reading status or a diff. Git inspection is strictly
-read-only: it strips inherited Git repository/index redirects, uses optional-lock-free bounded
-subprocesses and exposes no stage, commit, reset,
-checkout or push authority. Review projects `M/A/D/R/U`, plus `C` for every unmerged index state
+`src/main/project-git.ts` is the sole owner of the Review projection and of its only Git writes.
+The renderer passes only a LocalProject UUID and project-relative path through fixed IPC; main
+re-resolves the approved project/root and Git metadata before reading status or a diff. Git
+inspection strips inherited Git repository/index redirects and uses optional-lock-free bounded
+subprocesses. In the Working tree view each change except a conflict has a stage checkbox
+(`projectGit:stage`, `git add --all` or `git reset`/`git rm --cached` before the first commit, with
+literal pathspecs), and a commit box commits the index (`projectGit:commit`). Both writes pin
+`core.hooksPath` to the null device and turn commit signing off: hooks and `gpg.program` are
+repository files an agent can write, so a click never runs them. For the same reason a file whose
+`filter` attribute names a driver is not staged (Git cannot stage it without running the clean
+filter), and unstaging passes `--no-refresh` so the reset does not hash working files through
+one. Staging a rename the working tree holds also stages its old path's removal. Main rereads Git
+before each write: a file must still be a current change. A commit reads the index once with `write-tree`,
+checks that tree (exactly the paths the renderer showed as staged, nothing outside the Local
+Project, no conflict, no merge/rebase/cherry-pick in progress), then makes it with `commit-tree`
+and moves HEAD with `update-ref` from the checked parent, so a file staged meanwhile is not
+committed. `ProjectGitChange.staged` (`all` or `partial`, from the index column of `git status`)
+is the checkbox state; `ProjectGitSnapshot.readOnly` turns the controls off in Read-only mode, and
+main refuses both writes there too. There is no
+checkout, reset of the working tree, fetch or push authority. Review projects `M/A/D/R/U`, plus `C` for every unmerged index state
 (`DD/AU/UD/UA/DU/AA/UU`) so an unfinished merge is never shown as an ordinary edit; a conflicted
 file missing from the worktree diffs as empty. It also projects ancestor-folder markers and
 bounded unified diffs; Files may open it from its toolbar. Files and Review are alternate right

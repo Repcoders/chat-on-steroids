@@ -2882,5 +2882,15 @@
   "{0} sub-agents need attention|many": "{0} sous-agents demandent votre attention",
   "A tool call from an untrusted chat was refused. To allow it, open this chat's ⋯ menu in the sidebar (or right-click its row) and choose Trust chat.": "Un appel d’outil d’un chat non approuvé a été refusé. Pour l’autoriser, ouvrez le menu ⋯ de ce chat dans la barre latérale (ou faites un clic droit sur sa ligne) et choisissez « Faire confiance au chat ».",
   "A tool call from a worker whose main chat is not currently allowed was refused. Open that main chat's ⋯ menu in the sidebar and choose Trust chat if it is untrusted, or Release chat if it is blocked.": "Un appel d’outil d’un worker dont le chat principal n’est pas autorisé actuellement a été refusé. Ouvrez le menu ⋯ de ce chat principal dans la barre latérale et choisissez « Faire confiance au chat » s’il n’est pas approuvé, ou « Débloquer le chat » s’il est bloqué.",
-  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "Un appel d’outil d’un worker créé par l’application a été refusé, car le chat principal qui l’a lancé n’est pas encore prouvé. Revenez à ce chat principal dans la barre latérale ; une fois sa ligne affichée, ouvrez son menu ⋯ et choisissez « Faire confiance au chat », ou « Débloquer le chat » s’il est bloqué, puis réessayez une fois le worker rattaché ou rétabli."
+  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "Un appel d’outil d’un worker créé par l’application a été refusé, car le chat principal qui l’a lancé n’est pas encore prouvé. Revenez à ce chat principal dans la barre latérale ; une fois sa ligne affichée, ouvrez son menu ⋯ et choisissez « Faire confiance au chat », ou « Débloquer le chat » s’il est bloqué, puis réessayez une fois le worker rattaché ou rétabli.",
+  "Stage": "Indexer",
+  "Unstage": "Désindexer",
+  "Stage {0} for commit": "Indexer {0} pour le commit",
+  "Commit message": "Message de commit",
+  "Commit": "Valider",
+  "Committing…": "Validation…",
+  "Staged {0} of {1}": "{0} sur {1} indexés",
+  "Stage files to commit them.": "Indexez des fichiers pour les valider.",
+  "Read-only mode is on. Turn it off to stage or commit from Review.": "Le mode lecture seule est activé. Désactivez-le pour indexer ou valider depuis Révision.",
+  "Committed {0}": "Commit {0} créé"
 }

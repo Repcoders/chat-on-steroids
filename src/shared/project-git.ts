@@ -9,6 +9,8 @@ export interface ProjectGitChange {
   additions: number | null;
   deletions: number | null;
   binary: boolean;
+  /** Working tree only: the index holds all of this change, or part of it (more is unstaged). */
+  staged?: 'all' | 'partial';
 }
 
 export interface ProjectGitSnapshot {
@@ -25,6 +27,8 @@ export interface ProjectGitSnapshot {
   branchesTruncated?: boolean;
   /** Present only for committed branch comparisons (merge-base → HEAD). */
   comparison?: { ref: string; label: string; baseOid: string; headOid: string };
+  /** Read-only mode is on, so Review offers no stage or commit; main refuses them as well. */
+  readOnly?: boolean;
   message?: string;
 }
 
@@ -40,6 +44,12 @@ export interface ProjectGitDiff {
   baseText: string | null;
   currentText: string | null;
   note?: string;
+}
+
+/** A commit made from Review. */
+export interface ProjectGitCommit {
+  projectId: string;
+  oid: string;
 }
 
 /** Git metadata changed. This is only an invalidation signal; main rereads Git before publishing. */
