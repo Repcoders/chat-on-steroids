@@ -28,6 +28,8 @@ import { getChatModels, startChatModelDiscovery, configureChatModelDiscovery } f
 import { releaseSessionFinish, requestSessionFinishGoal } from './session/finish.js';
 import { GOAL_MARKER_INSTRUCTION } from '../shared/goal-templates.js';
 import { validateInputImages } from './session/input-images.js';
+import { projectWindows } from './project-windows.js';
+import { mayComposeIn } from '../shared/project-windows.js';
 import { stageInputAttachment, stageInputAttachments, type AttachmentSource } from './session/input-attachments.js';
 import { recordDeliveredInput, recordedInputImage } from './session/input-history.js';
 import { UI_BASE_ZOOM, titleBarOverlayForTheme, windowBackgroundForTheme } from './window-layout.js';
@@ -55,7 +57,7 @@ import { confirmedPluginSchemas, pluginRefreshPublications, pluginRefreshStatuse
  * key but can never read it back.
  */
 
-import { app, BrowserWindow, clipboard, desktopCapturer, dialog, ipcMain, nativeTheme, shell } from 'electron';
+import { app, BrowserWindow, clipboard, desktopCapturer, dialog, ipcMain, nativeTheme, shell, type IpcMainInvokeEvent } from 'electron';
 import { repairMacOSPermissions, resetMacOSPermissions } from './computer/macos-grants.js';
 import { z } from 'zod';
 import {
@@ -592,15 +594,16 @@ async function buildState(): Promise<AppState> {
     cosBrowserSignedIn: cosBrowserSignedIn(),
     update: updateStatus(),
     desktopAccess: getMacOSDesktopAccess(),
-    settingsRecovered: settingsRecovered()
+    settingsRecovered: settingsRecovered(),
+    projectWindows: projectWindows.projectIds()
   };
 }
 
 /** Wraps a handler so a thrown error becomes a message the UI can show. */
-function handle<T>(channel: string, fn: (payload: unknown) => Promise<T>): void {
-  ipcMain.handle(channel, async (_event, payload: unknown) => {
+function handle<T>(channel: string, fn: (payload: unknown, event?: IpcMainInvokeEvent) => Promise<T>): void {
+  ipcMain.handle(channel, async (event, payload: unknown) => {
     try {
-      return { ok: true as const, data: await fn(payload) };
+      return { ok: true as const, data: await fn(payload, event) };
     } catch (err) {
       const message =
         err instanceof SandboxError || err instanceof z.ZodError
@@ -633,7 +636,11 @@ export async function openSessionChat(id: string): Promise<void> {
   if (!(await revealChatInBrowser(conversationId))) await openInPreferredBrowser(chatUrl(conversationId), { reveal: true });
 }
 
-export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall: () => void): void {
+export function registerIpc(
+  getWindow: () => BrowserWindow | null,
+  quitToInstall: () => void,
+  openProjectWindow: (projectId: string) => void = () => { throw new Error('No window'); }
+): void {
   registerWorkspaceTerminalIpc(getWindow);
   registerDictationIpc(getWindow);
   // A session row remains visible until its delete IPC resolves. Fence Trust while deletion is
@@ -718,12 +725,13 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     setRecordingStorageLimit(next.sessions.storageLimitGiB ?? DEFAULT_RECORDING_STORAGE_GIB);
     if ((before.ui.keepAwake !== false) !== (next.ui.keepAwake !== false) || (before.ui.keepScreenAwake === true) !== (next.ui.keepScreenAwake === true)) refreshKeepAwake();
     nativeTheme.themeSource = next.ui.theme;
-    if (process.platform === 'win32') getWindow()?.setTitleBarOverlay(titleBarOverlayForTheme(next.ui.theme, next.ui.appearance));
+    const appWindows = [getWindow(), ...projectWindows.windows()];
+    if (process.platform === 'win32') for (const owner of appWindows) owner?.setTitleBarOverlay(titleBarOverlayForTheme(next.ui.theme, next.ui.appearance));
     // BrowserWindow's native backing color is fixed at construction unless updated explicitly.
     // Keep it in lock-step too: the default macOS application menu exposes Reload, and after a
     // live theme switch an old opposite background otherwise flashes behind the renderer while it
     // paints again. This is also the color Electron shows during any later renderer reload/failure.
-    getWindow()?.setBackgroundColor(windowBackgroundForTheme(next.ui.theme, next.ui.appearance));
+    for (const owner of appWindows) owner?.setBackgroundColor(windowBackgroundForTheme(next.ui.theme, next.ui.appearance));
     refreshPetOverlayAppearance();
     if (
       before.goal.enabled !== next.goal.enabled ||
@@ -964,6 +972,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
   handle('projects:remove', async (payload) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(payload);
     const project = await removeProject(id);
+    // A window that served only this project has nothing left to show.
+    projectWindows.get(id)?.close();
     push('session:changed');
     return project;
   });
@@ -1476,8 +1486,13 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     };
     return runTaskRequest(requestId ?? randomUUID(), JSON.stringify(['plan', text, backend]), signal => draftTaskPlan(text, backend, publish, signal), publish);
   });
-  handle('sessions:send', async (payload) => {
+  handle('sessions:send', async (payload, event) => {
     const input = inputArgs.parse(payload);
+    // A project open in its own window owns its chats: one composer per chat (shared/project-windows.ts).
+    const chatProject = input.sessionId ? (await getSession(input.sessionId))?.projectId : input.projectId;
+    if (!mayComposeIn(projectWindows.projectOf(event?.sender.id), chatProject, projectWindows.projectIds())) {
+      throw new Error('This project is open in its own window. Send from that window.');
+    }
     await validateInputImages(input.images ?? []);
     return sendDesktopInput(input);
   });
@@ -1532,6 +1547,13 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
   handle('sessions:inputAutomation', async payload => {
     const { id, mode, loopAfterTurn } = z.object({ id: z.string().uuid(), mode: z.enum(['off', 'goal', 'loop']), loopAfterTurn: z.boolean().optional() }).parse(payload);
     return setInputAutomation(id, mode, loopAfterTurn);
+  });
+  // Opens the project in its own window, or shows the one it already has.
+  handle('window:openProject', async (payload) => {
+    const { projectId } = z.object({ projectId: z.string().uuid() }).parse(payload);
+    if (!(await listProjects()).some(project => project.id === projectId && !project.ungrouped)) throw new Error('Project not found');
+    openProjectWindow(projectId);
+    return true;
   });
   handle('window:getZoom', async () => (getWindow()?.webContents.getZoomFactor() ?? UI_BASE_ZOOM) / UI_BASE_ZOOM);
   handle('window:zoom', async (payload) => {
@@ -1966,9 +1988,11 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
    * single-instance lock still held.
    */
   const push = (channel: string, ...args: unknown[]): void => {
-    const target = getWindow();
-    if (!target || target.isDestroyed()) return;
-    target.webContents.send(channel, ...args);
+    // Every app window shows the same chats and settings; a project window only draws fewer of them.
+    for (const target of [getWindow(), ...projectWindows.windows()]) {
+      if (!target || target.isDestroyed()) continue;
+      target.webContents.send(channel, ...args);
+    }
   };
   configureInputDelivery({
     recoveryAllowed: recoveryInputAllowed,
@@ -2040,6 +2064,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     });
   };
   onStatusChange(pushState);
+  projectWindows.onChange(pushState);
   onRecordingStorageFullChange(pushState);
   onBridgeChange(pushState);
   onCosBrowserSignInChange(pushState);

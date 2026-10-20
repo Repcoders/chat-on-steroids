@@ -455,7 +455,8 @@ describe('the chat panel cards', () => {
   it('gives the session card one row per child, including its navigation row', () => {
     const card = document.getElementById('chatBody')!.closest('.card')!;
     // The chat's header, subhead, scrolling conversation, shared process/plan/queue dock, composer and footer.
-    const layoutChildren = [...card.children].filter(child => child.id !== 'chatSettingsBtn');
+    // The project-window note takes the composer's row while another window owns the chat.
+    const layoutChildren = [...card.children].filter(child => child.id !== 'chatSettingsBtn' && child.id !== 'projectWindowNotice');
     expect(layoutChildren.length).toBe(6);
     expect(layoutChildren[0]!.classList.contains('chat-head')).toBe(true);
     const dockBody = document.getElementById('composerDock')!.firstElementChild!;

@@ -4471,6 +4471,19 @@ the reminder disappears once automatic plugin refresh lands. The reminder is hid
 Settings, stacks with update/extension notices and never marks a refresh complete or starts a
 browser action.
 
+Project windows open one project in a second app window: the project menu's Open in new window
+calls `openProjectWindow(projectId)` / `window:openProject`, which shows the project's existing
+window or creates one loading the same renderer with `?project=<id>`. `main/project-windows.ts`
+keeps at most one live window per project and `AppState.projectWindows` lists the open ones. Every
+push (`state:changed`, `session:changed` and the rest) reaches the main window and every project
+window. A project window's sidebar lists only its project and its new chats go there. Each chat
+has one composer, decided by `shared/project-windows.ts` `mayComposeIn`: a project window sends
+only to its project's chats, and the main window sends to every other chat. `sessions:send`
+checks the sending `webContents` and refuses the rest; the renderer replaces the composer with a
+note (and a Show its window button in the main window) for a chat it may not send to. Removing
+the project from the sidebar closes its window; closing the main window closes them all, so quitting is
+unchanged. Dialogs, zoom and the workspace terminal still belong to the main window.
+
 ### Project Files workspace
 
 The Files panel projects the current session's LocalProject through fixed IPC using a project

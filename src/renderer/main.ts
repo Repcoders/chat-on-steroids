@@ -62,6 +62,7 @@ import { chatApply, chatSettingsPatch, chatVisible, initChat, openChatSearch, op
 import { publishStopNoticeTexts } from './stop-notices.js';
 import { publishMainTexts } from './main-texts.js';
 import { paintSharedTunnel } from './tunnel-warning.js';
+import { windowProjectFrom } from '../shared/project-windows.js';
 
 declare global {
   interface Window {
@@ -2860,7 +2861,8 @@ void (async () => {
   showTab(state && missingStep(state)?.step === 'folder' ? 'setup' : 'chat');
   // What's New after a real update (#1172); a first run on the Setup wizard has nothing new to show.
   const started = state as AppState | null;
-  if (started && missingStep(started)?.step !== 'folder') initWhatsNew(started.update.current, started.config.ui.lastSeenVersion);
+  // A project window (`?project=`) is a second view of the same app: What's New is the main window's.
+  if (started && missingStep(started)?.step !== 'folder' && !windowProjectFrom(window.location?.search ?? '')) initWhatsNew(started.update.current, started.config.ui.lastSeenVersion);
   const entries = await run(api.getLog());
   const key = (entry: LogEntry): string => `${entry.time}\0${entry.level}\0${entry.agent ?? ''}\0${entry.message}`;
   const shown = new Map<string, number>();

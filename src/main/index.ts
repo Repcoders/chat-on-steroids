@@ -27,6 +27,7 @@ import {
 import { setSystemProxyResolver } from './tunnel/index.js';
 import { configureAppProxy, refreshAppProxy } from './app-proxy.js';
 import { openSessionChat, registerIpc } from './ipc.js';
+import { projectWindows } from './project-windows.js';
 import { getChatModels, restoreChatModels, startChatModelDiscovery } from './chat-models.js';
 import { flushLogBeforeExit, initLogFile, logError, logInfo, logWarn, onLog, snapshotLogOnCrash } from './logger.js';
 import { noteRuntimeEvent, tallyLogEntry } from './diagnostics-facts.js';
@@ -152,17 +153,10 @@ if (!hasSingleInstanceLock) {
 
 const BENIGN_RENDERER_ERRORS = new Set(['ResizeObserver loop completed with undelivered notifications.']);
 
-function createWindow(): void {
-  const primaryWorkArea = screen.getPrimaryDisplay().workArea;
-  const { layout, restored } = windowLayoutForDisplays(
-    primaryWorkArea,
-    screen.getAllDisplays().map(display => display.workArea),
-    savedWindowBounds
-  );
-  const restoreMaximized = windowPlacementWasMaximized(savedWindowBounds);
+/** What every app window shares: native chrome in the app's theme and the locked-down renderer page. */
+function appWindowOptions(): Electron.BrowserWindowConstructorOptions {
   const icon = browserWindowIconPath(process.platform, app.isPackaged, process.resourcesPath);
-  window = new BrowserWindow({
-    ...layout,
+  return {
     ...(icon ? { icon } : {}),
     // Preserve the native macOS green-button fullscreen action.
     fullscreenable: process.platform === 'darwin',
@@ -189,9 +183,62 @@ function createWindow(): void {
       // The renderer only ever loads our own local files.
       webSecurity: true
     }
+  };
+}
+
+/** The page guards every app window needs; `owner` is the window they belong to. */
+function guardAppWindow(owner: BrowserWindow): void {
+  if (process.platform === 'win32') owner.removeMenu();
+  owner.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown' || input.key !== 'F11' || input.isAutoRepeat) return;
+    event.preventDefault();
+    if (!owner.isDestroyed()) owner.setFullScreen(!owner.isFullScreen());
+  });
+  owner.webContents.on('context-menu', (_event, params) => {
+    if (owner.isDestroyed()) return;
+    const template = editContextMenuTemplate(params);
+    if (template.length) Menu.buildFromTemplate(template).popup({ window: owner });
+  });
+  owner.webContents.on('did-fail-load', (_event, code, description) =>
+    logError(`window failed to load (${code}): ${description}`)
+  );
+  // Renderer errors are otherwise invisible from here. Only errors, and only the
+  // message text — never anything the page was working with.
+  owner.webContents.on('console-message', (details) => {
+    // Chromium's ResizeObserver notice is not a failure: the composer's height animation starts
+    // inside its observer by design, and the deferred notification arrives on the next frame.
+    // Logged as an error it appeared on every send and read like a renderer fault.
+    if (details.level === 'error' && !BENIGN_RENDERER_ERRORS.has(details.message)) logError(`renderer: ${details.message}`);
   });
 
-  if (process.platform === 'win32') window.removeMenu();
+  // The page itself never opens a window or navigates away; project windows are opened by main.
+  owner.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  owner.webContents.on('will-navigate', (event) => event.preventDefault());
+  owner.webContents.on('will-redirect', (event) => event.preventDefault());
+  owner.webContents.on('will-attach-webview', (event) => event.preventDefault());
+}
+
+/** Loads the renderer; a project window's page learns its project from `?project=<id>`. */
+function loadRenderer(owner: BrowserWindow, projectId?: string): void {
+  if (process.env.ELECTRON_RENDERER_URL) {
+    const url = new URL(process.env.ELECTRON_RENDERER_URL);
+    if (projectId) url.searchParams.set('project', projectId);
+    void owner.loadURL(projectId ? url.toString() : process.env.ELECTRON_RENDERER_URL);
+  } else {
+    void owner.loadFile(path.join(__dirname, '../renderer/index.html'), projectId ? { query: { project: projectId } } : undefined);
+  }
+}
+
+function createWindow(): void {
+  const primaryWorkArea = screen.getPrimaryDisplay().workArea;
+  const { layout, restored } = windowLayoutForDisplays(
+    primaryWorkArea,
+    screen.getAllDisplays().map(display => display.workArea),
+    savedWindowBounds
+  );
+  const restoreMaximized = windowPlacementWasMaximized(savedWindowBounds);
+  window = new BrowserWindow({ ...layout, ...appWindowOptions() });
+  guardAppWindow(window);
   const owner = window;
 
   // First use discovers the account once. A restored catalog is immediately usable;
@@ -221,34 +268,6 @@ function createWindow(): void {
   // A renderer that fails to load leaves a blank window with no other clue, so
   // record it where the diagnostics panel can show it.
   window.webContents.on('did-finish-load', () => logInfo('window loaded'));
-  window.webContents.on('before-input-event', (event, input) => {
-    if (input.type !== 'keyDown' || input.key !== 'F11' || input.isAutoRepeat) return;
-    event.preventDefault();
-    window?.setFullScreen(!window.isFullScreen());
-  });
-  window.webContents.on('context-menu', (_event, params) => {
-    const owner = window;
-    if (!owner || owner.isDestroyed()) return;
-    const template = editContextMenuTemplate(params);
-    if (template.length) Menu.buildFromTemplate(template).popup({ window: owner });
-  });
-  window.webContents.on('did-fail-load', (_event, code, description) =>
-    logError(`window failed to load (${code}): ${description}`)
-  );
-  // Renderer errors are otherwise invisible from here. Only errors, and only the
-  // message text — never anything the page was working with.
-  window.webContents.on('console-message', (details) => {
-    // Chromium's ResizeObserver notice is not a failure: the composer's height animation starts
-    // inside its observer by design, and the deferred notification arrives on the next frame.
-    // Logged as an error it appeared on every send and read like a renderer fault.
-    if (details.level === 'error' && !BENIGN_RENDERER_ERRORS.has(details.message)) logError(`renderer: ${details.message}`);
-  });
-
-  // Nothing in this app should ever open a second window or navigate away.
-  window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  window.webContents.on('will-navigate', (event) => event.preventDefault());
-  window.webContents.on('will-redirect', (event) => event.preventDefault());
-  window.webContents.on('will-attach-webview', (event) => event.preventDefault());
 
   window.on('close', (event) => {
     if (!quitting && getConfig().ui.minimizeToTray) {
@@ -263,14 +282,34 @@ function createWindow(): void {
   // corpse. Dropping it is what makes those paths take their existing null branch.
   window.on('closed', () => {
     window = null;
+    // Project windows are views of the main one; they close with it, so quitting works as before.
+    for (const other of projectWindows.windows()) other.close();
     if (!quitting && process.platform !== 'darwin' && !getConfig().ui.minimizeToTray) void shutdownPetOverlay();
   });
 
-  if (process.env.ELECTRON_RENDERER_URL) {
-    void window.loadURL(process.env.ELECTRON_RENDERER_URL);
-  } else {
-    void window.loadFile(path.join(__dirname, '../renderer/index.html'));
+  loadRenderer(window);
+}
+
+/**
+ * Opens a project in its own window, or shows the one it already has. It is an ordinary second
+ * view of the app: closing it never hides to the tray, and its chats go back to the main window's
+ * composer (`projectWindows`, shared/project-windows.ts).
+ */
+function openProjectWindow(projectId: string): void {
+  if (quitting) return;
+  const open = projectWindows.get(projectId);
+  if (open) {
+    if (open.isMinimized()) open.restore();
+    open.show();
+    open.focus();
+    return;
   }
+  const owner = new BrowserWindow({ width: 1100, height: 780, ...appWindowOptions() });
+  guardAppWindow(owner);
+  projectWindows.add(projectId, owner);
+  owner.once('ready-to-show', () => { if (!quitting) owner.show(); });
+  owner.on('closed', () => projectWindows.remove(owner));
+  loadRenderer(owner, projectId);
 }
 
 /** When a Session-finish or stuck notice last went out per chat, so a turn-done notice does not repeat it. */
@@ -646,7 +685,8 @@ void app.whenReady().then(async () => {
     () => {
       quitting = true;
       app.quit();
-    }
+    },
+    openProjectWindow
   );
   windowActivation.enable();
   if (!isBackgroundLaunch(process.argv)) windowActivation.request();
