@@ -2777,5 +2777,10 @@
   "Chats sit under their project folders.": "Các cuộc trò chuyện nằm dưới thư mục dự án của chúng.",
   "All chats in one list, active ones on top.": "Tất cả cuộc trò chuyện trong một danh sách, cái đang hoạt động ở trên cùng.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Số cuộc trò chuyện tác nhân phụ tối đa mà một cuộc trò chuyện có thể chạy cùng lúc. Cần tiện ích mở rộng trình duyệt đã kết nối.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Công việc dài tiếp tục trong một lượt mới với Tiếp tục tự động, ngay sau một kết quả công cụ. Lượt ngắn hơn ít bị ngắt hơn. Cũng dùng trong các cuộc trò chuyện có Goal và Loop; không dùng với mô hình Pro hay trong cuộc trò chuyện riêng của tác nhân phụ."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Công việc dài tiếp tục trong một lượt mới với Tiếp tục tự động, ngay sau một kết quả công cụ. Lượt ngắn hơn ít bị ngắt hơn. Cũng dùng trong các cuộc trò chuyện có Goal và Loop; không dùng với mô hình Pro hay trong cuộc trò chuyện riêng của tác nhân phụ.",
+  "Archive chat": "Lưu trữ cuộc trò chuyện",
+  "Unarchive chat": "Bỏ lưu trữ",
+  "Archived": "Đã lưu trữ",
+  "Move this chat to Archived at the end of the sidebar": "Chuyển cuộc trò chuyện này vào Đã lưu trữ ở cuối thanh bên",
+  "Bring this chat back to its list": "Đưa cuộc trò chuyện này về lại danh sách của nó"
 }

@@ -2640,7 +2640,10 @@ input[readonly] {
 .sess-detail { flex-basis: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: calc(11px * var(--text-scale, 1)); line-height: 16px; color: var(--faint); font-variant-numeric: tabular-nums; }
 /* Settled chats: one dim line each, under a small label. */
-.inbox-settled { margin-top: 16px; }
+.inbox-settled, .sidebar-archive { margin-top: 16px; }
+/* Archived chats: closed at the end of the sidebar, its arrow saying so. */
+.sidebar-archive > .inbox-settled-heading .disclosure-chevron { width: 12px; height: 12px; }
+.sidebar-archive[open] > .inbox-settled-heading .disclosure-chevron { transform: rotate(90deg); }
 .inbox-settled-heading { display: flex; align-items: center; gap: 6px; padding: 2px 10px 6px; list-style: none; cursor: pointer;
   color: var(--faint); font-size: calc(11px * var(--text-scale, 1)); font-weight: 600; }
 .inbox-settled-heading::-webkit-details-marker { display: none; }

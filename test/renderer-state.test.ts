@@ -1061,6 +1061,74 @@ it('moves a card live when the session list reports a new state, keeping keyboar
   expect(doc.activeElement).toBe(inboxCardState(doc, 'a1').top);
 });
 
+it('archives a chat into a closed Archived group at the end of the tree, brings it back on Unarchive, and remembers it', async () => {
+  const now = Date.now();
+  const sessions = [inboxChat('a1', { updatedAt: now - 1000 }), inboxChat('a2', { updatedAt: now - 2000 }), inboxChat('a3', { updatedAt: now })];
+  const mounted = await mountChat({}, [], { listSessions: async () => listed(sessions) });
+  const doc = mounted.window.document;
+  const listIds = () => [...doc.querySelectorAll<HTMLElement>('#chatList > .sess')].map(row => row.dataset.id);
+  const shelf = () => doc.querySelector<HTMLDetailsElement>('#chatList > details.sidebar-archive');
+  const shelfIds = () => [...shelf()?.querySelectorAll<HTMLElement>(':scope > .sess') ?? []].map(row => row.dataset.id);
+  await vi.waitFor(() => expect(listIds()).toHaveLength(3));
+  expect(shelf()).toBeNull();
+  const archive = rowMenuItem(doc.querySelector('#chatList > .sess[data-id="a1"]')!, 'archive')!;
+  expect(archive.textContent).toBe('Archive chat');
+  archive.click();
+  rowMenuItem(doc.querySelector('#chatList > .sess[data-id="a2"]')!, 'archive')!.click();
+  expect(listIds()).toEqual(['a3']);
+  // Closed, last, most recent first.
+  expect(shelf()!.open).toBe(false);
+  expect(doc.querySelector('#chatList > :last-child')).toBe(shelf());
+  expect(shelf()!.querySelector('summary')!.textContent).toBe('Archived2');
+  expect(shelfIds()).toEqual(['a1', 'a2']);
+  // Only in this app: nothing reached ChatGPT's own archive or the session store.
+  expect(mounted.calls).toEqual([]);
+  const unarchive = rowMenuItem(shelf()!.querySelector('.sess[data-id="a2"]')!, 'archive')!;
+  expect(unarchive.textContent).toBe('Unarchive chat');
+  unarchive.click();
+  // Back in its own place in the list.
+  expect(listIds()).toEqual(['a2', 'a3']);
+  expect(shelfIds()).toEqual(['a1']);
+  expect(doc.activeElement).toBe(doc.querySelector('#chatList > .sess[data-id="a2"] [data-row-menu]'));
+  expect(JSON.parse(mounted.window.localStorage.getItem('chat-on-steroids.sidebar-archive')!).map((entry: unknown[]) => entry[0])).toEqual(['a1']);
+});
+
+it('brings an archived chat back to its list, tree and inbox, while it needs approval, and shelves it again once handled', async () => {
+  const now = Date.now();
+  let approval: string[] = [];
+  let changed: () => void = () => undefined;
+  const sessions = [inboxChat('a1', { updatedAt: now - 1000 }), inboxChat('a2', { updatedAt: now })];
+  const mounted = await mountChat({}, [], {
+    listSessions: async () => listed(sessions, { approval }),
+    onSessionChanged: (fn: () => void) => { changed = fn; return () => undefined; }
+  });
+  const doc = mounted.window.document;
+  const treeIds = () => [...doc.querySelectorAll<HTMLElement>('#chatList > .sess')].map(row => row.dataset.id);
+  const shelfIds = () => [...doc.querySelectorAll<HTMLElement>('#chatList > details.sidebar-archive > .sess')].map(row => row.dataset.id);
+  await vi.waitFor(() => expect(treeIds()).toEqual(['a1', 'a2']));
+  rowMenuItem(doc.querySelector('#chatList > .sess[data-id="a1"]')!, 'archive')!.click();
+  expect(treeIds()).toEqual(['a2']);
+  approval = ['c-a1'];
+  changed();
+  await vi.waitFor(() => expect(treeIds()).toEqual(['a1', 'a2']));
+  expect(shelfIds()).toEqual([]);
+  expect(doc.querySelector<HTMLElement>('#chatList > .sess[data-id="a1"]')!.title).toMatch(/Needs approval/);
+  // In its list, its menu offers Archive, which would put it back with this need; the inbox draws it as a card with what it needs.
+  expect(rowMenuItem(doc.querySelector('#chatList > .sess[data-id="a1"]')!, 'archive')!.textContent).toBe('Archive chat');
+  closeRowMenus(doc);
+  const { defaultAppearance } = await import('../src/shared/appearance.js');
+  mounted.state.config = { ...mounted.state.config, ui: { ...mounted.state.config.ui, appearance: { ...defaultAppearance(), sidebarLayout: 'inbox' } } };
+  mounted.push(structuredClone(mounted.state));
+  await vi.waitFor(() => expect(inboxCardIds(doc)).toEqual(['a1', 'a2']));
+  expect(inboxCardState(doc, 'a1').state.textContent).toBe('Needs approval');
+  // Approved: back on the shelf, at the end of the inbox.
+  approval = [];
+  changed();
+  await vi.waitFor(() => expect(inboxCardIds(doc)).toEqual(['a2']));
+  expect([...doc.querySelectorAll<HTMLElement>('#chatList > details.sidebar-archive > .sess')].map(row => row.dataset.id)).toEqual(['a1']);
+  expect(doc.querySelector('#chatList > :last-child')?.classList.contains('sidebar-archive')).toBe(true);
+});
+
 it('shows unattributed activity at the end of the inbox, as the tree does, with its Allow/Block switch', async () => {
   const loose = inboxChat('loose', { title: 'Unattributed activity', conversationId: null, chatIds: [] });
   let rows: unknown[] = [loose];
@@ -1309,7 +1377,7 @@ it('offers a chat\'s actions in one menu, by kind of row, and opens it with a ri
   expect(row(chat.id).querySelectorAll('.sess-actions button').length).toBe(1);
   const actions = (): Array<string | undefined> => [...doc.querySelectorAll<HTMLElement>('.row-menu .row-menu-item')].map(item => item.dataset.rowAction);
   rowMenuItem(row(chat.id), 'rename');
-  expect(actions()).toEqual(['pin', 'rename', 'open', 'copy-link', 'block', 'remove']);
+  expect(actions()).toEqual(['pin', 'rename', 'open', 'copy-link', 'archive', 'block', 'remove']);
   expect(doc.querySelector('.row-menu [data-row-action="remove"]')!.classList.contains('is-danger')).toBe(true);
   closeRowMenus(doc);
   // A row that is not a chat offers only what applies to it.
