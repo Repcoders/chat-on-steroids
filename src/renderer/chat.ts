@@ -25,6 +25,7 @@ import { preserveTimelineViewport, ROUNDING_PX } from './timeline-scroll.js';
 import { createSidebarOrder, SIDEBAR_PROJECT_SCOPE } from './sidebar-order.js';
 import { createSidebarPins, pinnedSortScope } from './sidebar-pins.js';
 import { createSidebarCompletionState } from './sidebar-completion.js';
+import { createSidebarFilter, sidebarFilterMatches } from './sidebar-filter.js';
 import { toolResultText } from './tool-result.js';
 import { renderEditCards } from './tool-artifacts.js';
 import { chatErrorPresentation, duplicateChatErrors } from './chat-error.js';
@@ -306,6 +307,7 @@ let sidebarPins: ReturnType<typeof createSidebarPins> | undefined;
 const pinnable = (entry: SessionSummary): boolean => !!entry.conversationId && entry.origin?.kind !== 'worker';
 const pinnedChat = (entry: SessionSummary): boolean => pinnable(entry) && sidebarPins?.has(entry.id) === true;
 let sidebarCompletion: ReturnType<typeof createSidebarCompletionState> | undefined;
+let sidebarFilter: ReturnType<typeof createSidebarFilter> | undefined;
 function draftKey(): string { return selectedId ?? (selectedProjectId ? `project:${selectedProjectId}` : 'new'); }
 let selectionGeneration = 0;
 // Async file import belongs to one visible composer draft, not just to a session key.
@@ -1426,6 +1428,25 @@ function busyWorkers(workers: SessionSummary[]): SessionSummary[] {
   return workers.filter(worker => { const state = workerState(worker); return state === 'running' || state === 'attention'; });
 }
 
+/** The sidebar filter's choice; 'all' until it is drawn. */
+const sidebarFiltering = (): boolean => (sidebarFilter?.value ?? 'all') !== 'all';
+/**
+ * Whether a chat shows under the sidebar filter. A sub-agent's state counts as its parent's, as it
+ * does for the inbox's rank: a worker waiting on an approval puts its chat under Needs you.
+ */
+function shownByFilter(summary: SessionSummary, workers: SessionSummary[] = []): boolean {
+  const filter = sidebarFilter?.value ?? 'all';
+  if (filter === 'all') return true;
+  const states = workers.map(workerState);
+  return sidebarFilterMatches(filter, {
+    working: sessionWorking(summary) || states.includes('running'),
+    attention: chatAttention(summary) !== null || states.includes('attention'),
+    pinned: pinnedChat(summary)
+  });
+}
+/** Projects closed by hand while a filter shows them; the tree's own disclosure state is left alone. */
+const filterClosedProjects = new Set<string>();
+
 /** When a chat last did something, counting its busy sub-agents' activity as its own. */
 function inboxActiveAt(summary: SessionSummary, busy: SessionSummary[] = []): number {
   return Math.max(summary.updatedAt, ...busy.map(worker => worker.updatedAt));
@@ -1633,9 +1654,11 @@ function paintInbox(): void {
   const busy = new Map([...children].map(([key, workers]) => [key, busyWorkers(workers)]));
   const inProject = (entry: SessionSummary) => !inboxProject || projectGroup(entry.projectId) === inboxProject;
   const attributed = (entry: SessionSummary) => !!entry.conversationId || entry.origin?.kind === 'desktop';
-  const shown = sessions.filter(entry => entry.origin?.kind !== 'worker' && attributed(entry) && inProject(entry));
-  // What the tree puts under "Unattributed activity", under the same disclosure here.
-  const diagnostics = sessions.filter(entry => entry.origin?.kind !== 'worker' && !attributed(entry) && inProject(entry));
+  const filtering = sidebarFiltering();
+  const shown = sessions.filter(entry => entry.origin?.kind !== 'worker' && attributed(entry) && inProject(entry) &&
+    shownByFilter(entry, children.get(entry.id)));
+  // What the tree puts under "Unattributed activity", under the same disclosure here. A filter shows chats only.
+  const diagnostics = filtering ? [] : sessions.filter(entry => entry.origin?.kind !== 'worker' && !attributed(entry) && inProject(entry));
   const settles = new Set(shown.filter(entry => inboxSettled(entry, busy.get(entry.id))));
   // A settled chat ranks with the rest: one that failed long ago orders by recency and pages like any quiet chat.
   const rank = new Map(shown.map(entry => [entry.id, settles.has(entry) ? INBOX_REST : inboxRank(entry, busy.get(entry.id))]));
@@ -1702,6 +1725,7 @@ function paintInbox(): void {
 
   const top = el('div', 'inbox-top');
   top.append(head, filters);
+  if (sidebarFilter) top.append(sidebarFilter.element);
   const rows: HTMLElement[] = [top];
   // Each chat's sub-agents sit under it, behind the same arrow the project tree draws.
   const withWorkers = (entries: SessionSummary[], draw: (entry: SessionSummary) => HTMLElement): HTMLElement[] => {
@@ -1747,11 +1771,11 @@ function paintInbox(): void {
   // After both groups, outside Settled: it reads on in the whole list, and Settled may be closed.
   if (showMore) rows.push(showMore);
   const orphans = (children.get('other-workers') ?? []).filter(worker => !id || projectGroup(worker.projectId) === id);
-  const history = workerHistory(orphans);
+  const history = filtering ? null : workerHistory(orphans);
   if (history) rows.push(history);
   const unattributed = unattributedActivity(diagnostics);
   if (unattributed) rows.push(unattributed);
-  if (!chats.length && !diagnostics.length) rows.push(inboxEmpty(id));
+  if (!chats.length && !diagnostics.length) rows.push(inboxEmpty(id, filtering));
   $('projectList').replaceChildren();
   list.replaceChildren(...rows);
   restoreRowFocus(); restoreControlFocus();
@@ -1765,7 +1789,7 @@ function paintInbox(): void {
  * The inbox's empty state. A chosen project whose own history is still being read, or not asked for
  * yet, is not known to be empty; one whose read failed offers to read it again.
  */
-function inboxEmpty(id: string | null): HTMLElement {
+function inboxEmpty(id: string | null, filtering: boolean): HTMLElement {
   const history = id ? projectHistory.get(id) : undefined;
   if (id && history?.failed) {
     const box = el('div', 'empty inbox-retry');
@@ -1782,7 +1806,7 @@ function inboxEmpty(id: string | null): HTMLElement {
     line.setAttribute('role', 'status');
     return line;
   }
-  return el('p', 'empty', () => t('No chats yet.'));
+  return el('p', 'empty', () => filtering ? t('No chats match') : t('No chats yet.'));
 }
 
 function projectSortEntries(groupOf: typeof projectGroup = projectGroup): Array<{ id: string; scope: string }> {
@@ -1901,12 +1925,17 @@ function paintSessions(): void {
   $('sessionList').classList.toggle('is-inbox', layout === 'inbox');
   if (layout !== 'inbox') inboxPicker.close();
   if (layout === 'inbox') {
+    // The tree may have hidden a section a filter left empty; the inbox draws in Chats alone.
+    $('projectsSection').hidden = false; $('chatsSection').hidden = false;
     paintInbox();
     syncSelectedWorkspace();
     scheduleToolActivityExpiry();
     return;
   }
   const projectList = $('projectList'), chatList = $('chatList');
+  // The filter heads the tree, above both sections; the inbox draws it in its own header.
+  const filtering = sidebarFiltering();
+  if (sidebarFilter && sidebarFilter.element.parentElement !== $('sessionList')) $('sessionList').prepend(sidebarFilter.element);
   // Activity replaces sidebar nodes. Keep an actively focused project control (its disclosure
   // or one of its buttons) attached to its exact project, without moving focus from the
   // composer or settings. A keyboard user tabbing to a project's buttons lost focus to the
@@ -1943,9 +1972,11 @@ function paintSessions(): void {
   });
   for (const entry of orderedSessions) {
     if (entry.origin?.kind === 'worker') continue;
-    if (!entry.conversationId && entry.origin?.kind !== 'desktop') { diagnostics.push(entry); continue; }
+    // A filter shows chats only, so unattributed activity and older sub-agents wait for All.
+    if (!entry.conversationId && entry.origin?.kind !== 'desktop') { if (!filtering) diagnostics.push(entry); continue; }
     const projectId = groupOf(entry.projectId);
     const workers = children.get(entry.id);
+    if (!shownByFilter(entry, workers)) continue;
     if (projectId) {
       const tasks = projectRows.get(projectId) ?? [];
       tasks.push({ entry, workers, selected: entry.id === selectedId || workers?.some(worker => worker.id === selectedId) === true });
@@ -1956,17 +1987,19 @@ function paintSessions(): void {
       if (workers) workerGroup(entry.id, workers, row, rows);
     }
   }
-  const history = workerHistory(children.get('other-workers') ?? []);
+  const history = filtering ? null : workerHistory(children.get('other-workers') ?? []);
   if (history) rows.push(history);
   const projectEntries = projectSortEntries(groupOf);
   const orderedProjects = sidebarOrder?.ordered(SIDEBAR_PROJECT_SCOPE, projectEntries) ?? projectEntries;
   const projectSections: HTMLElement[] = [];
   for (const { id } of orderedProjects) {
+    // Under a filter, only the projects holding a chat it shows, each open unless closed meanwhile.
+    if (filtering && !projectRows.has(id)) continue;
     const project = projects.find(row => row.id === id);
     const section = document.createElement('details'); section.className = 'project-group'; section.dataset.projectId = id;
     if (project?.color) section.dataset.projectColor = project.color;
     section.dataset.sortId = id; section.dataset.sortScope = SIDEBAR_PROJECT_SCOPE;
-    section.open = expandedProjects.has(id);
+    section.open = filtering ? !filterClosedProjects.has(id) : expandedProjects.has(id);
     const heading = el('summary', 'project-heading');
     heading.dataset.sortHandle = '';
     heading.setAttribute('aria-keyshortcuts', 'Alt+ArrowUp Alt+ArrowDown');
@@ -1985,6 +2018,11 @@ function paintSessions(): void {
     // one disclosure owner synchronously, then project it onto this details element.
     heading.addEventListener('click', event => {
       event.preventDefault();
+      if (filtering) {
+        if (!filterClosedProjects.delete(id)) filterClosedProjects.add(id);
+        section.open = !filterClosedProjects.has(id);
+        return;
+      }
       const open = !expandedProjects.has(id);
       if (open) expandedProjects.add(id); else expandedProjects.delete(id);
       section.open = open;
@@ -2004,7 +2042,8 @@ function paintSessions(): void {
     }
     const tasks = projectRows.get(id) ?? [];
     const count = projectVisibleCounts.get(id) ?? PROJECT_TASK_PAGE_SIZE;
-    const shown = tasks.filter((task, index) => index < count || task.selected);
+    // A filter's matches are few and all of them are the point: no page.
+    const shown = filtering ? tasks : tasks.filter((task, index) => index < count || task.selected);
     const shownRows: HTMLElement[] = [];
     for (const task of shown) {
       const row = sessionRow(task.entry);
@@ -2015,7 +2054,7 @@ function paintSessions(): void {
     section.append(...shownRows);
     // The project's own older chats count as "more" too, once it is known to have some (#1190).
     const older = !!projectHistory.get(id)?.cursor;
-    if (shown.length < tasks.length || older) {
+    if (!filtering && (shown.length < tasks.length || older)) {
       const more = el('button', 'btn project-show-more', () => t("Show more")) as HTMLButtonElement;
       more.type = 'button'; ui(more, 'aria-label', () => t("Show more tasks in {0}", [project?.name ?? t("this project")]));
       more.addEventListener('click', () => {
@@ -2029,6 +2068,10 @@ function paintSessions(): void {
   }
   const unattributed = unattributedActivity(diagnostics);
   if (unattributed) rows.push(unattributed);
+  if (filtering && !rows.length && !projectSections.length) rows.push(el('p', 'empty', () => t('No chats match')));
+  // A filter that leaves a section empty hides it, rather than saying it has no projects or chats yet.
+  $('projectsSection').hidden = filtering && !projectSections.length;
+  $('chatsSection').hidden = filtering && !rows.length;
   // A new node is not :hover until the pointer moves again: the row under it would lose its hover
   // look for a moment, and a sub-agent arrow would jump back to the menu's column and slide out again.
   // The row under the pointer is born pointed (until the pointer leaves), keeps its tooltip, and an
@@ -2062,8 +2105,8 @@ function paintSessions(): void {
   }
   restoreFocus();
   syncSelectedWorkspace();
-  $('projectsEmpty').hidden = projectSections.length > 0;
-  $('sessionsEmpty').hidden = rows.length > 0;
+  $('projectsEmpty').hidden = filtering || projectSections.length > 0;
+  $('sessionsEmpty').hidden = filtering || rows.length > 0;
 
   scheduleToolActivityExpiry();
 }
@@ -7900,6 +7943,7 @@ function selectNewChat(projectId: string | null = null, branch: typeof newChatBr
 export function initChat(next: Deps): void {
   sidebarCompletion = createSidebarCompletionState();
   sidebarPins = createSidebarPins();
+  sidebarFilter = createSidebarFilter(() => { filterClosedProjects.clear(); paintSessions(); });
   sidebarOrder = createSidebarOrder($('sessionList'), () => [
     ...projectSortEntries(),
     ...sessions.filter(entry => (entry.conversationId || entry.origin?.kind === 'desktop') && entry.origin?.kind !== 'worker')

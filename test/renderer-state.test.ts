@@ -1113,6 +1113,148 @@ it('draws the inbox when the layout changes before any chat is loaded, and the t
   expect(doc.querySelector('#chatList .inbox-top')).toBeNull();
 });
 
+/** The sidebar's state filter buttons, wherever the layout draws them. */
+const filterButtons = (doc: Document) => [...doc.querySelectorAll<HTMLButtonElement>('.sidebar-filter > button')];
+const filterButton = (doc: Document, id: string) => doc.querySelector<HTMLButtonElement>(`.sidebar-filter > [data-sidebar-filter="${id}"]`)!;
+/** A chat outside every project with one worker, and the worker waiting on an approval card. */
+const parentWithApproval = (updatedAt: number) => [
+  inboxChat('parent', { updatedAt }),
+  inboxChat('w-approval', { updatedAt, origin: { kind: 'worker', fromSessionId: 'parent', agentId: 'w-approval', task: '' } })
+];
+
+it('filters the project tree to working chats, chats that need the person, or pinned ones, leaving the tree\'s own disclosure state alone', async () => {
+  const { alpha, beta } = inboxProjects();
+  const now = Date.now();
+  let rows: unknown[] = [
+    inboxChat('a-work', { projectId: alpha.id, updatedAt: now, activityExpiresAt: now + 60 * 60_000 }),
+    inboxChat('a-quiet', { projectId: alpha.id, updatedAt: now - 1000 }),
+    inboxChat('b-quiet', { projectId: beta.id, updatedAt: now - 2000 }),
+    ...parentWithApproval(now - 3000),
+    inboxChat('blocked', { updatedAt: now - 4000 }),
+    inboxChat('pin-me', { updatedAt: now - 5000 }),
+    inboxChat('quiet', { updatedAt: now - 6000 }),
+    inboxChat('loose', { conversationId: null, chatIds: [] })
+  ];
+  let changed: () => void = () => undefined;
+  const mounted = await mountChat({}, [], {
+    listProjects: async () => ({ ok: true, data: [alpha, beta] }),
+    listSessions: async () => listed(rows, { blocked: ['c-blocked'], approval: ['c-w-approval'] }),
+    onSessionChanged: (fn: () => void) => { changed = fn; return () => undefined; }
+  });
+  const doc = mounted.window.document;
+  const chatIds = () => [...doc.querySelectorAll<HTMLElement>('#chatList > .sess')].map(row => row.dataset.id);
+  const sections = () => [...doc.querySelectorAll<HTMLDetailsElement>('#projectList > [data-project-id]')];
+  const section = (id: string) => doc.querySelector<HTMLDetailsElement>(`#projectList > [data-project-id="${id}"]`)!;
+  const pressed = () => filterButtons(doc).filter(button => button.getAttribute('aria-pressed') === 'true').map(button => button.dataset.sidebarFilter);
+  await vi.waitFor(() => expect(chatIds()).toEqual(['parent', 'blocked', 'pin-me', 'quiet']));
+  // One row of four above both sections, All chosen.
+  const bar = doc.querySelector<HTMLElement>('#sessionList > .sidebar-filter')!;
+  expect(bar.getAttribute('role')).toBe('group');
+  expect(bar.getAttribute('aria-label')).toBe('Filter chats');
+  expect(doc.getElementById('sessionList')!.firstElementChild).toBe(bar);
+  expect(filterButtons(doc).map(button => button.textContent)).toEqual(['All', 'Working', 'Needs you', 'Pinned']);
+  expect(pressed()).toEqual(['all']);
+  expect(sections().map(entry => entry.open)).toEqual([false, false]);
+  rowMenuItem(doc.querySelector('#chatList > .sess[data-id="pin-me"]')!, 'pin')!.click();
+  expect(chatIds()).toEqual(['pin-me', 'parent', 'blocked', 'quiet']);
+
+  // Working: only the project holding a working chat, open on it whatever its disclosure says.
+  filterButton(doc, 'working').click();
+  expect(pressed()).toEqual(['working']);
+  expect(sections().map(entry => entry.dataset.projectId)).toEqual([alpha.id]);
+  expect(section(alpha.id).open).toBe(true);
+  expect([...section(alpha.id).querySelectorAll<HTMLElement>(':scope > .sess')].map(row => row.dataset.id)).toEqual(['a-work']);
+  expect(section(alpha.id).querySelector('.project-show-more')).toBeNull();
+  // No chat outside a project is working: that section steps aside rather than saying it has none yet.
+  expect(doc.getElementById('chatsSection')!.hidden).toBe(true);
+  expect(doc.getElementById('projectsSection')!.hidden).toBe(false);
+  expect(doc.getElementById('projectsEmpty')!.hidden).toBe(true);
+  // Closing it here is for this view only.
+  section(alpha.id).querySelector<HTMLElement>('.project-heading')!.click();
+  expect(section(alpha.id).open).toBe(false);
+
+  // Needs you: a chat that is blocked, and one whose worker waits on an approval. Unattributed activity waits for All.
+  filterButton(doc, 'attention').click();
+  expect(chatIds()).toEqual(['parent', 'blocked']);
+  expect(doc.getElementById('projectsSection')!.hidden).toBe(true);
+  expect(doc.getElementById('chatsSection')!.hidden).toBe(false);
+  expect(doc.querySelector('#chatList > details.session-diagnostics')).toBeNull();
+
+  // Pinned, and the keyboard stays on the filter across a live repaint.
+  const pinned = filterButton(doc, 'pinned');
+  pinned.focus(); pinned.click();
+  expect(chatIds()).toEqual(['pin-me']);
+  rows = [...rows];
+  changed();
+  await settle();
+  expect(doc.activeElement).toBe(pinned);
+  rowMenuItem(doc.querySelector('#chatList > .sess[data-id="pin-me"]')!, 'pin')!.click();
+  expect(chatIds()).toEqual([]);
+  expect(doc.querySelector('#chatList > .empty')?.textContent).toBe('No chats match');
+  expect(doc.getElementById('sessionsEmpty')!.hidden).toBe(true);
+  expect(doc.getElementById('projectsSection')!.hidden).toBe(true);
+
+  // All again: every chat, the project tree as it was, both sections back.
+  filterButton(doc, 'all').click();
+  expect(chatIds()).toEqual(['parent', 'blocked', 'pin-me', 'quiet']);
+  expect(doc.querySelector('#chatList > details.session-diagnostics')).not.toBeNull();
+  expect(sections().map(entry => [entry.dataset.projectId, entry.open])).toEqual([[alpha.id, false], [beta.id, false]]);
+  expect(doc.getElementById('projectsSection')!.hidden).toBe(false);
+  expect(doc.getElementById('chatsSection')!.hidden).toBe(false);
+  // A filter's own closing is forgotten when it changes: Working opens the project again.
+  filterButton(doc, 'working').click();
+  expect(section(alpha.id).open).toBe(true);
+});
+
+it('filters the inbox with the same buttons, under the project filter, keeping keyboard focus on them across a repaint', async () => {
+  const now = Date.now(), old = now - 3 * DAY;
+  let rows: unknown[] = [
+    inboxChat('work', { updatedAt: now, activityExpiresAt: now + 60 * 60_000 }),
+    inboxChat('blocked', { updatedAt: now - 1000 }),
+    ...parentWithApproval(now - 2000),
+    inboxChat('pin-me', { updatedAt: now - 3000 }),
+    inboxChat('quiet', { startedAt: old, updatedAt: old }),
+    inboxChat('loose', { conversationId: null, chatIds: [] })
+  ];
+  let changed: () => void = () => undefined;
+  const mounted = await mountInbox({
+    listSessions: async () => listed(rows, { blocked: ['c-blocked'], approval: ['c-w-approval'] }),
+    onSessionChanged: (fn: () => void) => { changed = fn; return () => undefined; }
+  });
+  const doc = mounted.window.document;
+  await vi.waitFor(() => expect(inboxCardIds(doc)).toEqual(['parent', 'blocked', 'work', 'pin-me']));
+  // Below the project filter, in the header that stays put while the list scrolls.
+  const bar = doc.querySelector<HTMLElement>('#chatList .inbox-top > .sidebar-filter')!;
+  expect(bar.previousElementSibling?.classList.contains('inbox-filters')).toBe(true);
+  expect(doc.querySelectorAll('.sidebar-filter')).toHaveLength(1);
+  expect(doc.querySelector('.inbox-settled .sess[data-id="quiet"]')).not.toBeNull();
+  rowMenuItem(doc.querySelector('.sess-card[data-id="pin-me"]')!, 'pin')!.click();
+
+  filterButton(doc, 'working').click();
+  expect(inboxCardIds(doc)).toEqual(['work']);
+  expect(doc.querySelector('.inbox-settled')).toBeNull();
+  expect(doc.querySelector('#chatList > details.session-diagnostics')).toBeNull();
+  // Needs you ranks as the inbox does: the worker's approval before the block.
+  filterButton(doc, 'attention').focus();
+  filterButton(doc, 'attention').click();
+  expect(inboxCardIds(doc)).toEqual(['parent', 'blocked']);
+  expect((doc.activeElement as HTMLElement).dataset.sidebarFilter).toBe('attention');
+  changed();
+  await settle();
+  expect((doc.activeElement as HTMLElement).dataset.sidebarFilter).toBe('attention');
+  expect(filterButton(doc, 'attention').getAttribute('aria-pressed')).toBe('true');
+  filterButton(doc, 'pinned').click();
+  expect(inboxCardIds(doc)).toEqual(['pin-me']);
+  // A filter nothing matches says so, not that there are no chats yet.
+  filterButton(doc, 'working').click();
+  rows = rows.filter(row => (row as { id: string }).id !== 'work');
+  changed();
+  await vi.waitFor(() => expect(doc.querySelector('#chatList > .empty')?.textContent).toBe('No chats match'));
+  filterButton(doc, 'all').click();
+  expect(inboxCardIds(doc)).toEqual(['pin-me', 'parent', 'blocked']);
+  expect(doc.querySelector('#chatList > details.session-diagnostics')).not.toBeNull();
+});
+
 it('says a chosen project\'s chats are loading while its history is read, and offers Retry after a failed read', async () => {
   const { alpha } = inboxProjects();
   const reads: Array<(reply: unknown) => void> = [];
