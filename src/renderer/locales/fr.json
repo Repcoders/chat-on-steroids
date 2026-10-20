@@ -2867,5 +2867,17 @@
   "Chats sit under their project folders.": "Les chats se rangent sous le dossier de leur projet.",
   "All chats in one list, active ones on top.": "Tous les chats dans une seule liste, les actifs en haut.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Le nombre maximal de chats de sous-agents qu’un chat peut lancer en même temps. Nécessite l'extension du navigateur connectée.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Un long travail continue dans un nouveau tour avec un Continuer automatique, juste après un résultat d’outil. Les tours plus courts s’interrompent moins souvent. Aussi dans les chats avec Goal et Loop ; pas avec les modèles Pro ni dans les chats des sous-agents."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Un long travail continue dans un nouveau tour avec un Continuer automatique, juste après un résultat d’outil. Les tours plus courts s’interrompent moins souvent. Aussi dans les chats avec Goal et Loop ; pas avec les modèles Pro ni dans les chats des sous-agents.",
+  "Workspace profiles": "Profils de travail",
+  "Switch to “{0}”?": "Passer à « {0} » ?",
+  "Switch": "Changer",
+  "Nothing changes: these settings are already in place.": "Rien ne change : ces réglages sont déjà en place.",
+  "Permissions, folders and Desktop stay as they are.": "Les autorisations, les dossiers et Desktop restent tels quels.",
+  "On": "Activé",
+  "Switch notifications, keep-awake and background tabs together from the tray or menu bar icon’s menu.": "Change ensemble les notifications, la mise en veille et les onglets en arrière-plan depuis le menu de l’icône de la zone de notification ou de la barre des menus.",
+  "Save these settings as a profile": "Enregistrer ces réglages comme profil",
+  "Keeps “Notify when a chat finishes”, “Keep awake while a chat works” and “Background tabs open in” as they are now. Permissions, folders and Desktop are never part of a profile.": "Garde « Prévenir quand un chat a terminé », « Garder éveillé pendant qu’un chat travaille » et « Les onglets en arrière-plan s'ouvrent dans » tels qu’ils sont maintenant. Les autorisations, les dossiers et Desktop ne font jamais partie d’un profil.",
+  "Save as profile": "Enregistrer comme profil",
+  "Workspace profile limit reached": "Nombre maximal de profils de travail atteint",
+  "Workspace profile not found": "Profil de travail introuvable"
 }

@@ -239,6 +239,9 @@ const api = {
   addSetupProfile: (name: string) => call<AppState>('setup:profile', { action: 'add', name }),
   selectSetupProfile: (id: string) => call<AppState>('setup:profile', { action: 'select', id }),
   removeSetupProfile: (id: string) => call<AppState>('setup:profile', { action: 'remove', id }),
+  /** Saves the current notification, keep-awake and background tab settings under a name; the tray switches them. */
+  saveWorkspaceProfile: (name: string) => call<AppState>('workspace:profile', { action: 'save', name }),
+  removeWorkspaceProfile: (id: string) => call<AppState>('workspace:profile', { action: 'remove', id }),
   // The goal loop's own credential. Same channel, named slot; the value only ever goes in.
   setGoalKey: (value: string) => call<AppState>('secret:set', { value, key: 'openRouterApiKey' }),
   // The same, for a custom provider endpoint. Optional: keyless local servers need nothing stored.

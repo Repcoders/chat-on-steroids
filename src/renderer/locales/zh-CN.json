@@ -2777,5 +2777,17 @@
   "Chats sit under their project folders.": "聊天显示在各自的项目文件夹下。",
   "All chats in one list, active ones on top.": "所有聊天在同一列表中，进行中的排在最前。",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "一个聊天可同时运行的子智能体聊天上限。需要已连接的浏览器扩展。",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "长时间的工作会在工具结果之后，通过自动“继续”在新轮次中接着进行。轮次越短越不容易中断。也用于目标和循环聊天；不用于 Pro 模型或子智能体自己的聊天。"
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "长时间的工作会在工具结果之后，通过自动“继续”在新轮次中接着进行。轮次越短越不容易中断。也用于目标和循环聊天；不用于 Pro 模型或子智能体自己的聊天。",
+  "Workspace profiles": "工作区配置",
+  "Switch to “{0}”?": "切换到“{0}”？",
+  "Switch": "切换",
+  "Nothing changes: these settings are already in place.": "没有变化：这些设置已经生效。",
+  "Permissions, folders and Desktop stay as they are.": "权限、文件夹和 Desktop 保持不变。",
+  "On": "开启",
+  "Switch notifications, keep-awake and background tabs together from the tray or menu bar icon’s menu.": "通过托盘或菜单栏图标的菜单，一起切换通知、保持唤醒和后台标签页。",
+  "Save these settings as a profile": "将这些设置保存为配置",
+  "Keeps “Notify when a chat finishes”, “Keep awake while a chat works” and “Background tabs open in” as they are now. Permissions, folders and Desktop are never part of a profile.": "按当前状态保存“聊天完成时通知”“聊天工作时保持唤醒”和“后台标签页打开位置”。权限、文件夹和 Desktop 从不属于配置。",
+  "Save as profile": "保存为配置",
+  "Workspace profile limit reached": "已达到工作区配置上限",
+  "Workspace profile not found": "找不到工作区配置"
 }

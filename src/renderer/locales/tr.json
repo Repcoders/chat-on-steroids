@@ -2822,5 +2822,17 @@
   "Chats sit under their project folders.": "Sohbetler proje klasörlerinin altında durur.",
   "All chats in one list, active ones on top.": "Tüm sohbetler tek listede, etkin olanlar üstte.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Bir sohbetin aynı anda çalıştırabileceği en fazla yardımcı ajan sohbeti sayısı. Bağlı tarayıcı eklentisi gerekir.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Uzun işler, bir araç sonucundan hemen sonra otomatik Devam ile yeni bir turda sürer. Kısa turlar daha az kesilir. Hedef ve Döngü sohbetlerinde de kullanılır; Pro modellerde ve yardımcı ajanların kendi sohbetlerinde kullanılmaz."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Uzun işler, bir araç sonucundan hemen sonra otomatik Devam ile yeni bir turda sürer. Kısa turlar daha az kesilir. Hedef ve Döngü sohbetlerinde de kullanılır; Pro modellerde ve yardımcı ajanların kendi sohbetlerinde kullanılmaz.",
+  "Workspace profiles": "Çalışma profilleri",
+  "Switch to “{0}”?": "“{0}” profiline geçilsin mi?",
+  "Switch": "Geç",
+  "Nothing changes: these settings are already in place.": "Hiçbir şey değişmiyor: bu ayarlar zaten uygulanmış.",
+  "Permissions, folders and Desktop stay as they are.": "İzinler, klasörler ve Desktop olduğu gibi kalır.",
+  "On": "Açık",
+  "Switch notifications, keep-awake and background tabs together from the tray or menu bar icon’s menu.": "Bildirimleri, uyanık tutmayı ve arka plan sekmelerini birlikte, sistem tepsisi veya menü çubuğu simgesinin menüsünden değiştir.",
+  "Save these settings as a profile": "Bu ayarları profil olarak kaydet",
+  "Keeps “Notify when a chat finishes”, “Keep awake while a chat works” and “Background tabs open in” as they are now. Permissions, folders and Desktop are never part of a profile.": "“Bir sohbet bitince bildir”, “Bir sohbet çalışırken uyanık tut” ve “Arka plan sekmeleri şurada açılır” ayarlarını şimdiki halleriyle kaydeder. İzinler, klasörler ve Desktop hiçbir zaman bir profile dahil değildir.",
+  "Save as profile": "Profil olarak kaydet",
+  "Workspace profile limit reached": "Çalışma profili sınırına ulaşıldı",
+  "Workspace profile not found": "Çalışma profili bulunamadı"
 }

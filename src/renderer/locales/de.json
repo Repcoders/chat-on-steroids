@@ -2822,5 +2822,17 @@
   "Chats sit under their project folders.": "Chats stehen unter ihren Projektordnern.",
   "All chats in one list, active ones on top.": "Alle Chats in einer Liste, aktive oben.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "Wie viele Unteragenten-Chats ein Chat höchstens gleichzeitig ausführen darf. Benötigt die verbundene Browser-Erweiterung.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Lange Arbeit läuft direkt nach einem Tool-Ergebnis in einem neuen Durchlauf mit automatischem Weiter weiter. Kürzere Durchläufe brechen seltener ab. Auch in Goal- und Loop-Chats; nicht bei Pro-Modellen und nicht in den Chats von Unteragenten."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Lange Arbeit läuft direkt nach einem Tool-Ergebnis in einem neuen Durchlauf mit automatischem Weiter weiter. Kürzere Durchläufe brechen seltener ab. Auch in Goal- und Loop-Chats; nicht bei Pro-Modellen und nicht in den Chats von Unteragenten.",
+  "Workspace profiles": "Arbeitsprofile",
+  "Switch to “{0}”?": "Zu „{0}“ wechseln?",
+  "Switch": "Wechseln",
+  "Nothing changes: these settings are already in place.": "Es ändert sich nichts: Diese Einstellungen gelten schon.",
+  "Permissions, folders and Desktop stay as they are.": "Berechtigungen, Ordner und Desktop bleiben, wie sie sind.",
+  "On": "An",
+  "Switch notifications, keep-awake and background tabs together from the tray or menu bar icon’s menu.": "Wechsle Benachrichtigungen, Wachhalten und Hintergrund-Tabs gemeinsam über das Menü des Symbols im Infobereich oder in der Menüleiste.",
+  "Save these settings as a profile": "Diese Einstellungen als Profil speichern",
+  "Keeps “Notify when a chat finishes”, “Keep awake while a chat works” and “Background tabs open in” as they are now. Permissions, folders and Desktop are never part of a profile.": "Speichert „Benachrichtigen, wenn ein Chat fertig ist“, „Wach halten, während ein Chat arbeitet“ und „Hintergrund-Tabs öffnen in“ so, wie sie jetzt sind. Berechtigungen, Ordner und Desktop gehören nie zu einem Profil.",
+  "Save as profile": "Als Profil speichern",
+  "Workspace profile limit reached": "Maximale Anzahl an Arbeitsprofilen erreicht",
+  "Workspace profile not found": "Arbeitsprofil nicht gefunden"
 }

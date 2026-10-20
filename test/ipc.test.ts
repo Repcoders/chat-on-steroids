@@ -289,6 +289,28 @@ it('removes active and inactive profiles with their exact keys, preserving the f
   expect(await getSecret('openaiApiKey')).toBe('fixture-default-key');
 });
 
+it('saves and removes workspace profiles, refuses a switch from the window, and shows a tray switch in Settings', async () => {
+  const { chooseWorkspaceProfile } = await import('../src/main/workspace-profiles.js');
+  const profile = (payload: unknown) => handlers.get('workspace:profile')!(null, payload) as Promise<any>;
+  const base = getConfig();
+  await saveConfig({ ...base, ui: { ...base.ui, turnNotifications: false, keepAwake: true, keepScreenAwake: false } });
+  const saved = await profile({ action: 'save', name: 'Overnight' });
+  expect(saved).toMatchObject({ ok: true, data: { config: { workspaceProfiles: [{ name: 'Overnight', settings: { turnNotifications: false, keepAwake: 'computer' } }] } } });
+  const id = getConfig().workspaceProfiles![0]!.id;
+  expect(await profile({ action: 'save', name: ' ' })).toMatchObject({ ok: false });
+  // Switching asks first, in the tray; the window has no way around that question.
+  expect(await profile({ action: 'switch', id })).toMatchObject({ ok: false });
+  await saveConfig({ ...getConfig(), ui: { ...getConfig().ui, turnNotifications: true, keepAwake: false } });
+  const send = vi.fn();
+  currentWindow = { setBackgroundColor: vi.fn(), setTitleBarOverlay: vi.fn(), isDestroyed: () => false, webContents: { send } };
+  expect(await chooseWorkspaceProfile(id, async () => ({ response: 0 }))).toBe(true);
+  await vi.waitFor(() => expect(send).toHaveBeenCalledWith('state:changed', expect.objectContaining({
+    config: expect.objectContaining({ ui: expect.objectContaining({ turnNotifications: false, keepAwake: true }) })
+  })));
+  expect(await profile({ action: 'remove', id })).toMatchObject({ ok: true, data: { config: { workspaceProfiles: [] } } });
+  expect(await profile({ action: 'remove', id })).toMatchObject({ ok: false });
+});
+
 it('rejects stale profile tunnel edits after A to B to A while accepting unrelated settings', async () => {
   const base = getConfig();
   await handlers.get('setup:profile')!(null, { action: 'add', name: 'Other' });

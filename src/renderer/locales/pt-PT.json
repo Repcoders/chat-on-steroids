@@ -2867,5 +2867,17 @@
   "Chats sit under their project folders.": "Os chats ficam sob as pastas dos projetos.",
   "All chats in one list, active ones on top.": "Todos os chats numa só lista, os ativos no topo.",
   "The most sub-agent chats one chat may run at once. Needs the browser extension to be connected.": "O máximo de chats de subagentes que um chat pode ter ao mesmo tempo. Requer a extensão do navegador ligada.",
-  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Um trabalho longo continua num novo turno com um Continuar automático, logo após um resultado de ferramenta. Turnos mais curtos falham menos. Também em chats com Goal e Loop; não com modelos Pro nem nos chats dos subagentes."
+  "Long work continues in a new turn with an automatic Continue, right after a tool result. Shorter turns break less often. Also in Goal and Loop chats; not with Pro models or in sub-agents’ own chats.": "Um trabalho longo continua num novo turno com um Continuar automático, logo após um resultado de ferramenta. Turnos mais curtos falham menos. Também em chats com Goal e Loop; não com modelos Pro nem nos chats dos subagentes.",
+  "Workspace profiles": "Perfis de trabalho",
+  "Switch to “{0}”?": "Mudar para “{0}”?",
+  "Switch": "Mudar",
+  "Nothing changes: these settings are already in place.": "Nada muda: estas definições já estão aplicadas.",
+  "Permissions, folders and Desktop stay as they are.": "As permissões, as pastas e o Desktop ficam como estão.",
+  "On": "Ativado",
+  "Switch notifications, keep-awake and background tabs together from the tray or menu bar icon’s menu.": "Mude em conjunto os avisos, o modo ativo e os separadores em segundo plano a partir do menu do ícone da área de notificação ou da barra de menus.",
+  "Save these settings as a profile": "Guardar estas definições como perfil",
+  "Keeps “Notify when a chat finishes”, “Keep awake while a chat works” and “Background tabs open in” as they are now. Permissions, folders and Desktop are never part of a profile.": "Guarda “Avisar quando um chat terminar”, “Manter ativo enquanto um chat trabalha” e “Os separadores em segundo plano abrem em” como estão agora. As permissões, as pastas e o Desktop nunca fazem parte de um perfil.",
+  "Save as profile": "Guardar como perfil",
+  "Workspace profile limit reached": "Limite de perfis de trabalho atingido",
+  "Workspace profile not found": "Perfil de trabalho não encontrado"
 }

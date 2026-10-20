@@ -219,6 +219,7 @@ define the tool/config/wire contract. README and worklogs are secondary and can 
 | Browser bridge port | Auto. | `ui.browserBridgePort` accepts Auto or 8765–8769. Auto falls back to 18765–18769, then 38765–38769 (`BROWSER_BRIDGE_AUTO_PORTS`, mirrored by the extension's `PORTS`; #1314: Windows reserved the primary range). Effective `CLF_BRIDGE_PORTS` overrides it and disables the Settings control. |
 | Background chats | On. | Omitted legacy settings use On; explicit saved On/Off remains exact. Cold Windows startup requests a minimized browser window. |
 | Background placement | Window. | `ui.backgroundPlacement` `'window'` / `'group'` (an unknown saved value reads as `'window'`), published in `/status` as `backgroundPlacement`. Group mode puts every background tab in one collapsed "Chat On Steroids" tab group in the last-focused normal window (never the background window, never incognito), then keeps using it; failures fall back to the minimized window. No follow and no compaction tab selection in the user's window (#128). |
+| Workspace profiles | None (`config.workspaceProfiles` absent). | Saved from Settings › General › Workspace profiles (`workspace:profile` save/remove; at most 8, a saved name saves over its profile) and switched only from the tray's Workspace profiles submenu after a native question listing each change. A profile holds exactly `turnNotifications`, `keepAwake` (off/computer/screen, written to `ui.keepAwake`/`ui.keepScreenAwake`) and `backgroundPlacement`; any other key in a stored profile, such as `capabilities`, `roots` or `readOnly`, is dropped at load, so a switch can never widen permissions, folders or Desktop. A damaged profile is dropped alone and never sends the file to conservative recovery, which itself starts with none. |
 
 Keep evidence levels separate in all reports: **source → tests → build → package → installed
 payload → live browser/device/provider behavior**. Passing one level does not prove the next.
@@ -352,6 +353,12 @@ selects a survivor in the same config commit. The last profile cannot be removed
 Appearance's profile popover uses content-sized bounded width and a grid with a fixed delete
 column. Keep its right edge anchored to the selector and long names inside the viewport;
 the general `.setting .btn` flex rule must not collapse the name's share of the row.
+
+Workspace profiles (`shared/workspace-profiles.ts`, `main/workspace-profiles.ts`) are separate from Setup
+profiles: they never touch the tunnel, keys or permissions. A tray pick asks first, then switches in one
+`updateConfig` commit onto the latest config, refreshes keep-awake when it changed and pushes
+`state:changed`, so an open Settings page shows the new values. A second pick while the question is
+open is ignored; a profile removed meanwhile switches nothing.
 
 Renderer settings save `{base, patch}`. Main performs a field-wise three-way merge so an unchanged
 form field cannot undo a newer browser-side setting. Renderer saves also serialize snapshots
@@ -4338,7 +4345,7 @@ stopped-chat notice texts (`shared/stop-notice.ts`) and publishes them over `ui:
 at startup and on each language change; unknown keys are refused and untranslated notices stay English.
 The tray menu, its tooltip, the Session finish notice with its buttons, tunnel-loss notices and the
 main process's native dialogs (file dialog titles and filter names, the worker checkout removal
-confirmation) work the same way: the allowlisted `shared/main-texts.ts` over `ui:mainTexts`, kept by
+confirmation, the workspace profile submenu and its switch question) work the same way: the allowlisted `shared/main-texts.ts` over `ui:mainTexts`, kept by
 `main/main-texts.ts`, which repaints the tray. The channel accepts at most `MAIN_TEXTS.length` keys;
 counts and paths are filled into `{0}` after translation, with a function replacement.
 The renderer also reports the language over `ui:language`; the main process keeps it as `ui.language`

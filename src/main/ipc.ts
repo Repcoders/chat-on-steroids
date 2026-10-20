@@ -97,6 +97,7 @@ import { ProjectGitWatchSet, readProjectGitDiff, readProjectGitSnapshot } from '
 import { hasSecret, isEncryptionAvailable, secureStorageStatus, setAsideUnreadableSecrets, setSecret, storedSecretsUnreadable } from './secrets.js';
 import { setupApiKeySlot } from '../shared/setup-profile.js';
 import { addSetupProfile, removeSetupProfile, switchSetupProfile } from './setup-profiles.js';
+import { onWorkspaceProfilesChange, removeWorkspaceProfile, saveWorkspaceProfile, workspaceProfilesChanged } from './workspace-profiles.js';
 import { bundledVersion, locateBinary } from './tunnel/locate.js';
 import { TUNNEL_ID_PATTERN } from './tunnel/index.js';
 import {
@@ -670,6 +671,17 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
       try { if (request.action === 'remove') await setSecret(setupApiKeySlot(request.id), ''); }
       finally { await applySettings(); }
     });
+    return buildState();
+  });
+  // Saves the current settings as a workspace profile, or removes one. Switching is the tray's.
+  handle('workspace:profile', async payload => {
+    const request = z.discriminatedUnion('action', [
+      z.object({ action: z.literal('save'), name: z.string().trim().min(1).max(80) }),
+      z.object({ action: z.literal('remove'), id: z.string().min(1).max(64) })
+    ]).parse(payload);
+    await updateConfig(config => request.action === 'save'
+      ? saveWorkspaceProfile(config, request.name) : removeWorkspaceProfile(config, request.id));
+    workspaceProfilesChanged();
     return buildState();
   });
   handle('usage:get', () => usageOverview());
@@ -2040,6 +2052,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     });
   };
   onStatusChange(pushState);
+  onWorkspaceProfilesChange(pushState);
   onRecordingStorageFullChange(pushState);
   onBridgeChange(pushState);
   onCosBrowserSignInChange(pushState);
