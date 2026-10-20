@@ -365,13 +365,16 @@ capabilities, read-only, command rules, `ui`, sessions, compaction, multi-agent,
 the control API. It never writes `tunnel` (tunnel IDs, the tunnel program's path),
 `setupProfiles`, `roots` (approved folder paths), `connectorSuffix`, or the install's own `ui`
 entries (`lastSeenVersion`, `language`, `browserPreferences`, `cosBrowserTrayHint`,
-`autoRefreshPluginsAsked`); keys stay in `secrets.bin` and are never in the config.
-`settings:importPreview` reads the picked file and builds the `{base, patch}` of a normal
-`settings:save` against the current config (a setting the file does not name keeps its value,
-those excluded fields always come from the current config), validates it with the save's schema
-and returns every changed setting, permission changes first and flagged, plus a token. Nothing
-is applied then. `settings:importApply {token}` runs that exact request through the same save
-path; a malformed, foreign or newer-version file is refused before any preview.
+`autoRefreshPluginsAsked`, `browserBridgePort`); keys stay in `secrets.bin` and are never in the
+config. `settings:importPreview` reads the picked file and builds the `{base, patch}` of a normal
+`settings:save` against the current config (settings merge field by field, so one the file does
+not name keeps its value; the excluded fields always come from the current config), validates it
+with the save's schema and returns every changed setting plus a token. Permission changes come
+first and flagged: capabilities, read-only, command rules, the control API, persistent plugin
+URLs, worker access, and the Goal backends and provider (where Goal and Loop send the chat and the
+custom provider key). Nothing is applied then. `settings:importApply {token}` runs that exact
+request through the same save path, and refuses it when a save changed those sections since the
+preview. A malformed, foreign or newer-version file is refused before any preview.
 
 The BrowserWindow keeps context isolation, sandbox and web security on; Node integration and
 webviews off. CSP, permission denial, navigation/window restrictions and fixed preload methods

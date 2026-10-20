@@ -20,7 +20,7 @@ function configured(): Config {
 describe('settings backup', () => {
   it('leaves tunnel IDs, setup profiles, folders, the connector name and install state out of the file', () => {
     const text = settingsBackup(configured(), '2.1.42', new Date('2026-10-20T12:00:00Z'));
-    for (const value of [TUNNEL, 'tunnel-client', 'C:\\\\Users', '"connectorSuffix"', 'Profile Alpha', 'setupProfiles', '"roots"', 'lastSeenVersion', 'browserPreferences', '"language"']) {
+    for (const value of [TUNNEL, 'tunnel-client', 'C:\\\\Users', '"connectorSuffix"', 'Profile Alpha', 'setupProfiles', '"roots"', 'lastSeenVersion', 'browserPreferences', '"language"', 'browserBridgePort']) {
       expect(text).not.toContain(value);
     }
     const file = JSON.parse(text);
@@ -56,6 +56,20 @@ describe('settings backup', () => {
     const { base, patch } = settingsBackupRequest(JSON.stringify(file), { ...current, ui: { ...current.ui, followUp: 'queue' } });
     expect(patch.goal).toEqual(current.goal);
     expect(settingsChanges(base, patch).map(change => change.path)).toEqual(['ui.theme']);
+  });
+
+  it('merges nested settings field by field and lists where Goal sends the chat as a permission', () => {
+    const current = configured();
+    current.goal = { ...current.goal, provider: { kind: 'openrouter', baseUrl: 'https://models.example/v1' } };
+    const text = JSON.stringify({ format: 'chat-on-steroids-settings', version: 1,
+      settings: { goal: { backend: 'api', provider: { kind: 'custom' } }, ui: { browserBridgePort: 47123 } } });
+    const { base, patch } = settingsBackupRequest(text, current);
+    expect(patch.goal).toMatchObject({ backend: 'api', provider: { kind: 'custom', baseUrl: 'https://models.example/v1' } });
+    expect(patch.ui).toEqual(current.ui);
+    expect(settingsChanges(base, patch)).toEqual([
+      { path: 'goal.backend', before: '"chatgpt"', after: '"api"', permission: true },
+      { path: 'goal.provider.kind', before: '"openrouter"', after: '"custom"', permission: true }
+    ]);
   });
 
   it('refuses a file that is not a settings backup, or one from a newer version', () => {

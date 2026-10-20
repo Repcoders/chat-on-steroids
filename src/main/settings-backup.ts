@@ -16,15 +16,21 @@ export const INVALID_SETTINGS_BACKUP = 'This file is not a valid Chat On Steroid
 
 const SECTIONS = ['capabilities', 'readOnly', 'commandAllowlist', 'ui', 'sessions', 'compaction', 'multiAgent', 'goal', 'mcp', 'controlApi'] as const;
 /** `ui` entries about this install rather than a choice: left out of a backup and never imported. */
-const LOCAL_UI_KEYS = ['lastSeenVersion', 'language', 'browserPreferences', 'cosBrowserTrayHint', 'autoRefreshPluginsAsked'] as const;
+const LOCAL_UI_KEYS = ['lastSeenVersion', 'language', 'browserPreferences', 'cosBrowserTrayHint', 'autoRefreshPluginsAsked', 'browserBridgePort'] as const;
 const PERMISSION_PATHS = [/^capabilities\./, /^readOnly$/, /^commandAllowlist\./, /^controlApi\./, /^mcp\.persistentUrls$/,
-  /^multiAgent\.(enabled|allowUnattributedCalls|strictChatAllowlist)$/];
+  /^multiAgent\.(enabled|allowUnattributedCalls|strictChatAllowlist)$/,
+  // Where Goal and Loop send the chat, and with it the custom provider's key.
+  /^goal\.provider\./, /^goal\.(backend|loopBackend)$/];
 
 export class SettingsBackupError extends Error {}
 
 type Snapshot = Record<string, unknown>;
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
+/** `value` over `current`, field by field at every depth; arrays and other values replace. */
+const merged = (current: unknown, value: unknown): unknown => isRecord(current) && isRecord(value)
+  ? { ...current, ...Object.fromEntries(Object.entries(value).map(([key, next]) => [key, merged(current[key], next)])) }
+  : value;
 
 function withoutLocalUi(ui: Config['ui']): Record<string, unknown> {
   const copy: Record<string, unknown> = { ...ui };
@@ -39,15 +45,20 @@ export function settingsBackup(config: Config, appVersion: string, now = new Dat
     exportedAt: now.toISOString(), settings }, null, 2)}\n`;
 }
 
+/** The `base` of an import's save: the sections a backup carries, and the tunnel as it is. */
+export function settingsBackupBase(current: Config): Snapshot {
+  return { tunnel: current.tunnel, ...Object.fromEntries(SECTIONS.map(section => [section, current[section]])) };
+}
+
 /**
  * The unvalidated `{base, patch}` of a `settings:save` that applies the backup in `text` over
- * `current`. Sections merge per key, so a setting the file does not name keeps its value; the
+ * `current`. Settings merge field by field, so one the file does not name keeps its value; the
  * tunnel and the install's own `ui` entries always come from `current`.
  */
 export function settingsBackupRequest(text: string, current: Config): { base: Snapshot; patch: Snapshot } {
   if (text.length > MAX_SETTINGS_BACKUP_BYTES) throw new SettingsBackupError(INVALID_SETTINGS_BACKUP);
   let file: unknown;
-  try { file = JSON.parse(text.replace(/^﻿/, '')); } catch { throw new SettingsBackupError(INVALID_SETTINGS_BACKUP); }
+  try { file = JSON.parse(text.replace(/^\uFEFF/, '')); } catch { throw new SettingsBackupError(INVALID_SETTINGS_BACKUP); }
   if (!isRecord(file) || file.format !== SETTINGS_BACKUP_FORMAT || typeof file.version !== 'number' || !isRecord(file.settings)) {
     throw new SettingsBackupError(INVALID_SETTINGS_BACKUP);
   }
@@ -55,12 +66,11 @@ export function settingsBackupRequest(text: string, current: Config): { base: Sn
     throw new SettingsBackupError('This settings backup is from a newer version of Chat On Steroids. Update the app, then import it again.');
   }
   if (file.version !== SETTINGS_BACKUP_VERSION) throw new SettingsBackupError(INVALID_SETTINGS_BACKUP);
-  const base: Snapshot = { tunnel: current.tunnel, ...Object.fromEntries(SECTIONS.map(section => [section, current[section]])) };
+  const base = settingsBackupBase(current);
   const patch: Snapshot = { ...base };
   for (const section of SECTIONS) {
     if (!Object.hasOwn(file.settings, section)) continue;
-    const value = file.settings[section];
-    patch[section] = isRecord(base[section]) && isRecord(value) ? { ...base[section], ...value } : value;
+    patch[section] = merged(base[section], file.settings[section]);
   }
   if (isRecord(patch.ui)) {
     const ui: Record<string, unknown> = { ...patch.ui };

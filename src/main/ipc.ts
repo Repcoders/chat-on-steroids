@@ -1,7 +1,7 @@
 import { registerWorkspaceTerminalIpc } from './workspace-terminal-ipc.js';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { INVALID_SETTINGS_BACKUP, MAX_SETTINGS_BACKUP_BYTES, settingsBackup, settingsBackupRequest, settingsChanges } from './settings-backup.js';
+import { INVALID_SETTINGS_BACKUP, MAX_SETTINGS_BACKUP_BYTES, settingsBackup, settingsBackupBase, settingsBackupRequest, settingsChanges } from './settings-backup.js';
 import type { SettingsBackupExport, SettingsBackupPreview } from '../shared/settings-backup.js';
 import { forgetSurfaceTokens } from './mcp/persistent-paths.js';
 import { firefoxAddonUrl } from '../shared/firefox-addon.js';
@@ -697,9 +697,11 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
   });
 
   // The Settings form's save, and a settings backup's import once its preview was confirmed.
-  const saveSettings = async (request: z.infer<typeof settingsSave>): Promise<AppState> => {
+  // `admit` runs on the latest committed config inside the update and may refuse the save.
+  const saveSettings = async (request: z.infer<typeof settingsSave>, admit?: (config: Config) => void): Promise<AppState> => {
     const before = getConfig();
     const next = await updateConfig(async config => {
+      admit?.(config);
       if (request.patch.ui.browserBridgePort !== undefined &&
           request.patch.ui.browserBridgePort !== (request.base.ui.browserBridgePort ?? 'auto') &&
           bridgePortSelection().overridden) {
@@ -866,9 +868,15 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
   handle('settings:importApply', async payload => {
     const { token } = z.object({ token: z.string().uuid() }).strict().parse(payload);
     const pending = pendingImport;
-    if (!pending || pending.token !== token) throw new Error('This import preview is no longer current. Choose the file again.');
+    const stale = 'This import preview is no longer current. Choose the file again.';
+    if (!pending || pending.token !== token) throw new Error(stale);
     pendingImport = null;
-    const state = await saveSettings(pending.request);
+    // A save since the preview would make Apply merge onto values the person never saw listed.
+    const shown = JSON.stringify(pending.request.base);
+    const state = await saveSettings(pending.request, config => {
+      const parsed = settingsPatch.safeParse(settingsBackupBase(config));
+      if (!parsed.success || JSON.stringify(parsed.data) !== shown) throw new Error(stale);
+    });
     logInfo('settings imported from a backup file');
     return state;
   });
