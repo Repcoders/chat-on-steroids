@@ -580,6 +580,51 @@ it('starts project groups collapsed and deliberately expands the project selecte
   expect(group().open).toBe(true);
 });
 
+it('blocks every chat of a project from its menu, older pages included, and releases them again', async () => {
+  const { project, session } = projectSidebarFixture();
+  const chat = (id: string, extra: Record<string, unknown> = {}) =>
+    ({ ...session, id, title: id, conversationId: `c-${id}`, chatIds: [`c-${id}`], ...extra });
+  const recent = [chat('p1', { updatedAt: 30 }), chat('p2', { updatedAt: 20 })];
+  const older = chat('p3', { updatedAt: 10 });
+  const outside = chat('loose', { projectId: null, updatedAt: 40 });
+  const blocked = new Set<string>();
+  const page = (sessions: unknown[], nextCursor: unknown = null) =>
+    ({ ok: true, data: { sessions, activeId: null, pressure: [], blocked: [...blocked], trusted: [], nextCursor } });
+  const listSessions = vi.fn(async (options?: { projectId?: string; cursor?: unknown }) => options?.projectId !== project.id
+    ? page([outside, ...recent])
+    // The project's third chat is only on its second page.
+    : options.cursor ? page([older]) : page(recent, { updatedAt: 20, id: 'p2' }));
+  const owner = (id: string) => [outside, ...recent, older].find(entry => entry.id === id)!.conversationId;
+  const setSessionBlocked = vi.fn(async (id: string, block: boolean) => {
+    if (block) blocked.add(owner(id)); else blocked.delete(owner(id));
+    return { ok: true, data: [...blocked] };
+  });
+  const mounted = await mountChat({}, [], { listProjects: async () => ({ ok: true, data: [project] }), listSessions, setSessionBlocked });
+  const doc = mounted.window.document;
+  const heading = () => doc.querySelector<HTMLElement>(`[data-project-id="${project.id}"] .project-heading`)!;
+  const status = (id: string) => doc.querySelector(`.sess[data-id="${id}"] .session-status`)?.getAttribute('title') ?? null;
+  await vi.waitFor(() => expect(doc.querySelector(`[data-project-id="${project.id}"]`)).not.toBeNull());
+  // Nothing is blocked yet: the menu offers Block, which says it does not reach later chats, and no Release.
+  const block = rowMenuItem(heading(), 'block-project')!;
+  expect(block.textContent).toBe('Block all chats');
+  expect(block.title).toContain('Chats started later are not blocked.');
+  expect(doc.querySelector('.row-menu [data-row-action="release-project"]')).toBeNull();
+  block.click();
+  await vi.waitFor(() => expect(setSessionBlocked).toHaveBeenCalledTimes(3));
+  expect(setSessionBlocked.mock.calls.map(([id, value]) => [id, value])).toEqual([['p1', true], ['p2', true], ['p3', true]]);
+  await vi.waitFor(() => expect(doc.querySelector('.toast')?.textContent).toBe('Blocked 3 chats. Chats started later are not blocked.'));
+  heading().click();
+  await vi.waitFor(() => expect(['p1', 'p2', 'p3'].map(status)).toEqual(['blocked', 'blocked', 'blocked']));
+  expect(blocked.has(outside.conversationId)).toBe(false);
+  // Release clears exactly those chats, and their rows lose the badge.
+  rowMenuItem(heading(), 'release-project')!.click();
+  await vi.waitFor(() => expect(setSessionBlocked).toHaveBeenCalledTimes(6));
+  expect(setSessionBlocked.mock.calls.slice(3).map(([id, value]) => [id, value])).toEqual([['p1', false], ['p2', false], ['p3', false]]);
+  await vi.waitFor(() => expect(doc.querySelector('.toast')?.textContent).toBe('Released 3 chats.'));
+  expect(['p1', 'p2', 'p3'].map(status)).not.toContain('blocked');
+  expect(rowMenuItem(heading(), 'release-project')).toBeNull();
+});
+
 it('draws the sidebar layout saved in Appearance, Projects by default, and repaints when it changes', async () => {
   const { project, session } = projectSidebarFixture();
   const mounted = await mountChat({}, [], {
