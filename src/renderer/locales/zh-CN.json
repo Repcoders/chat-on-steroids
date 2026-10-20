@@ -2790,5 +2790,18 @@
   "{0} sub-agents need attention": "{0} 个子智能体需要处理",
   "A tool call from an untrusted chat was refused. To allow it, open this chat's ⋯ menu in the sidebar (or right-click its row) and choose Trust chat.": "来自未受信任聊天的工具调用已被拒绝。要允许它，请在侧边栏中打开此聊天的 ⋯ 菜单（或右键点击其所在行），然后选择“信任聊天”。",
   "A tool call from a worker whose main chat is not currently allowed was refused. Open that main chat's ⋯ menu in the sidebar and choose Trust chat if it is untrusted, or Release chat if it is blocked.": "一个工作者的工具调用已被拒绝，因为它的主聊天当前未被允许。请在侧边栏中打开该主聊天的 ⋯ 菜单，若未受信任则选择“信任聊天”，若已被阻止则选择“解除阻止”。",
-  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "一个由应用创建的工作者的工具调用已被拒绝，因为启动它的主聊天尚未得到确认。请回到侧边栏中的该主聊天；其所在行出现后，打开 ⋯ 菜单并选择“信任聊天”（若已被阻止则选择“解除阻止”），待工作者在那里连接或恢复后再重试。"
+  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "一个由应用创建的工作者的工具调用已被拒绝，因为启动它的主聊天尚未得到确认。请回到侧边栏中的该主聊天；其所在行出现后，打开 ⋯ 菜单并选择“信任聊天”（若已被阻止则选择“解除阻止”），待工作者在那里连接或恢复后再重试。",
+  "Stop Loop after": "循环停止条件",
+  "Loop switches itself off in a chat after this many automatic messages. Off keeps it going until you turn it off.": "聊天中的自动消息达到此数量后，循环会自动关闭。选择“关闭”则一直运行，直到你手动关闭。",
+  "3 messages": "3 条消息",
+  "5 messages": "5 条消息",
+  "10 messages": "10 条消息",
+  "25 messages": "25 条消息",
+  "Loop time limit": "循环时间限制",
+  "Loop switches itself off in a chat once it has run this long since you turned it on. Off keeps it going until you turn it off.": "从你开启起运行达到此时长后，聊天中的循环会自动关闭。选择“关闭”则一直运行，直到你手动关闭。",
+  "2 hours": "2 小时",
+  "4 hours": "4 小时",
+  "8 hours": "8 小时",
+  "Loop stopped": "循环已停止",
+  "Loop reached the limit set in Settings and switched itself off. Open the chat to continue.": "循环已达到设置中的限制并自动关闭。打开聊天以继续。"
 }

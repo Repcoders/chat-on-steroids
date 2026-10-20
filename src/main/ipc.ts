@@ -75,7 +75,7 @@ import { effectiveCapabilities, getConfig, updateConfig, MAX_MCP_INSTRUCTIONS_CH
 import { UI_LANGUAGES } from '../shared/ui-language.js';
 import { PROJECT_COLORS } from '../shared/projects.js';
 import { bridgePortSelection } from './bridge-ports.js';
-import { clearAllGoalSwitches, draftTaskPlan, listGoalModels, MODEL_PAGE_SIZE, retireGoalDrafts, goalBackendFor, goalSwitchFor, setGoalSwitchNow, setGoalReplyActiveNow, setGoalObjectiveNow } from './goal.js';
+import { clearAllGoalSwitches, pruneLoopRuns, draftTaskPlan, listGoalModels, MODEL_PAGE_SIZE, retireGoalDrafts, goalBackendFor, goalSwitchFor, setGoalSwitchNow, setGoalReplyActiveNow, setGoalObjectiveNow } from './goal.js';
 import { forgetExposedSurface } from './mcp/server.js';
 import { runningToolActivity } from './mcp/call-context.js';
 import { onBackgroundExecChange, runningExecProcesses, stopExecProcess } from './codex/ownership.js';
@@ -291,6 +291,8 @@ const settingsPatch = z.object({
     includeToolCalls: z.boolean().optional(),
       backend: z.enum(['api', 'chatgpt', 'templates']).optional(),
       loopBackend: z.enum(['api', 'chatgpt']).optional(),
+      loopMaxPasses: z.number().int().min(0).max(1000).optional(),
+      loopMaxMinutes: z.number().int().min(0).max(10080).optional(),
       helperModel: z.string().trim().min(1).max(80).optional(),
       helperReasoning: z.enum(REASONING_EFFORTS).optional(),
     enabled: z.boolean(),
@@ -521,6 +523,8 @@ function mergeSettings(current: Config, base: SettingsSnapshot, wanted: Settings
       includeToolCalls: pick(current.goal.includeToolCalls, base.goal.includeToolCalls, wanted.goal.includeToolCalls),
       backend: pick(current.goal.backend, base.goal.backend, wanted.goal.backend),
       loopBackend: pick(current.goal.loopBackend, base.goal.loopBackend, wanted.goal.loopBackend),
+      loopMaxPasses: pick(current.goal.loopMaxPasses, base.goal.loopMaxPasses, wanted.goal.loopMaxPasses),
+      loopMaxMinutes: pick(current.goal.loopMaxMinutes, base.goal.loopMaxMinutes, wanted.goal.loopMaxMinutes),
       helperModel: pick(current.goal.helperModel, base.goal.helperModel, wanted.goal.helperModel),
       helperReasoning: pick(current.goal.helperReasoning, base.goal.helperReasoning, wanted.goal.helperReasoning),
       enabled: pick(current.goal.enabled, base.goal.enabled, wanted.goal.enabled),
@@ -749,6 +753,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     // somebody wanted stopped would go on running with nowhere obvious to switch it off.
     // Turning it *on* deliberately does not reach into a chat that has said no.
     if (before.goal.enabled && !next.goal.enabled) clearAllGoalSwitches();
+    // A chat on the app-wide Loop has no switch of its own to end its run for the Loop limits.
+    else if (before.goal.mode !== next.goal.mode) pruneLoopRuns();
     // Explicit settings changes replace discovery's monotonic snapshot. Otherwise
     // disabled permissions/finish/session tools remain published and no schema change
     // reaches automatic plugin refresh. Cosmetic saves must not invalidate discovery.

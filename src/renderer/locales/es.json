@@ -2882,5 +2882,18 @@
   "{0} sub-agents need attention|many": "{0} subagentes necesitan atención",
   "A tool call from an untrusted chat was refused. To allow it, open this chat's ⋯ menu in the sidebar (or right-click its row) and choose Trust chat.": "Se rechazó una llamada a herramienta de un chat no fiable. Para permitirla, abre el menú ⋯ de este chat en la barra lateral (o haz clic derecho en su fila) y elige «Confiar en el chat».",
   "A tool call from a worker whose main chat is not currently allowed was refused. Open that main chat's ⋯ menu in the sidebar and choose Trust chat if it is untrusted, or Release chat if it is blocked.": "Se rechazó una llamada a herramienta de un trabajador cuyo chat principal no está permitido ahora. Abre el menú ⋯ de ese chat principal en la barra lateral y elige «Confiar en el chat» si no es de confianza, o «Desbloquear chat» si está bloqueado.",
-  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "Se rechazó una llamada a herramienta de un trabajador creado por la aplicación porque aún no se ha comprobado el chat principal que lo inició. Vuelve a ese chat principal en la barra lateral; cuando aparezca su fila, abre su menú ⋯ y elige «Confiar en el chat», o «Desbloquear chat» si está bloqueado, y vuelve a intentarlo cuando el trabajador esté conectado o recuperado allí."
+  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "Se rechazó una llamada a herramienta de un trabajador creado por la aplicación porque aún no se ha comprobado el chat principal que lo inició. Vuelve a ese chat principal en la barra lateral; cuando aparezca su fila, abre su menú ⋯ y elige «Confiar en el chat», o «Desbloquear chat» si está bloqueado, y vuelve a intentarlo cuando el trabajador esté conectado o recuperado allí.",
+  "Stop Loop after": "Detener el bucle tras",
+  "Loop switches itself off in a chat after this many automatic messages. Off keeps it going until you turn it off.": "El bucle se desactiva solo en un chat tras este número de mensajes automáticos. Con «Desactivado» sigue hasta que lo desactives tú.",
+  "3 messages": "3 mensajes",
+  "5 messages": "5 mensajes",
+  "10 messages": "10 mensajes",
+  "25 messages": "25 mensajes",
+  "Loop time limit": "Límite de tiempo del bucle",
+  "Loop switches itself off in a chat once it has run this long since you turned it on. Off keeps it going until you turn it off.": "El bucle se desactiva solo en un chat cuando lleva este tiempo funcionando desde que lo activaste. Con «Desactivado» sigue hasta que lo desactives tú.",
+  "2 hours": "2 horas",
+  "4 hours": "4 horas",
+  "8 hours": "8 horas",
+  "Loop stopped": "Bucle detenido",
+  "Loop reached the limit set in Settings and switched itself off. Open the chat to continue.": "El bucle alcanzó el límite fijado en Ajustes y se desactivó solo. Abre el chat para continuar."
 }

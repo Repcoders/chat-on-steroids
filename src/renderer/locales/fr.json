@@ -2882,5 +2882,18 @@
   "{0} sub-agents need attention|many": "{0} sous-agents demandent votre attention",
   "A tool call from an untrusted chat was refused. To allow it, open this chat's ⋯ menu in the sidebar (or right-click its row) and choose Trust chat.": "Un appel d’outil d’un chat non approuvé a été refusé. Pour l’autoriser, ouvrez le menu ⋯ de ce chat dans la barre latérale (ou faites un clic droit sur sa ligne) et choisissez « Faire confiance au chat ».",
   "A tool call from a worker whose main chat is not currently allowed was refused. Open that main chat's ⋯ menu in the sidebar and choose Trust chat if it is untrusted, or Release chat if it is blocked.": "Un appel d’outil d’un worker dont le chat principal n’est pas autorisé actuellement a été refusé. Ouvrez le menu ⋯ de ce chat principal dans la barre latérale et choisissez « Faire confiance au chat » s’il n’est pas approuvé, ou « Débloquer le chat » s’il est bloqué.",
-  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "Un appel d’outil d’un worker créé par l’application a été refusé, car le chat principal qui l’a lancé n’est pas encore prouvé. Revenez à ce chat principal dans la barre latérale ; une fois sa ligne affichée, ouvrez son menu ⋯ et choisissez « Faire confiance au chat », ou « Débloquer le chat » s’il est bloqué, puis réessayez une fois le worker rattaché ou rétabli."
+  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "Un appel d’outil d’un worker créé par l’application a été refusé, car le chat principal qui l’a lancé n’est pas encore prouvé. Revenez à ce chat principal dans la barre latérale ; une fois sa ligne affichée, ouvrez son menu ⋯ et choisissez « Faire confiance au chat », ou « Débloquer le chat » s’il est bloqué, puis réessayez une fois le worker rattaché ou rétabli.",
+  "Stop Loop after": "Arrêter Loop après",
+  "Loop switches itself off in a chat after this many automatic messages. Off keeps it going until you turn it off.": "Loop se désactive tout seul dans un chat après ce nombre de messages automatiques. Avec « Désactivé », il continue jusqu’à ce que vous l’arrêtiez.",
+  "3 messages": "3 messages",
+  "5 messages": "5 messages",
+  "10 messages": "10 messages",
+  "25 messages": "25 messages",
+  "Loop time limit": "Durée maximale de Loop",
+  "Loop switches itself off in a chat once it has run this long since you turned it on. Off keeps it going until you turn it off.": "Loop se désactive tout seul dans un chat lorsqu’il tourne depuis cette durée après son activation. Avec « Désactivé », il continue jusqu’à ce que vous l’arrêtiez.",
+  "2 hours": "2 heures",
+  "4 hours": "4 heures",
+  "8 hours": "8 heures",
+  "Loop stopped": "Loop arrêté",
+  "Loop reached the limit set in Settings and switched itself off. Open the chat to continue.": "Loop a atteint la limite définie dans les paramètres et s’est désactivé. Ouvrez le chat pour continuer."
 }

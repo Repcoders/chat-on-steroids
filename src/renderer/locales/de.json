@@ -2836,5 +2836,18 @@
   "{0} sub-agents need attention|one": "{0} Unteragent braucht Aufmerksamkeit",
   "A tool call from an untrusted chat was refused. To allow it, open this chat's ⋯ menu in the sidebar (or right-click its row) and choose Trust chat.": "Ein Tool-Aufruf aus einem nicht vertrauten Chat wurde abgelehnt. Um ihn zu erlauben, öffne in der Seitenleiste das ⋯-Menü dieses Chats (oder klicke seine Zeile mit der rechten Maustaste an) und wähle „Chat vertrauen“.",
   "A tool call from a worker whose main chat is not currently allowed was refused. Open that main chat's ⋯ menu in the sidebar and choose Trust chat if it is untrusted, or Release chat if it is blocked.": "Ein Tool-Aufruf eines Workers wurde abgelehnt, weil sein Haupt-Chat gerade nicht erlaubt ist. Öffne in der Seitenleiste das ⋯-Menü dieses Haupt-Chats und wähle „Chat vertrauen“, wenn er nicht vertraut ist, oder „Chat freigeben“, wenn er blockiert ist.",
-  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "Ein Tool-Aufruf eines von der App gestarteten Workers wurde abgelehnt, weil der Haupt-Chat, der ihn gestartet hat, noch nicht nachgewiesen ist. Geh in der Seitenleiste zu diesem Haupt-Chat; sobald seine Zeile da ist, öffne sein ⋯-Menü und wähle „Chat vertrauen“ oder, wenn er blockiert ist, „Chat freigeben“. Versuche es dann erneut, sobald der Worker dort verbunden oder wiederhergestellt ist."
+  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "Ein Tool-Aufruf eines von der App gestarteten Workers wurde abgelehnt, weil der Haupt-Chat, der ihn gestartet hat, noch nicht nachgewiesen ist. Geh in der Seitenleiste zu diesem Haupt-Chat; sobald seine Zeile da ist, öffne sein ⋯-Menü und wähle „Chat vertrauen“ oder, wenn er blockiert ist, „Chat freigeben“. Versuche es dann erneut, sobald der Worker dort verbunden oder wiederhergestellt ist.",
+  "Stop Loop after": "Loop beenden nach",
+  "Loop switches itself off in a chat after this many automatic messages. Off keeps it going until you turn it off.": "Loop schaltet sich in einem Chat nach so vielen automatischen Nachrichten selbst aus. Bei „Aus“ läuft Loop weiter, bis du es ausschaltest.",
+  "3 messages": "3 Nachrichten",
+  "5 messages": "5 Nachrichten",
+  "10 messages": "10 Nachrichten",
+  "25 messages": "25 Nachrichten",
+  "Loop time limit": "Zeitlimit für Loop",
+  "Loop switches itself off in a chat once it has run this long since you turned it on. Off keeps it going until you turn it off.": "Loop schaltet sich in einem Chat selbst aus, wenn es so lange gelaufen ist, seit du es eingeschaltet hast. Bei „Aus“ läuft Loop weiter, bis du es ausschaltest.",
+  "2 hours": "2 Stunden",
+  "4 hours": "4 Stunden",
+  "8 hours": "8 Stunden",
+  "Loop stopped": "Loop beendet",
+  "Loop reached the limit set in Settings and switched itself off. Open the chat to continue.": "Loop hat das in den Einstellungen festgelegte Limit erreicht und sich selbst ausgeschaltet. Öffne den Chat, um weiterzumachen."
 }

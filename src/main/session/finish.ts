@@ -7,7 +7,7 @@ import { isChatBlocked } from './blocked-chats.js';
 // The one worker-wait rule, owned where worker state lives: the page asks the same question
 // over HTTP for `/goal/draft`, and the two must not be able to disagree about it.
 import { waitingForSubAgents } from '../agents.js';
-import { draftFastFollowup, conversationMessages, automaticFinishEnabled, goalDrivingMode, goalObjectiveFor, goalProgressFor, onGoalChange } from '../goal.js';
+import { draftFastFollowup, conversationMessages, automaticFinishEnabled, goalDrivingMode, goalObjectiveFor, goalProgressFor, onGoalChange, stopLoopAtLimit } from '../goal.js';
 import { hasEligibleToolInput, finishNeedsBrowserInput, onInputChange, listInputs, enqueueInput } from './input.js';
 
 import { logWarn } from '../logger.js';
@@ -103,6 +103,12 @@ async function prepareNotice(sessionId: string, summary: string, userRequested =
       try { await releaseSessionFinish(sessionId, turnId, 'end'); }
       catch { /* the turn moved on; that turn's own authority owns the release */ }
       return 'Waiting for this chat’s sub-agents to finish before deciding the next step.';
+    }
+    // A Loop at the limit set in Settings switches off instead of asking for another message.
+    if (mode === 'loop' && automatic && !userRequested && await stopLoopAtLimit(session.conversationId!, sessionId)) {
+      try { await releaseSessionFinish(sessionId, turnId, 'end'); }
+      catch { /* the turn moved on; that turn's own authority owns the release */ }
+      return 'Loop reached the limit set in Settings and was switched off. The finish hold was released; ChatGPT may complete its answer.';
     }
     const generated = new Set(inputs.filter(entry => entry.finishOwner).map(entry => entry.id));
     // A request id, timestamp, hold result or app status is not new work. Hash actual

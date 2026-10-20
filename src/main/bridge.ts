@@ -100,6 +100,7 @@ import {
   recordGoalPickupAttemptNow,
   syncGoalPickupRecoveryNow,
   retireGoalDrafts,
+  pruneLoopRuns,
   goalDraftNeedsIntervention,
   retireGoalDraftsFor,
   setGoalReplyActiveNow,
@@ -4585,6 +4586,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
       }
     } else if (driving !== (next.goal.enabled ? next.goal.mode : null)) {
       retireGoalDrafts(!next.goal.enabled);
+      pruneLoopRuns();
     }
     // The app's own settings screen is showing these two switches as well.
     changed();

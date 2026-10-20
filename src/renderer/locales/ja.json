@@ -2790,5 +2790,18 @@
   "{0} sub-agents need attention": "対応が必要なサブエージェント {0}件",
   "A tool call from an untrusted chat was refused. To allow it, open this chat's ⋯ menu in the sidebar (or right-click its row) and choose Trust chat.": "信頼されていないチャットからのツール呼び出しが拒否されました。許可するには、サイドバーでこのチャットの ⋯ メニューを開き（または行を右クリックし）、「チャットを信頼」を選んでください。",
   "A tool call from a worker whose main chat is not currently allowed was refused. Open that main chat's ⋯ menu in the sidebar and choose Trust chat if it is untrusted, or Release chat if it is blocked.": "メインチャットが現在許可されていないワーカーからのツール呼び出しが拒否されました。サイドバーでそのメインチャットの ⋯ メニューを開き、信頼されていなければ「チャットを信頼」、ブロックされていれば「ブロックを解除」を選んでください。",
-  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "アプリが作成したワーカーからのツール呼び出しが、それを開始したメインチャットがまだ確認できないため拒否されました。サイドバーでそのメインチャットに戻り、行が表示されたら ⋯ メニューを開いて「チャットを信頼」（ブロックされていれば「ブロックを解除」）を選び、ワーカーがそこで接続または復旧してから再試行してください。"
+  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "アプリが作成したワーカーからのツール呼び出しが、それを開始したメインチャットがまだ確認できないため拒否されました。サイドバーでそのメインチャットに戻り、行が表示されたら ⋯ メニューを開いて「チャットを信頼」（ブロックされていれば「ブロックを解除」）を選び、ワーカーがそこで接続または復旧してから再試行してください。",
+  "Stop Loop after": "ループを停止するまで",
+  "Loop switches itself off in a chat after this many automatic messages. Off keeps it going until you turn it off.": "チャットで自動メッセージがこの数に達すると、ループは自動的にオフになります。「オフ」の場合は、あなたがオフにするまで続きます。",
+  "3 messages": "3 件のメッセージ",
+  "5 messages": "5 件のメッセージ",
+  "10 messages": "10 件のメッセージ",
+  "25 messages": "25 件のメッセージ",
+  "Loop time limit": "ループの制限時間",
+  "Loop switches itself off in a chat once it has run this long since you turned it on. Off keeps it going until you turn it off.": "オンにしてからこの時間が経つと、チャットのループは自動的にオフになります。「オフ」の場合は、あなたがオフにするまで続きます。",
+  "2 hours": "2 時間",
+  "4 hours": "4 時間",
+  "8 hours": "8 時間",
+  "Loop stopped": "ループを停止しました",
+  "Loop reached the limit set in Settings and switched itself off. Open the chat to continue.": "ループが設定の上限に達したため、自動的にオフになりました。続けるにはチャットを開いてください。"
 }

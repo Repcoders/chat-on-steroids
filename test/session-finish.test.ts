@@ -24,6 +24,7 @@ const { initSessionStore, createSession, getSession, rebindSession, appendEvent,
 const { resetRecorderForTests } = await import('../src/main/session/recorder.js');
 const { announceSessionFinish: announceTransport, sessionFinishDeadline, settleSessionFinishForTests, requestSessionFinishGoal, sessionFinishWaiting, setFinishNotifier, releaseSessionFinish, sessionFinishHeld, getSessionFinishDraft } = await import('../src/main/session/finish.js');
 const { setGoalSwitchNow, automaticFinishEnabled, snapshotGoalSwitches, restoreGoalSwitches, registerGoalDecisionChat } = await import('../src/main/goal.js');
+const { loopMessageDelivered } = await import('../src/main/session/automatic-replies.js');
 const { resetAgentsForTests, spawn, bindConversation, finishAgent, waitingForSubAgents } = await import('../src/main/agents.js');
 const { makeTempDir, removeTempDir } = await import('./helpers.js');
 async function announceSessionFinish(sessionId: string, summary: string): Promise<string> {
@@ -206,6 +207,22 @@ describe('session finish turn identity', () => {
     expect(await readRecentEvents(sessionId, 10, { kinds: ['turn_end'] })).toEqual([]);
     await announceSessionFinish(sessionId, 'Repeated finish');
     expect(hooks.followup).toHaveBeenCalledOnce();
+  });
+  it('switches Loop off at the limit set in Settings and releases the hold instead of asking again', async () => {
+    await saveConfig({ ...getConfig(), goal: { ...getConfig().goal, loopMaxPasses: 1 } });
+    await setGoalSwitchNow(hooks.caller.conversationId, 'loop', true);
+    await announceSessionFinish(sessionId, 'First pass done');
+    expect(hooks.enqueue).toHaveBeenCalledOnce();
+    // The outbox's receipt once ChatGPT has the queued follow-up.
+    loopMessageDelivered(hooks.caller.conversationId);
+    await appendEvent(sessionId, { source: 'extension', kind: 'progress', progressId: 'second-pass', turnId: 'turn-one', time: 2200,
+      message: { text: 'Worked through the queued Loop message.', chars: 39, truncated: false } });
+    await announceSessionFinish(sessionId, 'Second pass done');
+    expect(hooks.followup).toHaveBeenCalledOnce();
+    expect(hooks.enqueue).toHaveBeenCalledOnce();
+    expect(automaticFinishEnabled(hooks.caller.conversationId)).toBe(false);
+    expect((await getSession(sessionId))?.finishTurn?.released).toBe(true);
+    expect(JSON.stringify(await readRecentEvents(sessionId, 20, { kinds: ['note'] }))).toContain('Loop stopped after 1 automatic message,');
   });
   it.each(['goal', 'loop'] as const)('revokes an in-flight %s decision across a mode switch and switch back', async mode => {
     await setGoalSwitchNow(hooks.caller.conversationId, mode, true);

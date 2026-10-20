@@ -2790,5 +2790,18 @@
   "{0} sub-agents need attention": "{0} 個子代理需要處理",
   "A tool call from an untrusted chat was refused. To allow it, open this chat's ⋯ menu in the sidebar (or right-click its row) and choose Trust chat.": "來自未受信任聊天的工具呼叫已被拒絕。若要允許，請在側邊欄開啟此聊天的 ⋯ 選單（或在其列上按右鍵），然後選擇「信任聊天」。",
   "A tool call from a worker whose main chat is not currently allowed was refused. Open that main chat's ⋯ menu in the sidebar and choose Trust chat if it is untrusted, or Release chat if it is blocked.": "一個工作者的工具呼叫已被拒絕，因為它的主聊天目前未被允許。請在側邊欄開啟該主聊天的 ⋯ 選單，若未受信任則選擇「信任聊天」，若已被封鎖則選擇「解除阻止」。",
-  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "一個由應用程式建立的工作者的工具呼叫已被拒絕，因為啟動它的主聊天尚未獲得確認。請回到側邊欄中的該主聊天；其列出現後，開啟 ⋯ 選單並選擇「信任聊天」（若已封鎖則選擇「解除阻止」），待工作者在那裡連線或復原後再重試。"
+  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "一個由應用程式建立的工作者的工具呼叫已被拒絕，因為啟動它的主聊天尚未獲得確認。請回到側邊欄中的該主聊天；其列出現後，開啟 ⋯ 選單並選擇「信任聊天」（若已封鎖則選擇「解除阻止」），待工作者在那裡連線或復原後再重試。",
+  "Stop Loop after": "循環停止條件",
+  "Loop switches itself off in a chat after this many automatic messages. Off keeps it going until you turn it off.": "聊天中的自動訊息達到此數量後，循環會自動關閉。選擇「關閉」則一直執行，直到你手動關閉。",
+  "3 messages": "3 則訊息",
+  "5 messages": "5 則訊息",
+  "10 messages": "10 則訊息",
+  "25 messages": "25 則訊息",
+  "Loop time limit": "循環時間限制",
+  "Loop switches itself off in a chat once it has run this long since you turned it on. Off keeps it going until you turn it off.": "從你開啟起執行達到此時長後，聊天中的循環會自動關閉。選擇「關閉」則一直執行，直到你手動關閉。",
+  "2 hours": "2 小時",
+  "4 hours": "4 小時",
+  "8 hours": "8 小時",
+  "Loop stopped": "循環已停止",
+  "Loop reached the limit set in Settings and switched itself off. Open the chat to continue.": "循環已達到設定中的限制並自動關閉。開啟聊天以繼續。"
 }

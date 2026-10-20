@@ -6684,6 +6684,9 @@ export function chatSettingsPatch(current: Config): {
       includeToolCalls: $<HTMLInputElement>('goalIncludeToolCalls').checked,
       backend: $<HTMLSelectElement>('goalBackend').value as Config['goal']['backend'],
       loopBackend: $<HTMLSelectElement>('loopBackend').value as Config['goal']['loopBackend'],
+      // A saved value with no option of its own (a hand-edited config) shows blank; keep it.
+      loopMaxPasses: $<HTMLSelectElement>('loopMaxPasses').value === '' ? current.goal.loopMaxPasses ?? 0 : number('loopMaxPasses', 0, 0, 1000),
+      loopMaxMinutes: $<HTMLSelectElement>('loopMaxMinutes').value === '' ? current.goal.loopMaxMinutes ?? 0 : number('loopMaxMinutes', 0, 0, 10080),
       helperModel: $<HTMLSelectElement>('helperModel').value || current.goal.helperModel || DEFAULT_HELPER_CHAT_MODEL,
       helperReasoning: ($<HTMLSelectElement>('helperReasoning').value || current.goal.helperReasoning || 'high') as Config['goal']['helperReasoning'],
       provider: {
@@ -7072,7 +7075,7 @@ const CHAT_INPUTS = [
   'planBackend',
   'finishTool', 'finishLeadMinutes', 'rotateTurnMinutes', 'localAppUsage', 'defaultChatModel', 'defaultChatReasoning', 'workerModel', 'workerReasoning', 'autoSelectSkills', 'backgroundChats', 'backgroundPlacement', 'browserOnly', 'autoRefreshPlugins',
   'goalBackend',
-  'loopBackend',
+  'loopBackend', 'loopMaxPasses', 'loopMaxMinutes',
   'helperModel', 'helperReasoning',
   'autoCompact',
   'autoCompactTokens',
@@ -7210,6 +7213,8 @@ export function chatApply(state: AppState, previous?: Config): void {
   // again matched no option and showed those settings blank (2.1.31 release check).
   applyChatValue($<HTMLSelectElement>('goalBackend'), config.goal.backend ?? 'chatgpt', previous?.goal.backend);
   applyChatValue($<HTMLSelectElement>('loopBackend'), config.goal.loopBackend ?? 'chatgpt', previous?.goal.loopBackend);
+  applyChatValue($<HTMLSelectElement>('loopMaxPasses'), String(config.goal.loopMaxPasses ?? 0), previous ? previous.goal.loopMaxPasses ?? 0 : undefined);
+  applyChatValue($<HTMLSelectElement>('loopMaxMinutes'), String(config.goal.loopMaxMinutes ?? 0), previous ? previous.goal.loopMaxMinutes ?? 0 : undefined);
   applyGoal(state, previous);
 
   // Extension bridge. Connecting is automatic, so this reports rather than asks.

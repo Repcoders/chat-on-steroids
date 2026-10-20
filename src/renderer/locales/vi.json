@@ -2790,5 +2790,18 @@
   "{0} sub-agents need attention": "{0} tác nhân phụ cần bạn chú ý",
   "A tool call from an untrusted chat was refused. To allow it, open this chat's ⋯ menu in the sidebar (or right-click its row) and choose Trust chat.": "Một lệnh gọi công cụ từ cuộc trò chuyện chưa được tin cậy đã bị từ chối. Để cho phép, mở menu ⋯ của cuộc trò chuyện này ở thanh bên (hoặc nhấp chuột phải vào dòng của nó) và chọn “Tin cậy cuộc trò chuyện”.",
   "A tool call from a worker whose main chat is not currently allowed was refused. Open that main chat's ⋯ menu in the sidebar and choose Trust chat if it is untrusted, or Release chat if it is blocked.": "Một lệnh gọi công cụ từ một worker có cuộc trò chuyện chính hiện không được phép đã bị từ chối. Mở menu ⋯ của cuộc trò chuyện chính đó ở thanh bên và chọn “Tin cậy cuộc trò chuyện” nếu nó chưa được tin cậy, hoặc “Bỏ chặn” nếu nó bị chặn.",
-  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "Một lệnh gọi công cụ từ worker do ứng dụng tạo đã bị từ chối vì cuộc trò chuyện chính khởi động nó chưa được xác minh. Quay lại cuộc trò chuyện chính đó ở thanh bên; khi dòng của nó xuất hiện, mở menu ⋯ và chọn “Tin cậy cuộc trò chuyện”, hoặc “Bỏ chặn” nếu bị chặn, rồi thử lại khi worker đã kết nối hoặc được khôi phục ở đó."
+  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "Một lệnh gọi công cụ từ worker do ứng dụng tạo đã bị từ chối vì cuộc trò chuyện chính khởi động nó chưa được xác minh. Quay lại cuộc trò chuyện chính đó ở thanh bên; khi dòng của nó xuất hiện, mở menu ⋯ và chọn “Tin cậy cuộc trò chuyện”, hoặc “Bỏ chặn” nếu bị chặn, rồi thử lại khi worker đã kết nối hoặc được khôi phục ở đó.",
+  "Stop Loop after": "Dừng Loop sau",
+  "Loop switches itself off in a chat after this many automatic messages. Off keeps it going until you turn it off.": "Loop tự tắt trong một cuộc trò chuyện sau số tin nhắn tự động này. Chọn Tắt thì Loop tiếp tục cho đến khi bạn tắt.",
+  "3 messages": "3 tin nhắn",
+  "5 messages": "5 tin nhắn",
+  "10 messages": "10 tin nhắn",
+  "25 messages": "25 tin nhắn",
+  "Loop time limit": "Giới hạn thời gian của Loop",
+  "Loop switches itself off in a chat once it has run this long since you turned it on. Off keeps it going until you turn it off.": "Loop tự tắt trong một cuộc trò chuyện khi đã chạy được khoảng thời gian này kể từ lúc bạn bật. Chọn Tắt thì Loop tiếp tục cho đến khi bạn tắt.",
+  "2 hours": "2 giờ",
+  "4 hours": "4 giờ",
+  "8 hours": "8 giờ",
+  "Loop stopped": "Loop đã dừng",
+  "Loop reached the limit set in Settings and switched itself off. Open the chat to continue.": "Loop đã đạt giới hạn đặt trong Cài đặt và tự tắt. Mở cuộc trò chuyện để tiếp tục."
 }

@@ -79,7 +79,7 @@ export function loopAfterTurnFor(conversationId: string): boolean {
   return control.enabled && (control.afterTurn || getConfig().ui.finishTool !== true);
 }
 import { resumeBootstrapMatches, resumeBootstrapText } from './session/handoff.js';
-import { noteAutomaticReply } from './session/automatic-replies.js';
+import { noteAutomaticReply, onLoopReplyDelivered } from './session/automatic-replies.js';
 import {
   GOAL_LOOP_STOP_REFUSED,
   GOAL_LOOP_TRAILER,
@@ -980,6 +980,8 @@ export interface GoalSwitchesSnapshot {
   version: 1;
   savedAt: number;
   switches: Array<{ conversationId: string } & GoalSwitchRow>;
+  /** How far each chat's current Loop run has come, for the limits in Settings. */
+  loopRuns?: Array<{ conversationId: string } & LoopRun>;
 }
 
 /**
@@ -1001,6 +1003,12 @@ export interface GoalSwitchesSnapshot {
 type GoalSwitchRow = { enabled: boolean; mode: GoalMode; afterTurn?: boolean; at: number; role?: 'decision'; sourceSessionId?: string;
   context?: { count: number; hash: string; instructions: string } };
 const goalSwitches = new Map<string, GoalSwitchRow>();
+/**
+ * One chat's Loop run since it was switched on: automatic Loop messages that reached the chat,
+ * and when the run began.
+ */
+type LoopRun = { passes: number; since: number };
+const loopRuns = new Map<string, LoopRun>();
 let goalSwitchWrites: Promise<unknown> = Promise.resolve();
 function serialGoalSwitch<T>(work: () => Promise<T>): Promise<T> {
   const result = goalSwitchWrites.then(work, work);
@@ -1026,11 +1034,13 @@ function boundGoalSwitches(switches = goalSwitches): void {
   }
 }
 
-function goalSwitchesSnapshot(switches: ReadonlyMap<string, GoalSwitchRow>): GoalSwitchesSnapshot {
+function goalSwitchesSnapshot(switches: ReadonlyMap<string, GoalSwitchRow>, runs: ReadonlyMap<string, LoopRun> = loopRuns): GoalSwitchesSnapshot {
   return {
     version: 1,
     savedAt: Date.now(),
-    switches: [...switches.entries()].map(([conversationId, row]) => ({ conversationId, ...row }))
+    switches: [...switches.entries()].map(([conversationId, row]) => ({ conversationId, ...row })),
+    loopRuns: [...runs.entries()].sort((a, b) => b[1].since - a[1].since).slice(0, MAX_GOAL_SWITCHES)
+      .map(([conversationId, run]) => ({ conversationId, ...run }))
   };
 }
 
@@ -1047,7 +1057,13 @@ function publishGoalSwitches(next: ReadonlyMap<string, GoalSwitchRow>): void {
 export function restoreGoalSwitches(snapshot: GoalSwitchesSnapshot | null): void {
   invalidateGoalControlWrites(pendingGoalSwitches);
   goalSwitches.clear();
+  loopRuns.clear();
   if (!snapshot || snapshot.version !== 1 || !Array.isArray(snapshot.switches)) return;
+  for (const raw of Array.isArray(snapshot.loopRuns) ? snapshot.loopRuns.slice(0, MAX_GOAL_SWITCHES) : []) {
+    if (!raw || typeof raw.conversationId !== 'string' || !/^[0-9a-z-]{8,256}$/i.test(raw.conversationId)) continue;
+    if (!Number.isSafeInteger(raw.passes) || raw.passes < 0 || !Number.isSafeInteger(raw.since) || raw.since <= 0) continue;
+    loopRuns.set(raw.conversationId, { passes: raw.passes, since: Math.min(raw.since, Date.now()) });
+  }
   for (const raw of snapshot.switches) {
     if (!raw || typeof raw.conversationId !== 'string' || !/^[0-9a-z-]{8,256}$/i.test(raw.conversationId)) continue;
     if (typeof raw.enabled !== 'boolean' || (raw.mode !== 'goal' && raw.mode !== 'loop')) continue;
@@ -1153,15 +1169,25 @@ export async function setGoalSwitchNow(
       if (!before && [...goalSwitches.values()].filter(row => row.role === 'decision').length >= MAX_GOAL_SWITCHES) {
         throw new Error('goal_switch_capacity');
       }
-      const next = applyGoalSwitch(goalSwitchFor(targetConversationId), which, on);
+      const previous = goalSwitchFor(targetConversationId);
+      const next = applyGoalSwitch(previous, which, on);
       const staged = new Map(goalSwitches);
       staged.set(targetConversationId, { enabled: next.enabled, mode: next.mode,
         afterTurn: afterTurn ?? before?.afterTurn ?? false, at: Date.now() });
       boundGoalSwitches(staged);
+      // Switching Loop on starts a new run for its limits; anything that ends Loop ends the run.
+      const looping = next.enabled && next.mode === 'loop';
+      const started = looping && (!previous.enabled || previous.mode !== 'loop') ? { passes: 0, since: Date.now() } : null;
+      const applyRun = (runs: Map<string, LoopRun>) => {
+        if (!looping) runs.delete(targetConversationId);
+        else if (started) runs.set(targetConversationId, started);
+        return runs;
+      };
       return {
-        snapshot: goalSwitchesSnapshot(staged),
+        snapshot: goalSwitchesSnapshot(staged, applyRun(new Map(loopRuns))),
         publish: () => {
           publishGoalSwitches(staged);
+          applyRun(loopRuns);
           notifyGoalChange();
           return { enabled: next.enabled, mode: next.mode };
         }
@@ -1179,8 +1205,9 @@ export async function setGoalSwitchNow(
  */
 export function clearAllGoalSwitches(): void {
   invalidateGoalControlWrites(pendingGoalSwitches);
-  if (goalSwitches.size === 0) return;
+  if (goalSwitches.size === 0 && loopRuns.size === 0) return;
   for (const [id, row] of goalSwitches) if (row.role !== 'decision') goalSwitches.delete(id);
+  loopRuns.clear();
   persistGoalSwitches();
 }
 
@@ -1188,7 +1215,8 @@ export function clearAllGoalSwitches(): void {
 export function clearGoalSwitch(conversationId: string): void {
   if (isGoalDecisionChat(conversationId)) return;
   invalidateGoalControlWrites(pendingGoalSwitches, [conversationId]);
-  if (goalSwitches.delete(conversationId)) persistGoalSwitches();
+  const dropped = loopRuns.delete(conversationId);
+  if (goalSwitches.delete(conversationId) || dropped) persistGoalSwitches();
 }
 
 /** Moves one chat-owned switch to the replacement conversation used by Compact & Resume. */
@@ -1196,11 +1224,22 @@ export function moveGoalSwitch(fromConversationId: string, toConversationId: str
   if (!fromConversationId || !toConversationId || fromConversationId === toConversationId) return false;
   if (isGoalDecisionChat(fromConversationId) || isGoalDecisionChat(toConversationId)) return false;
   invalidateGoalControlWrites(pendingGoalSwitches, [fromConversationId]);
+  // A resumed chat continues the same Loop run, so its limits keep counting. That includes a
+  // chat on the app-wide Loop, which has a run but no switch of its own to move.
+  const run = loopRuns.get(fromConversationId);
+  if (run) {
+    loopRuns.delete(fromConversationId);
+    loopRuns.set(toConversationId, run);
+  }
   const row = goalSwitches.get(fromConversationId);
-  if (!row) return false;
+  if (!row) {
+    if (run) persistGoalSwitches();
+    return false;
+  }
   invalidateGoalControlWrites(pendingGoalSwitches, [toConversationId]);
   goalSwitches.delete(fromConversationId);
   goalSwitches.set(toConversationId, row);
+  if (!run) loopRuns.delete(toConversationId);
   persistGoalSwitches();
   return true;
 }
@@ -1545,6 +1584,7 @@ export function resetGoalStateForTests(): void {
   goalReplies.clear();
   goalObjectives.clear();
   goalSwitches.clear();
+  loopRuns.clear();
   goalSwitchWrites = Promise.resolve();
   legacyCommittedResumeCache.clear();
   modelCache = null;
@@ -1916,6 +1956,10 @@ async function requestDrivingDecision(
 async function run(draft: GoalDraft): Promise<void> {
   if (await astraFinishOnly(draft.sessionId, draft.conversationId)) return settle(draft, 'no-reply');
   if (draft.mode === 'loop' && !await loopReplyHasAuthority(draft.sessionId, draft.conversationId, draft.turnId)) return settle(draft, 'no-reply');
+  if (draft.mode === 'loop' && await stopLoopAtLimit(draft.conversationId, draft.sessionId)) {
+    draft.reply = '';
+    return settle(draft, 'no-reply');
+  }
   const { endpoint, reasoning } = draft;
   const key = draft.backend === 'api' ? await goalProviderKey(endpoint.kind) : null;
   if (draft.acknowledged || drafts.get(draft.conversationId) !== draft) return;
@@ -2010,7 +2054,7 @@ async function run(draft: GoalDraft): Promise<void> {
     draft.reply = draft.backend === 'templates' ? humanReply(decision.reply.slice(0, -GOAL_MARKER_INSTRUCTION.length)) + GOAL_MARKER_INSTRUCTION : humanReply(decision.reply);
     logInfo(`goal: drafted ${decision.reply.length} characters for ${draft.conversationId} with ${draft.model}`);
     // Its page types it: the message it comes back as is marked the app's (#1655).
-    noteAutomaticReply(draft.conversationId, draft.reply);
+    noteAutomaticReply(draft.conversationId, draft.reply, Date.now(), draft.mode === 'loop');
     settle(draft, 'ready');
   } catch (err) {
     const detail = (err as Error).message;
@@ -2518,6 +2562,67 @@ async function pauseRepeatingGoal(draft: GoalDraft, answer: string): Promise<voi
   noticeChatStopped('Goal paused', 'ChatGPT gave the same answer three times in a row, so Goal stopped asking. Open the chat to continue.', draft.sessionId);
   draft.reply = '';
   settle(draft, 'no-reply');
+}
+
+/** This chat's current Loop run. A chat that runs Loop from the app-wide switch starts one here. */
+function loopRunFor(conversationId: string): LoopRun {
+  let run = loopRuns.get(conversationId);
+  if (!run) {
+    run = { passes: 0, since: Date.now() };
+    loopRuns.set(conversationId, run);
+    persistGoalSwitches();
+  }
+  return run;
+}
+
+function loopRunning(conversationId: string): boolean {
+  const held = goalSwitchFor(conversationId);
+  return held.enabled && held.mode === 'loop';
+}
+
+/** A Loop message reached this chat (see automatic-replies.ts): one pass toward the limits in Settings. */
+onLoopReplyDelivered(conversationId => {
+  if (!loopRunning(conversationId)) return;
+  const run = loopRunFor(conversationId);
+  run.passes += 1;
+  logInfo(`goal: Loop message ${run.passes} arrived in ${conversationId}`);
+  persistGoalSwitches();
+});
+
+/**
+ * Drops the runs of chats no longer in Loop. A chat on the app-wide switch has no switch of its
+ * own to end its run, so a settings change that takes the app out of Loop calls this.
+ */
+export function pruneLoopRuns(): void {
+  let dropped = false;
+  for (const conversationId of [...loopRuns.keys()]) {
+    if (!loopRunning(conversationId)) dropped = loopRuns.delete(conversationId) || dropped;
+  }
+  if (dropped) persistGoalSwitches();
+}
+
+/**
+ * Loop never decides by itself that it is done. The optional limits in Settings end a run
+ * instead: after this many automatic messages arrived, or this many minutes after Loop was
+ * switched on. Checked before the next message is asked for; reaching one switches Loop off
+ * with a note. A failed switch save throws, so nothing reports a stop that did not happen.
+ */
+export async function stopLoopAtLimit(conversationId: string, sessionId: string): Promise<boolean> {
+  const { loopMaxPasses = 0, loopMaxMinutes = 0 } = getConfig().goal;
+  if (!loopMaxPasses && !loopMaxMinutes) return false;
+  const run = loopRunFor(conversationId);
+  const passes = run.passes;
+  const reached = loopMaxPasses > 0 && passes >= loopMaxPasses
+    ? `after ${passes} automatic ${passes === 1 ? 'message' : 'messages'}`
+    : loopMaxMinutes > 0 && Date.now() - run.since >= loopMaxMinutes * 60_000 ? `after ${loopMaxMinutes} minutes` : null;
+  if (!reached) return false;
+  await setGoalSwitchNow(conversationId, 'loop', false);
+  logInfo(`goal: Loop stopped ${reached} in ${conversationId}, the limit set in Settings`);
+  const { recordNote } = await import('./session/recorder.js');
+  await recordNote(sessionId, `Loop stopped ${reached}, the limit set in Settings. Switch Loop back on to keep going.`).catch(() => undefined);
+  const { noticeChatStopped } = await import('./stuck-notice.js');
+  noticeChatStopped('Loop stopped', 'Loop reached the limit set in Settings and switched itself off. Open the chat to continue.', sessionId);
+  return true;
 }
 
 interface ChatMessage {

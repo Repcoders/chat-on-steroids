@@ -22,7 +22,10 @@ export function stopNoticeTexts(): Record<(typeof STOP_NOTICE_TEXTS)[number], st
       t('A chat is paused until you allow or deny a tool call in ChatGPT. Click to answer it in the app.'),
     'Goal paused': t('Goal paused'),
     'ChatGPT gave the same answer three times in a row, so Goal stopped asking. Open the chat to continue.':
-      t('ChatGPT gave the same answer three times in a row, so Goal stopped asking. Open the chat to continue.')
+      t('ChatGPT gave the same answer three times in a row, so Goal stopped asking. Open the chat to continue.'),
+    'Loop stopped': t('Loop stopped'),
+    'Loop reached the limit set in Settings and switched itself off. Open the chat to continue.':
+      t('Loop reached the limit set in Settings and switched itself off. Open the chat to continue.')
   };
 }
 

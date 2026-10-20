@@ -14,18 +14,31 @@ const KEEP_MS = 60 * 60_000;
  */
 export const NEW_CHAT = '';
 const PER_CHAT = 4;
-const handed = new Map<string, Array<{ text: string; at: number }>>();
+const handed = new Map<string, Array<{ text: string; at: number; loop?: true }>>();
+let loopDelivered: ((conversationId: string) => void) | null = null;
+
+/**
+ * Told once for each automatic Loop message that reached its chat: a noted after-turn follow-up
+ * the recorder took back, or a finish follow-up the outbox handed over. Loop's limits count these.
+ */
+export function onLoopReplyDelivered(listener: ((conversationId: string) => void) | null): void {
+  loopDelivered = listener;
+}
+
+export function loopMessageDelivered(conversationId: string): void {
+  try { loopDelivered?.(conversationId); } catch { /* counting never blocks delivery or recording */ }
+}
 
 function comparable(text: string): string {
   return text.replace(/\\([\\`*_{}[\]()#+\-.!>|~])/g, '$1').replace(/\s+/g, ' ').trim();
 }
 
 /** A Goal or Loop follow-up for this chat is ready for its page to type. */
-export function noteAutomaticReply(conversationId: string, text: string, now = Date.now()): void {
+export function noteAutomaticReply(conversationId: string, text: string, now = Date.now(), loop = false): void {
   const value = comparable(text);
   if (!value) return;
   const kept = (handed.get(conversationId) ?? []).filter(entry => now - entry.at < KEEP_MS && entry.text !== value);
-  kept.push({ text: value, at: now });
+  kept.push({ text: value, at: now, ...(loop ? { loop: true as const } : {}) });
   handed.delete(conversationId);
   handed.set(conversationId, kept.slice(-PER_CHAT));
   if (handed.size > 200) handed.delete(handed.keys().next().value!);
@@ -42,8 +55,9 @@ function takeFrom(conversationId: string, text: string, now: number): boolean {
   const value = comparable(text);
   const at = kept.findIndex(entry => entry.text === value && now - entry.at < KEEP_MS);
   if (at < 0) return false;
-  kept.splice(at, 1);
+  const [taken] = kept.splice(at, 1);
   if (!kept.length) handed.delete(conversationId);
+  if (taken?.loop) loopMessageDelivered(conversationId);
   return true;
 }
 

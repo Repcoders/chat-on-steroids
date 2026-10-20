@@ -2928,5 +2928,18 @@
   "{0} sub-agents need attention|many": "Субагентов, требующих внимания: {0}",
   "A tool call from an untrusted chat was refused. To allow it, open this chat's ⋯ menu in the sidebar (or right-click its row) and choose Trust chat.": "Вызов инструмента из недоверенного чата отклонён. Чтобы разрешить его, откройте меню ⋯ этого чата на боковой панели (или щёлкните строку правой кнопкой) и выберите «Доверять чату».",
   "A tool call from a worker whose main chat is not currently allowed was refused. Open that main chat's ⋯ menu in the sidebar and choose Trust chat if it is untrusted, or Release chat if it is blocked.": "Вызов инструмента от воркера, чей основной чат сейчас не разрешён, отклонён. Откройте меню ⋯ этого основного чата на боковой панели и выберите «Доверять чату», если он не доверенный, или «Разблокировать чат», если он заблокирован.",
-  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "Вызов инструмента от воркера, созданного приложением, отклонён: основной чат, который его запустил, ещё не подтверждён. Вернитесь к этому основному чату на боковой панели; когда появится его строка, откройте меню ⋯ и выберите «Доверять чату» или «Разблокировать чат», если он заблокирован, а затем повторите, когда воркер подключится или восстановится там."
+  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "Вызов инструмента от воркера, созданного приложением, отклонён: основной чат, который его запустил, ещё не подтверждён. Вернитесь к этому основному чату на боковой панели; когда появится его строка, откройте меню ⋯ и выберите «Доверять чату» или «Разблокировать чат», если он заблокирован, а затем повторите, когда воркер подключится или восстановится там.",
+  "Stop Loop after": "Остановить цикл после",
+  "Loop switches itself off in a chat after this many automatic messages. Off keeps it going until you turn it off.": "Цикл сам выключается в чате после такого числа автоматических сообщений. «Выкл.» — цикл идёт, пока вы его не выключите.",
+  "3 messages": "3 сообщения",
+  "5 messages": "5 сообщений",
+  "10 messages": "10 сообщений",
+  "25 messages": "25 сообщений",
+  "Loop time limit": "Лимит времени цикла",
+  "Loop switches itself off in a chat once it has run this long since you turned it on. Off keeps it going until you turn it off.": "Цикл сам выключается в чате, когда проработал столько времени с момента включения. «Выкл.» — цикл идёт, пока вы его не выключите.",
+  "2 hours": "2 часа",
+  "4 hours": "4 часа",
+  "8 hours": "8 часов",
+  "Loop stopped": "Цикл остановлен",
+  "Loop reached the limit set in Settings and switched itself off. Open the chat to continue.": "Цикл достиг лимита из настроек и выключился сам. Откройте чат, чтобы продолжить."
 }

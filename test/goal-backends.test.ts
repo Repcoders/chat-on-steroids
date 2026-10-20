@@ -18,6 +18,7 @@ const { initSecretsPath, setSecret } = await import('../src/main/secrets.js');
 const { initDurableStore, resetDurableForTests, flushDurable, readDurable } = await import('../src/main/durable.js');
 const { appendEvent, createSession, initSessionStore, readEvents, resetSessionStoreForTests } = await import('../src/main/session/store.js');
 const goal = await import('../src/main/goal.js');
+const { takeAutomaticReply } = await import('../src/main/session/automatic-replies.js');
 const { makeTempDir, removeTempDir } = await import('./helpers.js');
 let directory: string;
 beforeAll(async () => {
@@ -632,5 +633,134 @@ describe('Goal repeating itself', () => {
     await recordLoopMcpProof(session.id, 'last-turn');
     goal.startGoalDraft({ conversationId: id, sessionId: session.id, turnId: 'last-turn' });
     expect((await settled(id)).stage).toBe('ready');
+  });
+});
+
+/**
+ * Loop never decides by itself that it is done, so Settings can end a run: after a number of
+ * automatic messages, or a time since Loop was switched on. Reaching one switches Loop off with
+ * a timeline note, the way the repeating-Goal guard above pauses Goal.
+ */
+describe('Loop limits', () => {
+  let time = 1;
+  async function loopChat(id: string) {
+    const session = await createSession({ title: 'Loop limit', conversationId: id });
+    await appendEvent(session.id, { source: 'extension', kind: 'user_message', time: time++,
+      message: { text: 'Build the report page.', chars: 22, truncated: false } });
+    return session;
+  }
+  async function pass(id: string, sessionId: string, turnId: string) {
+    await recordLoopMcpProof(sessionId, turnId);
+    const answer = `Finished part of the report (${turnId}).`;
+    await appendEvent(sessionId, { source: 'extension', kind: 'assistant_message', messageId: `a-${turnId}`, state: 'final', final: true,
+      time: time++, message: { text: answer, chars: answer.length, truncated: false } });
+    await appendEvent(sessionId, { source: 'extension', kind: 'turn_end', turnId, outcome: 'completed', time: time++ });
+    goal.startGoalDraft({ conversationId: id, sessionId, turnId });
+    return settled(id);
+  }
+  const notes = async (sessionId: string) => (await readEvents(sessionId, { kinds: ['note'] }))
+    .map(event => (event as { message: { text: string } }).message.text);
+  beforeEach(() => browser.request.mockResolvedValue('{"action":"continue","reply":"Improve the next part of the report."}'));
+
+  it('switches Loop off after the set number of automatic messages, and says why', async () => {
+    await saveConfig({ ...defaultConfig(), goal: { ...defaultConfig().goal, loopBackend: 'chatgpt', loopMaxPasses: 2 } });
+    const id = 'loop-limit-passes';
+    const session = await loopChat(id);
+    await goal.setGoalSwitchNow(id, 'loop', true, true);
+    for (const turnId of ['pass-one', 'pass-two']) {
+      const view = await pass(id, session.id, turnId);
+      expect(view.stage, turnId).toBe('ready');
+      expect(goal.ackGoalDraft(id, view.token)).toBe(true);
+      // The recorder's receipt: the typed message came back into the chat.
+      expect(takeAutomaticReply(id, view.reply)).toBe(true);
+    }
+    expect(browser.request).toHaveBeenCalledTimes(2);
+    expect((await pass(id, session.id, 'pass-three')).stage).toBe('no-reply');
+    expect(browser.request).toHaveBeenCalledTimes(2);
+    expect(goal.goalSwitchFor(id).enabled).toBe(false);
+    expect(await notes(session.id)).toContainEqual(expect.stringContaining('Loop stopped after 2 automatic messages'));
+  });
+
+  it('counts a Loop message when it arrives in the chat, not when the page gives up on it', async () => {
+    await saveConfig({ ...defaultConfig(), goal: { ...defaultConfig().goal, loopBackend: 'chatgpt', loopMaxPasses: 1 } });
+    const id = 'loop-limit-unsent';
+    const session = await loopChat(id);
+    await goal.setGoalSwitchNow(id, 'loop', true, true);
+    const unsent = await pass(id, session.id, 'unsent-pass');
+    // Acknowledged because the composer stayed busy: spent, but never typed.
+    expect(goal.ackGoalDraft(id, unsent.token)).toBe(true);
+    const sent = await pass(id, session.id, 'sent-pass');
+    expect(sent.stage).toBe('ready');
+    expect(goal.ackGoalDraft(id, sent.token)).toBe(true);
+    expect(takeAutomaticReply(id, sent.reply)).toBe(true);
+    expect((await pass(id, session.id, 'after-limit')).stage).toBe('no-reply');
+    expect(await notes(session.id)).toContainEqual(expect.stringContaining('Loop stopped after 1 automatic message,'));
+  });
+
+  it('does not report a stop when switching Loop off could not be saved', async () => {
+    await saveConfig({ ...defaultConfig(), goal: { ...defaultConfig().goal, enabled: true, mode: 'loop', loopBackend: 'chatgpt', loopMaxPasses: 1 } });
+    const id = 'loop-limit-unsaved';
+    const session = await loopChat(id);
+    // The chat follows the app-wide Loop, and the switch ledger is full of helper chats, so a
+    // switch of its own cannot be written.
+    goal.restoreGoalSwitches({ version: 1, savedAt: 1, loopRuns: [{ conversationId: id, passes: 1, since: Date.now() }],
+      switches: Array.from({ length: 400 }, (_, index) => ({ conversationId: `helper-chat-${index}`, enabled: false, mode: 'goal' as const, role: 'decision' as const, at: index + 1 })) });
+    const view = await pass(id, session.id, 'unsaved-stop');
+    expect(view.stage).toBe('failed');
+    expect(view.error).toContain('goal_switch_capacity');
+    expect(goal.goalSwitchFor(id)).toMatchObject({ enabled: true, mode: 'loop', own: false });
+    expect(await notes(session.id)).not.toContainEqual(expect.stringContaining('Loop stopped'));
+  });
+
+  it('ends the run of a chat on the app-wide Loop when the app switches to Goal', async () => {
+    await saveConfig({ ...defaultConfig(), goal: { ...defaultConfig().goal, enabled: true, mode: 'loop', loopBackend: 'chatgpt', loopMaxPasses: 1 } });
+    const id = 'loop-limit-app-wide';
+    const session = await loopChat(id);
+    goal.restoreGoalSwitches({ version: 1, savedAt: 1, switches: [], loopRuns: [{ conversationId: id, passes: 1, since: Date.now() }] });
+    await saveConfig({ ...defaultConfig(), goal: { ...defaultConfig().goal, enabled: true, mode: 'goal', loopBackend: 'chatgpt', loopMaxPasses: 1 } });
+    goal.pruneLoopRuns();
+    await saveConfig({ ...defaultConfig(), goal: { ...defaultConfig().goal, enabled: true, mode: 'loop', loopBackend: 'chatgpt', loopMaxPasses: 1 } });
+    expect(goal.snapshotGoalSwitches().loopRuns).toEqual([]);
+    expect((await pass(id, session.id, 'fresh-run')).stage).toBe('ready');
+  });
+
+  it('keeps counting after Compact & Resume moves a chat on the app-wide Loop', async () => {
+    await saveConfig({ ...defaultConfig(), goal: { ...defaultConfig().goal, enabled: true, mode: 'loop', loopBackend: 'chatgpt', loopMaxPasses: 2 } });
+    goal.restoreGoalSwitches({ version: 1, savedAt: 1, switches: [], loopRuns: [{ conversationId: 'loop-limit-before-resume', passes: 2, since: 5 }] });
+    expect(goal.moveGoalSwitch('loop-limit-before-resume', 'loop-limit-after-resume')).toBe(false);
+    const session = await loopChat('loop-limit-after-resume');
+    expect(goal.snapshotGoalSwitches().loopRuns).toEqual([{ conversationId: 'loop-limit-after-resume', passes: 2, since: 5 }]);
+    expect((await pass('loop-limit-after-resume', session.id, 'resumed-pass')).stage).toBe('no-reply');
+  });
+
+  it('switches Loop off once its time limit has passed, also after a restart', async () => {
+    await saveConfig({ ...defaultConfig(), goal: { ...defaultConfig().goal, loopBackend: 'chatgpt', loopMaxMinutes: 30 } });
+    const id = 'loop-limit-minutes';
+    const session = await loopChat(id);
+    goal.restoreGoalSwitches({ version: 1, savedAt: 1, switches: [{ conversationId: id, enabled: true, mode: 'loop', afterTurn: true, at: 1 }],
+      loopRuns: [{ conversationId: id, passes: 1, since: Date.now() - 31 * 60_000 }] });
+    expect((await pass(id, session.id, 'late-pass')).stage).toBe('no-reply');
+    expect(browser.request).not.toHaveBeenCalled();
+    expect(goal.goalSwitchFor(id).enabled).toBe(false);
+    expect(await notes(session.id)).toContainEqual(expect.stringContaining('Loop stopped after 30 minutes'));
+  });
+
+  it('starts counting again when Loop is switched off and on, and keeps going without a limit', async () => {
+    await saveConfig({ ...defaultConfig(), goal: { ...defaultConfig().goal, loopBackend: 'chatgpt', loopMaxPasses: 1 } });
+    const id = 'loop-limit-reset';
+    const session = await loopChat(id);
+    await goal.setGoalSwitchNow(id, 'loop', true, true);
+    const first = await pass(id, session.id, 'run-one');
+    expect(goal.ackGoalDraft(id, first.token)).toBe(true);
+    expect(takeAutomaticReply(id, first.reply)).toBe(true);
+    await goal.setGoalSwitchNow(id, 'loop', false);
+    await goal.setGoalSwitchNow(id, 'loop', true, true);
+    const second = await pass(id, session.id, 'run-two');
+    expect(second.stage).toBe('ready');
+    expect(goal.ackGoalDraft(id, second.token)).toBe(true);
+    expect(takeAutomaticReply(id, second.reply)).toBe(true);
+    await saveConfig({ ...defaultConfig(), goal: { ...defaultConfig().goal, loopBackend: 'chatgpt', loopMaxPasses: 0 } });
+    expect((await pass(id, session.id, 'run-three')).stage).toBe('ready');
+    expect(goal.goalSwitchFor(id).enabled).toBe(true);
   });
 });
