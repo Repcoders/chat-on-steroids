@@ -83,10 +83,11 @@ export function settingsBackupRequest(text: string, current: Config): { base: Sn
   return { base, patch };
 }
 
-const shown = (value: unknown): string | null => {
+/** A value as the preview shows it; a permission is shown in full, so a change is never hidden in a cut. */
+const shown = (value: unknown, permission: boolean): string | null => {
   if (value === undefined) return null;
   const text = JSON.stringify(value);
-  return text.length > 120 ? `${text.slice(0, 119)}…` : text;
+  return !permission && text.length > 120 ? `${text.slice(0, 119)}…` : text;
 };
 
 /** Every setting the validated `patch` changes against `base`, permission changes first. */
@@ -101,7 +102,8 @@ export function settingsChanges(base: unknown, patch: unknown): SettingsBackupCh
       return;
     }
     if (JSON.stringify(before) === JSON.stringify(after)) return;
-    changes.push({ path, before: shown(before), after: shown(after), permission: PERMISSION_PATHS.some(rule => rule.test(path)) });
+    const permission = PERMISSION_PATHS.some(rule => rule.test(path));
+    changes.push({ path, before: shown(before, permission), after: shown(after, permission), permission });
   };
   walk(base, patch, '');
   return [...changes.filter(change => change.permission), ...changes.filter(change => !change.permission)];

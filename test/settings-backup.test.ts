@@ -72,6 +72,19 @@ describe('settings backup', () => {
     ]);
   });
 
+  it('shows a permission change in full, however long, so two endpoints never read the same', () => {
+    const current = configured();
+    const prefix = `https://models.example/${'a'.repeat(160)}`;
+    current.goal = { ...current.goal, provider: { kind: 'custom', baseUrl: `${prefix}/one` } };
+    const text = JSON.stringify({ format: 'chat-on-steroids-settings', version: 1,
+      settings: { goal: { provider: { baseUrl: `${prefix}/two` } }, compaction: { handoffPrompt: 'b'.repeat(200) } } });
+    const { base, patch } = settingsBackupRequest(text, current);
+    const [endpoint, other] = settingsChanges(base, patch);
+    expect(endpoint).toEqual({ path: 'goal.provider.baseUrl', before: `"${prefix}/one"`, after: `"${prefix}/two"`, permission: true });
+    expect(other).toMatchObject({ path: 'compaction.handoffPrompt', permission: false });
+    expect(other?.after).toHaveLength(120);
+  });
+
   it('refuses a file that is not a settings backup, or one from a newer version', () => {
     const current = configured();
     const valid = JSON.parse(settingsBackup(current, '2.1.42'));
