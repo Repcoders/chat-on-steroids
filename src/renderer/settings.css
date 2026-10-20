@@ -462,3 +462,12 @@ details.connector[open] > summary .connector-chevron { transform: rotate(90deg);
 .is-found { animation: setting-found 1600ms ease-out; }
 @keyframes setting-found { from, 35% { background-color: var(--accent-wash); box-shadow: 0 0 0 8px var(--accent-wash); } }
 @media (prefers-reduced-motion: reduce) { .is-found { animation: none; background-color: var(--accent-wash); box-shadow: 0 0 0 8px var(--accent-wash); } }
+/* General › Backup: the import preview lists each changed setting, permission changes apart. */
+.settings-import-dialog h3 { margin: 18px 0 8px; font-size: calc(13px * var(--text-scale, 1)); font-weight: 600; }
+.settings-import-permissions > p { margin: 0 0 8px; }
+.settings-import-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.settings-import-list li { display: grid; gap: 2px; min-width: 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--sunk); }
+.settings-import-permissions .settings-import-list li { border-color: var(--red-line); }
+.settings-import-list code { font: 12px/1.45 var(--mono); overflow-wrap: anywhere; }
+.settings-import-values { display: flex; flex-wrap: wrap; gap: 6px; color: var(--soft); font-size: calc(12px * var(--text-scale, 1)); overflow-wrap: anywhere; }
+.settings-import-arrow { color: var(--faint); }

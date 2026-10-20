@@ -1,4 +1,8 @@
 import { registerWorkspaceTerminalIpc } from './workspace-terminal-ipc.js';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+import { INVALID_SETTINGS_BACKUP, MAX_SETTINGS_BACKUP_BYTES, settingsBackup, settingsBackupBase, settingsBackupRequest, settingsChanges } from './settings-backup.js';
+import type { SettingsBackupExport, SettingsBackupPreview } from '../shared/settings-backup.js';
 import { forgetSurfaceTokens } from './mcp/persistent-paths.js';
 import { firefoxAddonUrl } from '../shared/firefox-addon.js';
 import { approvalCardView, requestApprovalAnswer } from './approval-wait.js';
@@ -692,10 +696,12 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     return state;
   });
 
-  handle('settings:save', async (payload) => {
-    const request = settingsSave.parse(payload);
+  // The Settings form's save, and a settings backup's import once its preview was confirmed.
+  // `admit` runs on the latest committed config inside the update and may refuse the save.
+  const saveSettings = async (request: z.infer<typeof settingsSave>, admit?: (config: Config) => void): Promise<AppState> => {
     const before = getConfig();
     const next = await updateConfig(async config => {
+      admit?.(config);
       if (request.patch.ui.browserBridgePort !== undefined &&
           request.patch.ui.browserBridgePort !== (request.base.ui.browserBridgePort ?? 'auto') &&
           bridgePortSelection().overridden) {
@@ -822,6 +828,65 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     if (loginStartupError) throw loginStartupError;
     if (controlApiError) throw controlApiError;
     return buildState();
+  };
+  handle('settings:save', async payload => saveSettings(settingsSave.parse(payload)));
+
+  // Settings backup. The preview keeps its parsed request here, so Apply sends only the token and
+  // applies exactly what was shown, through the save above.
+  let pendingImport: { token: string; request: z.infer<typeof settingsSave> } | null = null;
+  const backupFilters = () => [{ name: mainText('Settings backups'), extensions: ['json'] }];
+  handle('settings:exportBackup', async (): Promise<SettingsBackupExport> => {
+    const window = getWindow();
+    const options = { ...dialogLabel('Export settings'), filters: backupFilters(),
+      defaultPath: path.join(app.getPath('downloads'), `chat-on-steroids-settings-${new Date().toISOString().slice(0, 10)}.json`) };
+    const result = window ? await dialog.showSaveDialog(window, options) : await dialog.showSaveDialog(options);
+    if (result.canceled || !result.filePath) return { done: 'cancelled' };
+    await fs.writeFile(result.filePath, settingsBackup(getConfig(), APP_VERSION), 'utf8');
+    logInfo('settings exported to a backup file');
+    return { done: 'saved', name: path.basename(result.filePath) };
+  });
+  handle('settings:importPreview', async (): Promise<SettingsBackupPreview> => {
+    pendingImport = null;
+    const window = getWindow();
+    const options = { ...dialogLabel('Import settings'), filters: backupFilters(), properties: ['openFile' as const] };
+    const result = window ? await dialog.showOpenDialog(window, options) : await dialog.showOpenDialog(options);
+    const file = result.canceled ? undefined : result.filePaths[0];
+    if (!file) return { done: 'cancelled' };
+    if ((await fs.stat(file)).size > MAX_SETTINGS_BACKUP_BYTES) throw new Error(INVALID_SETTINGS_BACKUP);
+    let request: z.infer<typeof settingsSave>;
+    try {
+      request = settingsSave.parse(settingsBackupRequest(await fs.readFile(file, 'utf8'), getConfig()));
+    } catch (error) {
+      if (!(error instanceof z.ZodError)) throw error;
+      logWarn(`settings backup refused: ${error.issues[0]?.path.join('.') ?? ''} ${error.issues[0]?.message ?? ''}`);
+      throw new Error(INVALID_SETTINGS_BACKUP);
+    }
+    const token = randomUUID();
+    pendingImport = { token, request };
+    return { done: 'preview', token, name: path.basename(file), changes: settingsChanges(request.base, request.patch) };
+  });
+  handle('settings:importApply', async payload => {
+    const { token } = z.object({ token: z.string().uuid() }).strict().parse(payload);
+    const pending = pendingImport;
+    const stale = 'This import preview is no longer current. Choose the file again.';
+    if (!pending || pending.token !== token) throw new Error(stale);
+    pendingImport = null;
+    // A save since the preview would make Apply merge onto values the person never saw listed.
+    const shown = JSON.stringify(pending.request.base);
+    const matchesPreview = (config: ReturnType<typeof getConfig>): boolean => {
+      const parsed = settingsPatch.safeParse(settingsBackupBase(config));
+      return parsed.success && JSON.stringify(parsed.data) === shown;
+    };
+    const state = await saveSettings(pending.request, config => {
+      if (!matchesPreview(config)) throw new Error(stale);
+    }).catch((error: unknown) => {
+      // A save that failed before its write changed nothing, so the same preview can be applied again.
+      // One that threw after the write (a taken control API port, say) has applied the import: its token stays spent.
+      if (pendingImport === null && matchesPreview(getConfig())) pendingImport = pending;
+      throw error;
+    });
+    logInfo('settings imported from a backup file');
+    return state;
   });
 
   /** Approves one folder by path. The picker dialog and the drop zone both end here. */

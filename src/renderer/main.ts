@@ -17,6 +17,7 @@ import { initUsage, refreshOtherApps, refreshUsage } from './usage.js';
 import { initSidebarResize } from './sidebar-resize.js';
 import { initViewMenu } from './view-menu.js';
 import { initPlugins, applyPluginsState } from './plugins.js';
+import { initSettingsBackup } from './settings-backup.js';
 import { initBrowserPreferences } from './browser-preferences.js';
 import { initSetupGuide } from './setup-guide.js';
 import { initAppearance } from './appearance.js';
@@ -2851,6 +2852,7 @@ const viewMenu = initViewMenu({
 });
 initUsage();
 initPlugins(apply);
+initSettingsBackup(apply);
 initPets(api, pet);
 openSkillsLibrary = initSkillsLibrary(api);
 initBrowserPreferences();
