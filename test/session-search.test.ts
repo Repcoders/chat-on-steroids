@@ -277,6 +277,29 @@ it('steps through calls and answers in the order the chat draws them', async () 
     .toEqual([first.seq, seqOf('between'), second.seq, seqOf('opened-early')]);
 });
 
+it('keeps a question whose text changed above the calls it asked for', async () => {
+  // A new text moves a question's work stamp, so the transcript lists it after the answer, but the
+  // chat still draws it where it first appeared, above the call and the answer.
+  const { appendEvent } = await import('../src/main/session/store.js');
+  const id = await chat('Edited', []);
+  let time = Date.now();
+  const stored = (text: string) => ({ text, chars: text.length, truncated: false });
+  const question = (text: string) => upsertMessageEvent(id, { kind: 'user_message', source: 'app', time: time++, messageId: 'question',
+    turnId: 'turn-1', message: stored(text) });
+  await question('Check PLACEHOLDER_EDIT');
+  const call = await appendEvent(id, { kind: 'tool_call', source: 'mcp', time: time++, turnId: 'turn-1', call: {
+    callId: 'call-1', tool: 'exec_command', requestId: null, conversationId: null, attribution: 'request_id', attributionMethod: 'request_id',
+    args: stored('{"cmd":"check PLACEHOLDER_EDIT"}'), result: stored('ok'), outcome: 'ok', durationMs: 1, summary: { kind: 'run', title: 'Ran', tone: 'neutral' } } });
+  await upsertMessageEvent(id, { kind: 'assistant_message', source: 'extension', time: time++, messageId: 'answer', turnId: 'turn-1',
+    message: stored('PLACEHOLDER_EDIT is fine.'), state: 'final', final: true });
+  await question('Check PLACEHOLDER_EDIT again');
+  await flushSessions();
+  const said = await readEvents(id, { kinds: ['user_message', 'assistant_message'] });
+  const seqOf = (kind: string) => said.find(event => event.kind === kind)!.seq;
+  expect((await findInSession(id, 'placeholder_edit')).map(location => location.seq))
+    .toEqual([seqOf('user_message'), call.seq, seqOf('assistant_message')]);
+});
+
 it('locates a reply by its native message id, where it first appeared (#482)', async () => {
   // Branch in new chat links back to the exact reply it was branched from.
   const id = await chat('Branch source', [['user', 'try one'], ['assistant', 'Approach A.'], ['user', 'go on'], ['assistant', 'Approach A, step two.']]);
