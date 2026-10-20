@@ -113,7 +113,16 @@ it('keeps the last badge when Git cannot be read this time', async () => {
   advance(60_000); badges.want(['a', 'b']); await settle();
   expect(badges.badge('a')?.textContent).toBe('main');
   expect(badges.badge('b')).toBeNull();
-  // A folder that is no longer a repository loses its badge.
+  // A second unreadable answer in a row (a deleted folder, a revoked root) drops it.
+  advance(60_000); badges.want(['a', 'b']); await settle();
+  expect(badges.badge('a')).toBeNull();
+  // One good read resets the count.
+  state = 'ready';
+  advance(60_000); badges.want(['a', 'b']); await settle();
+  state = 'unavailable';
+  advance(60_000); badges.want(['a', 'b']); await settle();
+  expect(badges.badge('a')?.textContent).toBe('main');
+  // A folder that is no longer a repository loses its badge at once.
   state = 'not-repository';
   advance(60_000); badges.want(['a', 'b']); await settle();
   expect(badges.badge('a')).toBeNull();

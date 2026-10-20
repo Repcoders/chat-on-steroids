@@ -21,6 +21,8 @@ export function createProjectGitBadges(
   // When each row was last asked for, answered or not: a failing read waits like a stale one.
   const asked = new Map<string, number>();
   const due = new Set<string>();
+  // Rows whose last answer was unreadable while a badge was shown: a second one in a row clears it.
+  const unreadOnce = new Set<string>();
   let reading = false;
   let wanted = new Set<string>();
 
@@ -39,8 +41,9 @@ export function createProjectGitBadges(
           const reply = replies.find(entry => entry.projectId === id);
           if (!reply || !wanted.has(id)) continue;
           const previous = summaries.get(id);
-          // Git could not be read this time (a lock, a slow disk): the last badge stays, as after a failed request.
-          if (reply.state === 'unavailable' && previous?.state === 'ready') continue;
+          // Git could not be read this time (a lock, a slow disk): the last badge stays for one more read.
+          if (reply.state === 'unavailable' && previous?.state === 'ready' && !unreadOnce.has(id)) { unreadOnce.add(id); continue; }
+          unreadOnce.delete(id);
           if (JSON.stringify(previous) !== JSON.stringify(reply)) different = true;
           summaries.set(id, reply);
         }
@@ -62,7 +65,7 @@ export function createProjectGitBadges(
     /** The projects this paint shows; any that were never read, or are stale, are read. */
     want(ids: string[]): void {
       wanted = new Set(ids);
-      for (const id of [...asked.keys()]) if (!wanted.has(id)) { asked.delete(id); summaries.delete(id); }
+      for (const id of [...asked.keys()]) if (!wanted.has(id)) { asked.delete(id); summaries.delete(id); unreadOnce.delete(id); }
       request(ids, STALE_MS);
     },
     /** Window focus or an expanded project: Git may have changed outside the app. */
