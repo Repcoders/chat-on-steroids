@@ -360,6 +360,8 @@ const configSchema = z.object({
     backgroundPlacement: z.enum(['window', 'group']).optional().default('window').catch('window'),
     followUp: z.enum(['steer', 'queue']).optional().default('steer').catch('steer'),
     enterSends: z.boolean().optional().default(true),
+    /** Spoken edits while Windows dictation runs (shared/dictation-commands.ts). Off unless true. */
+    dictationCommands: z.boolean().optional(),
     browserBridgePort: browserBridgePortSchema.optional().default('auto'),
     browserOnly: z.boolean().optional().default(false),
     autoRefreshPlugins: z.boolean().optional().default(false),

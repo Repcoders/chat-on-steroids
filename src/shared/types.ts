@@ -205,6 +205,8 @@ export interface UiPrefs {
   followUp?: 'steer' | 'queue';
   /** Codex's "Enter key behavior": Enter sends (missing or true), or only Cmd/Ctrl+Enter sends (false). */
   enterSends?: boolean;
+  /** Apply spoken "new line", "scratch that" and "send" while Windows dictation runs. Off unless true. */
+  dictationCommands?: boolean;
   /** Keep the computer from sleeping while a chat is working (Codex: Prevent sleep while running). Missing means on. */
   keepAwake?: boolean;
   /** With keepAwake: also keep the screen on (Modern Standby laptops sleep once it turns off). */

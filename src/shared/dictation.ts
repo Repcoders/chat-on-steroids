@@ -2,10 +2,11 @@
  * Speech-to-text events from the opt-in Windows recognizer. Raw audio never crosses IPC.
  * `engine` on listening says which Windows recognizer runs: `modern` is Windows' online
  * dictation (punctuation, current accuracy), `legacy` the offline System.Speech fallback.
+ * `language` is the BCP 47 tag that recognizer dictates in, for spoken commands.
  */
 export type DictationEngine = 'modern' | 'legacy';
 export type DictationEvent =
-  | { type: 'status'; status: 'starting' | 'listening' | 'stopped'; engine?: DictationEngine }
+  | { type: 'status'; status: 'starting' | 'listening' | 'stopped'; engine?: DictationEngine; language?: string }
   | { type: 'partial' | 'final'; text: string }
   | { type: 'error'; message: string };
 
@@ -18,8 +19,11 @@ export function parseDictationEvent(line: string): DictationEvent | null {
   const event = value as Record<string, unknown>;
   if (event.type === 'status' && ['starting', 'listening', 'stopped'].includes(String(event.status))) {
     const status = event.status as 'starting' | 'listening' | 'stopped';
-    return status === 'listening' && (event.engine === 'modern' || event.engine === 'legacy')
-      ? { type: 'status', status, engine: event.engine } : { type: 'status', status };
+    if (status !== 'listening') return { type: 'status', status };
+    const engine = event.engine === 'modern' || event.engine === 'legacy' ? event.engine : undefined;
+    const language = typeof event.language === 'string' && /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8}){0,3}$/.test(event.language)
+      ? event.language : undefined;
+    return { type: 'status', status, ...(engine ? { engine } : {}), ...(language ? { language } : {}) };
   }
   if ((event.type === 'partial' || event.type === 'final') && typeof event.text === 'string') {
     const text = event.text.replace(/[\u0000-\u0008\u000b-\u001f]/g, '').slice(0, 4_000).trim();
