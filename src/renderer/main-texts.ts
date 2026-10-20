@@ -10,6 +10,8 @@ import type { MainText } from '../shared/main-texts.js';
 export function mainTexts(): Record<MainText, string> {
   return {
     'Open': t('Open'),
+    'New chat': t('New chat'),
+    'Recent chats': t('Recent chats'),
     'Show browser': t('Show browser'),
     'Hide browser': t('Hide browser'),
     'Connect': t('Connect'),

@@ -121,6 +121,7 @@ import {
   shouldQuitOnWindowAllClosed
 } from './window-lifecycle.js';
 import { trayGuidArgsForPlatform, trayImageSpec } from './tray-image.js';
+import { sameTrayRecentChats, trayChatItems, trayRecentChats, type TrayRecentChat } from './tray-recent-chats.js';
 import { browserWindowIconPath } from './window-icon.js';
 import { editContextMenuTemplate } from './edit-context-menu.js';
 import { showConnectionLossNotice } from './connection-loss-notice.js';
@@ -135,6 +136,7 @@ const MAIN_TEXTS_STATE = 'main-texts';
 let window: BrowserWindow | null = null;
 let savedWindowBounds: unknown = null;
 let tray: Tray | null = null;
+let trayChats: TrayRecentChat[] = [];
 let quitting = false;
 let shutdownStarted = false;
 let shutdownComplete = false;
@@ -362,6 +364,25 @@ function trayIcon(running: boolean): Electron.NativeImage {
   return image;
 }
 
+/** Shows the window and opens a chat in it: a session id, or `null` for New chat. */
+function openChatFromTray(sessionId: string | null): void {
+  showWindow();
+  if (!window) return;
+  const target = window.webContents;
+  const open = (): void => { if (!target.isDestroyed()) target.send('chat:open', sessionId); };
+  if (target.isLoadingMainFrame()) target.once('did-finish-load', open); else open();
+}
+
+/** Session writes arrive many times a turn; the menu is rebuilt only when its chats change. */
+function refreshTrayChats(): void {
+  void listSessions().then(sessions => {
+    const next = trayRecentChats(sessions);
+    if (sameTrayRecentChats(next, trayChats)) return;
+    trayChats = next;
+    refreshTray();
+  }).catch((error: Error) => logWarn(`tray recent chats: ${error.message}`));
+}
+
 function refreshTray(): void {
   if (!tray) return;
   const state = getStatus().state;
@@ -379,6 +400,7 @@ function refreshTray(): void {
       { label, enabled: false },
       { type: 'separator' },
       { label: mainText('Open'), click: windowActivation.request },
+      ...trayChatItems(trayChats, mainText, openChatFromTray),
       // The CoS browser lives in the tray: its windows never sit in a taskbar or dock. Only once
       // it is selected and loaded; the default extension path shows exactly the menu it had.
       ...(cosBrowser && getConfig().ui.chatBrowser === 'cos' ? [{
@@ -665,6 +687,8 @@ void app.whenReady().then(async () => {
   // The built-in browser's own hooks live in its module, which loads only once it is selected.
   onCosBrowserLoaded(cosBrowser => { cosBrowser.onChange(refreshTray); refreshTray(); });
   onMainTextsChange(refreshTray);
+  refreshTrayChats();
+  onSessionChange(refreshTrayChats);
   onMainTextsChange(() => writeDurableSoon(MAIN_TEXTS_STATE, mainTextTranslations()));
 
   logInfo('app started');
