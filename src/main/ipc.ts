@@ -873,14 +873,16 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     pendingImport = null;
     // A save since the preview would make Apply merge onto values the person never saw listed.
     const shown = JSON.stringify(pending.request.base);
-    let current = true;
-    const state = await saveSettings(pending.request, config => {
+    const matchesPreview = (config: ReturnType<typeof getConfig>): boolean => {
       const parsed = settingsPatch.safeParse(settingsBackupBase(config));
-      current = parsed.success && JSON.stringify(parsed.data) === shown;
-      if (!current) throw new Error(stale);
+      return parsed.success && JSON.stringify(parsed.data) === shown;
+    };
+    const state = await saveSettings(pending.request, config => {
+      if (!matchesPreview(config)) throw new Error(stale);
     }).catch((error: unknown) => {
-      // A save that failed on its own (a disk error) changed nothing, so the same preview can be applied again.
-      if (current && pendingImport === null) pendingImport = pending;
+      // A save that failed before its write changed nothing, so the same preview can be applied again.
+      // One that threw after the write (a taken control API port, say) has applied the import: its token stays spent.
+      if (pendingImport === null && matchesPreview(getConfig())) pendingImport = pending;
       throw error;
     });
     logInfo('settings imported from a backup file');

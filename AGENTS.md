@@ -374,8 +374,8 @@ first and flagged: capabilities, read-only, command rules, the control API, pers
 URLs, worker access, and the Goal backends and provider (where Goal and Loop send the chat and the
 custom provider key). Nothing is applied then. `settings:importApply {token}` runs that exact
 request through the same save path, and refuses it when a save changed those sections since the
-preview; a token works once, but one whose save failed on its own (a disk error) can be applied
-again. A malformed, foreign or newer-version file is refused before any preview.
+preview; a token works once, unless its save failed before writing anything (a disk error), and
+then it can be applied again. A malformed, foreign or newer-version file is refused before any preview.
 
 The BrowserWindow keeps context isolation, sandbox and web security on; Node integration and
 webviews off. CSP, permission denial, navigation/window restrictions and fixed preload methods

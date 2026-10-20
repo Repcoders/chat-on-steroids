@@ -2253,6 +2253,28 @@ describe('settings backup', () => {
     expect(getConfig().capabilities.command).toBe(false);
   });
 
+  it('spends a preview once a save has applied it, even when a step after the write fails', async () => {
+    const lifecycle = await import('../src/main/window-lifecycle.js');
+    const login = vi.spyOn(lifecycle, 'applyLoginStartup').mockImplementation((_app, enabled) => {
+      if (enabled) throw new Error('login registration refused');
+    });
+    try {
+      await saveConfig({ ...getConfig(), ui: { ...getConfig().ui, startAtLogin: false } });
+      await fs.writeFile(backup(), JSON.stringify({ format: 'chat-on-steroids-settings', version: 1, settings: { ui: { startAtLogin: true } } }), 'utf8');
+      vi.mocked(dialog.showOpenDialog).mockResolvedValueOnce({ canceled: false, filePaths: [backup()] });
+      const shown = await preview();
+      expect(shown.ok, shown.error).toBe(true);
+      expect(await applyImport(shown.data.token)).toMatchObject({ ok: false, error: expect.stringContaining('login registration refused') });
+      expect(getConfig().ui.startAtLogin).toBe(true);
+      // Reverting by hand must not bring the spent preview back to apply the import a second time.
+      const current = getConfig();
+      const reverted = await save({ ...current, ui: { ...current.ui, startAtLogin: false } }, current);
+      expect(reverted.ok, reverted.error).toBe(true);
+      expect(await applyImport(shown.data.token)).toMatchObject({ ok: false, error: 'This import preview is no longer current. Choose the file again.' });
+      expect(getConfig().ui.startAtLogin).toBe(false);
+    } finally { login.mockRestore(); }
+  });
+
   it('refuses a malformed backup before any preview', async () => {
     const wrongType = { format: 'chat-on-steroids-settings', version: 1, settings: { capabilities: { command: 'yes' } } };
     for (const text of ['{ not json', JSON.stringify(wrongType)]) {
