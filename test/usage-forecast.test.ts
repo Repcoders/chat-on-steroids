@@ -2,12 +2,21 @@ import { describe, expect, it } from 'vitest';
 import { usageLimitForecast, usageLimitSegment } from '../src/shared/usage.js';
 
 const minute = 60000;
-const at = (minutes: number, value: number) => ({ at: 1_800_000_000_000 + minutes * minute, value });
+const start = 1_800_000_000_000;
+const at = (minutes: number, value: number, resetMinutes: number | null = null) =>
+  ({ at: start + minutes * minute, value, resetAt: resetMinutes === null ? null : start + resetMinutes * minute });
 
 describe('limit pace estimate', () => {
   it('starts a limit\'s trend again when it goes up, after a reset or a refill', () => {
     expect(usageLimitSegment([at(0, 50), at(10, 40), at(20, 90), at(30, 90), at(40, 80)])).toEqual([at(20, 90), at(30, 90), at(40, 80)]);
     expect(usageLimitSegment([])).toEqual([]);
+  });
+
+  it('starts again after the reported reset passed, even when the new window reads lower', () => {
+    // The window reset at minute 30; by the first reading after it, more had been used than before.
+    expect(usageLimitSegment([at(0, 50, 30), at(20, 40, 30), at(40, 35, 330), at(50, 30, 330)])).toEqual([at(40, 35, 330), at(50, 30, 330)]);
+    // A reset time that moves later while still ahead is the same window.
+    expect(usageLimitSegment([at(0, 50, 100), at(20, 40, 120), at(40, 35, 140)])).toHaveLength(3);
   });
 
   it('says when a limit runs out at the pace of about the last hour', () => {
@@ -19,6 +28,11 @@ describe('limit pace estimate', () => {
 
   it('measures a young window from its start', () => {
     expect(usageLimitForecast([at(0, 30), at(20, 20)], null)?.runsOutAt).toBe(at(60, 0).at);
+  });
+
+  it('measures inside the last hour when the reading before it is from long before', () => {
+    // The app reported nothing for five hours; 50 → 40 in the last ten minutes is the pace.
+    expect(usageLimitForecast([at(0, 60), at(300, 50), at(310, 40)], null)?.runsOutAt).toBe(at(350, 0).at);
   });
 
   it('gives no estimate with too little history, no use, or nothing left', () => {

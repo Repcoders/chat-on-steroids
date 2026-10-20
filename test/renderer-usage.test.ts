@@ -343,11 +343,11 @@ it('shows when a limit runs out at its recent pace, labeled an estimate, with it
   const data: UsageOverview = { contextTokenCap: 256_000, tokens: 0, models: [], days: [], sessions: 1, messages: { through: now, days: [] }, limits: [
     // 60 → 40 in an hour: two more hours at this pace.
     { model: 'gpt-6-pro', scope: 'model', remaining: 40, remainingPercent: null, resetAt: null, windowSeconds: 10800, observedAt: now,
-      readings: [{ at: now - 60 * minute, value: 60 }, { at: now, value: 40 }] },
+      readings: [{ at: now - 60 * minute, value: 60, resetAt: null }, { at: now, value: 40, resetAt: null }] },
     // A slow drop that outlasts the reset in an hour.
     { model: 'Codex', scope: 'codex', remaining: null, remainingPercent: 45, resetAt: now + 60 * minute, windowSeconds: 18000, observedAt: now,
-      readings: [{ at: now - 30 * minute, value: 50 }, { at: now, value: 45 }] },
-    { model: 'deep_research', scope: 'feature', remaining: 5, remainingPercent: null, resetAt: null, windowSeconds: null, observedAt: now, readings: [{ at: now, value: 5 }] }
+      readings: [{ at: now - 30 * minute, value: 50, resetAt: now + 60 * minute }, { at: now, value: 45, resetAt: now + 60 * minute }] },
+    { model: 'deep_research', scope: 'feature', remaining: 5, remainingPercent: null, resetAt: null, windowSeconds: null, observedAt: now, readings: [{ at: now, value: 5, resetAt: null }] }
   ] };
   Object.assign(dom.window, { api: { getUsage: async () => ({ ok: true, data }), getChatModels: async () => ({ ok: true, data: { models: [] } }) } });
   const { initLanguage } = await import('../src/renderer/i18n.js'); initLanguage();

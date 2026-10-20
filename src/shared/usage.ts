@@ -11,8 +11,11 @@ export interface ModelUsage {
   windowSeconds: number | null;
   observedAt: number;
 }
-/** One reading of a limit in that row's own measure: a count when one is reported, otherwise a percent. */
-export interface UsageLimitReading { at: number; value: number }
+/**
+ * One reading of a limit in that row's own measure (a count when one is reported, otherwise a percent),
+ * with the reset that reading reported.
+ */
+export interface UsageLimitReading { at: number; value: number; resetAt: number | null }
 /** A reported limit on the Usage page, with its readings since it last went up. */
 export interface UsageLimit extends ModelUsage { readings?: UsageLimitReading[] }
 export interface UsageModelTokens {
@@ -54,10 +57,17 @@ export function usageMessageFamily(model: string | undefined): UsageMessageFamil
 export function usageLimitKey(row: Pick<ModelUsage, 'scope' | 'model' | 'windowSeconds' | 'remaining'>): string {
   return JSON.stringify([row.scope, row.model, row.windowSeconds, row.remaining !== null ? 'count' : 'percent']);
 }
-/** The readings since the limit last went up (a reset or a refill), oldest first. */
+/**
+ * The readings since the limit last went up or reset, oldest first. A reading taken after the reset
+ * that the previous one reported starts a new window even when its value is lower.
+ */
 export function usageLimitSegment(readings: readonly UsageLimitReading[]): UsageLimitReading[] {
   let start = readings.length - 1;
-  while (start > 0 && readings[start - 1]!.value >= readings[start]!.value) start--;
+  while (start > 0) {
+    const previous = readings[start - 1]!, current = readings[start]!;
+    if (previous.value < current.value || (previous.resetAt !== null && previous.resetAt <= current.at)) break;
+    start--;
+  }
   return readings.slice(Math.max(0, start)).map(reading => ({ ...reading }));
 }
 const PACE_MS = 60 * 60000;
@@ -71,7 +81,11 @@ export function usageLimitForecast(readings: readonly UsageLimitReading[], reset
   const last = segment.at(-1);
   if (!last || last.value <= 0) return null;
   // Measure from the newest reading at least an hour old, or from the window's start when it is younger.
-  const first = segment.findLast(reading => reading.at <= last.at - PACE_MS) ?? segment[0]!;
+  // A baseline from long before the hour (the app was closed, or nothing was reported) would spread
+  // recent use over the gap; then measure from the oldest reading inside the hour instead.
+  const cutoff = last.at - PACE_MS;
+  const older = segment.findLast(reading => reading.at <= cutoff);
+  const first = older && older.at >= cutoff - PACE_MS ? older : segment.find(reading => reading.at > cutoff)!;
   const span = last.at - first.at, used = first.value - last.value;
   if (span < PACE_MIN_MS || used <= 0) return null;
   const runsOutAt = last.at + last.value / (used / span);

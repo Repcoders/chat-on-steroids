@@ -31,14 +31,14 @@ const HISTORY_VERSION = 1;
 const HISTORY_MS = 8 * 86_400_000;
 const HISTORY_EVERY_MS = 5 * 60000;
 const HISTORY_MAX = 600;
-const reading = z.tuple([z.number().finite().positive(), z.number().finite().nonnegative()]);
+const reading = z.tuple([z.number().finite().positive(), z.number().finite().nonnegative(), z.number().finite().positive().nullable()]);
 const historySchema = z.object({ version: z.literal(HISTORY_VERSION), limits: z.array(z.tuple([z.string().max(300), z.array(reading).max(HISTORY_MAX)])).max(500) });
 const history = new Map<string, UsageLimitReading[]>();
 let historyLoad: Promise<void> | null = null;
 function loadHistory(): Promise<void> {
   return historyLoad ??= readDurable('usage-history').then((raw) => {
     const saved = historySchema.safeParse(raw);
-    if (saved.success) for (const [key, rows] of saved.data.limits) history.set(key, rows.map(([at, value]) => ({ at, value })));
+    if (saved.success) for (const [key, rows] of saved.data.limits) history.set(key, rows.map(([at, value, resetAt]) => ({ at, value, resetAt })));
   });
 }
 function recordReadings(rows: readonly ModelUsage[], at: number): void {
@@ -49,8 +49,10 @@ function recordReadings(rows: readonly ModelUsage[], at: number): void {
     const key = usageLimitKey(row);
     const readings = history.get(key) ?? [];
     const last = readings.at(-1);
-    if (last && (at <= last.at || (last.value === value && at - last.at < HISTORY_EVERY_MS))) continue;
-    readings.push({ at, value });
+    if (last && (at < last.at || (last.value === value && at - last.at < HISTORY_EVERY_MS))) continue;
+    // A later snapshot with the same capture time replaces its reading, as it replaced the snapshot.
+    if (last?.at === at) readings.pop();
+    readings.push({ at, value, resetAt: row.resetAt });
     history.set(key, readings.slice(-HISTORY_MAX));
     changed = true;
   }
@@ -59,7 +61,7 @@ function recordReadings(rows: readonly ModelUsage[], at: number): void {
     const kept = readings.filter(entry => at - entry.at <= HISTORY_MS);
     if (kept.length) history.set(key, kept); else history.delete(key);
   }
-  writeDurableSoon('usage-history', { version: HISTORY_VERSION, limits: [...history].map(([key, readings]) => [key, readings.map(entry => [entry.at, entry.value])]) });
+  writeDurableSoon('usage-history', { version: HISTORY_VERSION, limits: [...history].map(([key, readings]) => [key, readings.map(entry => [entry.at, entry.value, entry.resetAt])]) });
 }
 /** ChatGPT's latest reported limits, as the page last showed them. */
 export function reportedUsageLimits(): ModelUsage[] {

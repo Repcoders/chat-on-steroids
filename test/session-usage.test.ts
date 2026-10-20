@@ -197,8 +197,8 @@ describe('passive usage limits and canonical token totals', () => {
     now += 20 * 60000;
     usage.observeUsage([model(40), limit({ remainingPercent: 30 })]);
     const result = await usage.usageOverview();
-    expect(result.limits.find(row => row.scope === 'model')?.readings).toEqual([{ at: start, value: 50 }, { at: now, value: 40 }]);
-    expect(result.limits.find(row => row.scope === 'codex')?.readings).toEqual([{ at: start, value: 40 }, { at: now, value: 30 }]);
+    expect(result.limits.find(row => row.scope === 'model')?.readings).toEqual([{ at: start, value: 50, resetAt: null }, { at: now, value: 40, resetAt: null }]);
+    expect(result.limits.find(row => row.scope === 'codex')?.readings).toEqual([{ at: start, value: 40, resetAt: null }, { at: now, value: 30, resetAt: null }]);
     expect(usage.reportedUsageLimits()[0]).not.toHaveProperty('readings');
     const saved = structuredClone(durable.writeDurableSoon.mock.calls.findLast(([name]) => name === 'usage-history')![1]);
     vi.resetModules();
@@ -209,7 +209,10 @@ describe('passive usage limits and canonical token totals', () => {
     expect((await usage.usageOverview()).limits[0]?.readings?.map(reading => reading.value)).toEqual([50, 40, 35]);
     now += 60000;
     usage.observeUsage([model(60)]); // A refill starts the trend again.
-    expect((await usage.usageOverview()).limits[0]?.readings).toEqual([{ at: now, value: 60 }]);
+    expect((await usage.usageOverview()).limits[0]?.readings).toEqual([{ at: now, value: 60, resetAt: null }]);
+    // A second snapshot with the same capture time replaces the first, in the history too.
+    usage.observeUsage([model(55)], now);
+    expect((await usage.usageOverview()).limits[0]?.readings).toEqual([{ at: now, value: 55, resetAt: null }]);
   });
   it('removes exhausted pre-reset observations without inventing a replenished balance', async () => {
     usage.observeUsage([limit({ model: 'gpt-example', scope: 'model', remaining: 0, remainingPercent: null, resetAt: now + 1000 })]);
