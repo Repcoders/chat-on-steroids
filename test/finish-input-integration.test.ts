@@ -7,7 +7,7 @@ vi.mock('../src/main/mcp/call-context.js', async original => ({ ...await origina
 import { initConfigPath, defaultConfig, saveConfig } from '../src/main/config.js';
 import { initDurableStore, resetDurableForTests, flushDurable } from '../src/main/durable.js';
 import { initSessionStore, createSession, appendEvent, observeSessionModel, resetSessionStoreForTests, flushSessions } from '../src/main/session/store.js';
-import { setGoalSwitchNow, resetGoalStateForTests } from '../src/main/goal.js';
+import { setGoalSwitchNow, resetGoalStateForTests, snapshotGoalSwitches } from '../src/main/goal.js';
 import { announceSessionFinish, settleSessionFinishForTests, setFinishNotifier } from '../src/main/session/finish.js';
 import { listInputs, offerToolInput, resetInputForTests, pendingBrowserInputs, enqueueInput } from '../src/main/session/input.js';
 let directory = '';
@@ -36,6 +36,32 @@ describe('finish producer to durable injection integration', () => {
     expect((await offerToolInput(session.id, conversationId, randomUUID(), Date.now(), true)).messages).toEqual([]);
     await appendEvent(session.id, { source: 'extension', kind: 'turn_end', turnId: 'held-turn', outcome: 'completed', time: Date.now() + 1 });
     expect(await pendingBrowserInputs()).toEqual([expect.objectContaining({ id: head.id })]);
+  });
+
+  it('counts a Loop finish follow-up toward the Loop limits once, when it is handed to ChatGPT', async () => {
+    directory = await makeTempDir('clf-finish-loop-count-');
+    initConfigPath(directory); initDurableStore(directory); initSessionStore(directory);
+    await saveConfig({ ...defaultConfig(), ui: { ...defaultConfig().ui, finishTool: true, finishAction: 'goal' },
+      goal: { ...defaultConfig().goal, loopMaxPasses: 5 } });
+    const conversationId = randomUUID();
+    const session = await createSession({ conversationId, title: 'Loop count' });
+    hooks.caller = { sessionId: session.id, conversationId };
+    await appendEvent(session.id, { source: 'extension', kind: 'turn_start', turnId: 'turn-one', time: 1000 });
+    await observeSessionModel(session.id, conversationId, 'gpt-6-pro', 1500);
+    await setGoalSwitchNow(conversationId, 'loop', true);
+    hooks.followup.mockResolvedValue('Inspect the remaining work');
+    setFinishNotifier(vi.fn());
+    const passes = () => snapshotGoalSwitches().loopRuns?.find(run => run.conversationId === conversationId)?.passes;
+    await announceSessionFinish(session.id, 'Wrapping up');
+    await settleSessionFinishForTests();
+    // Queued is not delivered: the outbox can still cancel it.
+    expect((await listInputs())[0]).toMatchObject({ state: 'queued' });
+    expect(passes()).toBe(0);
+    expect((await offerToolInput(session.id, conversationId, randomUUID(), Date.now() + 10)).messages).toHaveLength(1);
+    expect(passes()).toBe(1);
+    // Offering the same handed-over input again is not another message.
+    await offerToolInput(session.id, conversationId, randomUUID(), Date.now() + 20);
+    expect(passes()).toBe(1);
   });
 
   it.each([

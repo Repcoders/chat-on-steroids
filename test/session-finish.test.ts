@@ -24,6 +24,7 @@ const { initSessionStore, createSession, getSession, rebindSession, appendEvent,
 const { resetRecorderForTests } = await import('../src/main/session/recorder.js');
 const { announceSessionFinish: announceTransport, sessionFinishDeadline, settleSessionFinishForTests, requestSessionFinishGoal, sessionFinishWaiting, setFinishNotifier, releaseSessionFinish, sessionFinishHeld, getSessionFinishDraft } = await import('../src/main/session/finish.js');
 const { setGoalSwitchNow, automaticFinishEnabled, snapshotGoalSwitches, restoreGoalSwitches, registerGoalDecisionChat } = await import('../src/main/goal.js');
+const { loopMessageDelivered } = await import('../src/main/session/automatic-replies.js');
 const { resetAgentsForTests, spawn, bindConversation, finishAgent, waitingForSubAgents } = await import('../src/main/agents.js');
 const { makeTempDir, removeTempDir } = await import('./helpers.js');
 async function announceSessionFinish(sessionId: string, summary: string): Promise<string> {
@@ -212,9 +213,8 @@ describe('session finish turn identity', () => {
     await setGoalSwitchNow(hooks.caller.conversationId, 'loop', true);
     await announceSessionFinish(sessionId, 'First pass done');
     expect(hooks.enqueue).toHaveBeenCalledOnce();
-    // The queued follow-up counts once ChatGPT has it.
-    const [queued, owner] = hooks.enqueue.mock.calls[0]!;
-    hooks.delivered.push({ ...queued, finishOwner: owner, state: 'sent', createdAt: Date.now() });
+    // The outbox's receipt once ChatGPT has the queued follow-up.
+    loopMessageDelivered(hooks.caller.conversationId);
     await appendEvent(sessionId, { source: 'extension', kind: 'progress', progressId: 'second-pass', turnId: 'turn-one', time: 2200,
       message: { text: 'Worked through the queued Loop message.', chars: 39, truncated: false } });
     await announceSessionFinish(sessionId, 'Second pass done');
@@ -223,18 +223,6 @@ describe('session finish turn identity', () => {
     expect(automaticFinishEnabled(hooks.caller.conversationId)).toBe(false);
     expect((await getSession(sessionId))?.finishTurn?.released).toBe(true);
     expect(JSON.stringify(await readRecentEvents(sessionId, 20, { kinds: ['note'] }))).toContain('Loop stopped after 1 automatic message,');
-  });
-  it('does not count a Loop follow-up toward the limit when it never reached ChatGPT', async () => {
-    await saveConfig({ ...getConfig(), goal: { ...getConfig().goal, loopMaxPasses: 1 } });
-    await setGoalSwitchNow(hooks.caller.conversationId, 'loop', true);
-    await announceSessionFinish(sessionId, 'First pass done');
-    const [queued, owner] = hooks.enqueue.mock.calls[0]!;
-    hooks.delivered.push({ ...queued, finishOwner: owner, state: 'cancelled', createdAt: Date.now() });
-    await appendEvent(sessionId, { source: 'extension', kind: 'progress', progressId: 'second-pass', turnId: 'turn-one', time: 2200,
-      message: { text: 'Kept working after the cancelled follow-up.', chars: 43, truncated: false } });
-    await announceSessionFinish(sessionId, 'Second pass done');
-    expect(hooks.followup).toHaveBeenCalledTimes(2);
-    expect(automaticFinishEnabled(hooks.caller.conversationId)).toBe(true);
   });
   it.each(['goal', 'loop'] as const)('revokes an in-flight %s decision across a mode switch and switch back', async mode => {
     await setGoalSwitchNow(hooks.caller.conversationId, mode, true);

@@ -10,6 +10,7 @@ import { getConfig } from '../config.js';
 import { randomUUID } from 'node:crypto';
 import { userTitle } from './title.js';
 import { readDurable, writeDurableNow, writeDurableSoon } from '../durable.js';
+import { loopMessageDelivered } from './automatic-replies.js';
 import { getSession, findSessionByConversation, createSession, deleteSession, rebindSession, conversationWasSuperseded, readRecentEvents, listUsageSessions, turnHasMcpCall, questionHasMcpCall, sessionDirectoryMissing, readCompletedFinal, readLatestUserMessage, readEvents } from './store.js';
 import { noteEditReplacement } from './edits.js';
 import { userPromptText } from '../../shared/user-prompt.js';
@@ -606,6 +607,17 @@ export function retryUnclaimedInput(id: string): Promise<InputEntry | null> {
     return next;
   });
 }
+/** ChatGPT has this input: in a tool result, or sent through the composer. */
+const handedOver = (state: InputEntry['state'] | undefined): boolean => state === 'tool' || state === 'sent';
+/** An automatic Loop finish follow-up counts toward Loop's limits once, when it is handed over. */
+function noteLoopFollowups(before: readonly InputEntry[], next: readonly InputEntry[]): void {
+  const earlier = new Map(before.map(row => [row.id, row.state]));
+  for (const row of next) {
+    if (row.finishOwner?.mode !== 'loop' || row.finishOwner.userRequested || !handedOver(row.state) || handedOver(earlier.get(row.id))) continue;
+    if (row.conversationId) loopMessageDelivered(row.conversationId);
+    else if (row.sessionId) void getSession(row.sessionId).then(session => { if (session?.conversationId) loopMessageDelivered(session.conversationId); }, () => undefined);
+  }
+}
 async function commit(next: InputEntry[]): Promise<void> {
   // A temporary planner keeps only ownership metadata across restart, never its task or answer.
   const durableRows = (rows: InputEntry[]) => rows.map(row => row.lifetime === 'temporary-planner'
@@ -617,7 +629,9 @@ async function commit(next: InputEntry[]): Promise<void> {
     writeDurableSoon(STATE, durableRows(entries ?? []));
     throw error;
   }
+  const before = entries ?? [];
   entries = next;
+  noteLoopFollowups(before, next);
   wakeBrowserWork();
   for (const listener of inputListeners) { try { listener(); } catch { /* observer only */ } }
   try { deliveryHooks?.changed(); } catch { /* a detached renderer does not undo a durable commit */ }

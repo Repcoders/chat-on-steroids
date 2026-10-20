@@ -17,9 +17,16 @@ const PER_CHAT = 4;
 const handed = new Map<string, Array<{ text: string; at: number; loop?: true }>>();
 let loopDelivered: ((conversationId: string) => void) | null = null;
 
-/** Told once for each noted Loop follow-up that arrives in its chat: the receipt Loop's limits count. */
+/**
+ * Told once for each automatic Loop message that reached its chat: a noted after-turn follow-up
+ * the recorder took back, or a finish follow-up the outbox handed over. Loop's limits count these.
+ */
 export function onLoopReplyDelivered(listener: ((conversationId: string) => void) | null): void {
   loopDelivered = listener;
+}
+
+export function loopMessageDelivered(conversationId: string): void {
+  try { loopDelivered?.(conversationId); } catch { /* counting never blocks delivery or recording */ }
 }
 
 function comparable(text: string): string {
@@ -50,7 +57,7 @@ function takeFrom(conversationId: string, text: string, now: number): boolean {
   if (at < 0) return false;
   const [taken] = kept.splice(at, 1);
   if (!kept.length) handed.delete(conversationId);
-  if (taken?.loop) try { loopDelivered?.(conversationId); } catch { /* counting never blocks recording */ }
+  if (taken?.loop) loopMessageDelivered(conversationId);
   return true;
 }
 

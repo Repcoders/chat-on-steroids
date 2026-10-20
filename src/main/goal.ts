@@ -1004,8 +1004,8 @@ type GoalSwitchRow = { enabled: boolean; mode: GoalMode; afterTurn?: boolean; at
   context?: { count: number; hash: string; instructions: string } };
 const goalSwitches = new Map<string, GoalSwitchRow>();
 /**
- * One chat's Loop run since it was switched on: after-turn Loop messages that arrived in the
- * chat, and when the run began. Finish follow-ups are counted from their delivered inputs.
+ * One chat's Loop run since it was switched on: automatic Loop messages that reached the chat,
+ * and when the run began.
  */
 type LoopRun = { passes: number; since: number };
 const loopRuns = new Map<string, LoopRun>();
@@ -2574,7 +2574,7 @@ function loopRunning(conversationId: string): boolean {
   return held.enabled && held.mode === 'loop';
 }
 
-/** The recorder saw a Loop follow-up arrive in this chat: one pass toward the limits in Settings. */
+/** A Loop message reached this chat (see automatic-replies.ts): one pass toward the limits in Settings. */
 onLoopReplyDelivered(conversationId => {
   if (!loopRunning(conversationId)) return;
   const run = loopRunFor(conversationId);
@@ -2605,11 +2605,7 @@ export async function stopLoopAtLimit(conversationId: string, sessionId: string)
   const { loopMaxPasses = 0, loopMaxMinutes = 0 } = getConfig().goal;
   if (!loopMaxPasses && !loopMaxMinutes) return false;
   const run = loopRunFor(conversationId);
-  const { listInputs } = await import('./session/input.js');
-  // Finish follow-ups go through the outbox; one counts once ChatGPT has it.
-  const finished = (await listInputs()).filter(entry => entry.sessionId === sessionId && entry.finishOwner?.mode === 'loop' &&
-    !entry.finishOwner.userRequested && (entry.state === 'tool' || entry.state === 'sent') && entry.createdAt >= run.since).length;
-  const passes = run.passes + finished;
+  const passes = run.passes;
   const reached = loopMaxPasses > 0 && passes >= loopMaxPasses
     ? `after ${passes} automatic ${passes === 1 ? 'message' : 'messages'}`
     : loopMaxMinutes > 0 && Date.now() - run.since >= loopMaxMinutes * 60_000 ? `after ${loopMaxMinutes} minutes` : null;
