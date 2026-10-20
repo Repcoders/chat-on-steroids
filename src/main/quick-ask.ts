@@ -38,6 +38,8 @@ let activateOwner: (() => void) | null = null;
 let win: BrowserWindow | null = null;
 let registered = false;
 let ipcReady = false;
+/** Between start and shutdown; a shortcut press outside it opens nothing. */
+let started = false;
 let stopSessions: (() => void) | null = null;
 /** The one question this window waits on; a newer one replaces it. */
 let pending: { sessionId: string; sentAt: number } | null = null;
@@ -59,13 +61,18 @@ async function state(): Promise<QuickAskState> {
   return { ...palette(), projects };
 }
 
-/** The composer's default for a fresh ordinary chat, when the account still offers it; else ChatGPT's own. */
+/**
+ * The composer's default for a fresh ordinary chat, when the account still offers it; else ChatGPT's
+ * own. Without a saved effort the composer picks High where the model has it, else its first.
+ */
 function defaultModel(): { model: string | null; reasoningEffort: ReasoningEffort | null } {
   const { defaultChatModel, defaultChatReasoning } = getConfig().ui;
   const catalog = getChatModels();
   const choice = defaultChatModel && catalog.state === 'ready' ? resolveChatModel(catalog.models, defaultChatModel) : undefined;
-  return choice && defaultChatReasoning && choice.efforts.includes(defaultChatReasoning)
-    ? { model: choice.id, reasoningEffort: defaultChatReasoning } : { model: null, reasoningEffort: null };
+  const effort = !choice ? undefined : defaultChatReasoning
+    ? choice.efforts.find(item => item === defaultChatReasoning)
+    : choice.efforts.includes('high') ? 'high' : choice.efforts[0];
+  return choice && effort ? { model: choice.id, reasoningEffort: effort } : { model: null, reasoningEffort: null };
 }
 
 async function send(raw: unknown): Promise<{ sessionId: string; error: string | null }> {
@@ -146,6 +153,7 @@ function ensureWindow(): BrowserWindow {
 
 /** The shortcut toggles the window, centered near the top of the display under the pointer. */
 export function toggleQuickAsk(): void {
+  if (!started) return;
   const current = win && !win.isDestroyed() ? win : null;
   if (current?.isVisible() && current.isFocused()) { current.hide(); return; }
   const target = ensureWindow();
@@ -178,7 +186,7 @@ export function setQuickAskShortcut(enabled: boolean): void {
 }
 
 export function startQuickAsk(getOwner: () => BrowserWindow | null, requestOwner: () => void): void {
-  ownerWindow = getOwner; activateOwner = requestOwner;
+  ownerWindow = getOwner; activateOwner = requestOwner; started = true;
   registerIpc();
   stopSessions ??= onSessionChange(change => {
     if (pending && (change.allTranscripts || change.sessionIds?.includes(pending.sessionId))) void checkPending();
@@ -189,6 +197,7 @@ export function startQuickAsk(getOwner: () => BrowserWindow | null, requestOwner
 }
 
 export function shutdownQuickAsk(): void {
+  started = false;
   if (registered) globalShortcut.unregister(QUICK_ASK_SHORTCUT);
   registered = false;
   stopSessions?.(); stopSessions = null;

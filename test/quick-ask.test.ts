@@ -13,7 +13,8 @@ const mocks = vi.hoisted(() => ({
   send: vi.fn(),
   session: null as Partial<SessionSummary> | null,
   answer: null as string | null,
-  sessionChange: null as ((change: SessionChange) => void) | null
+  sessionChange: null as ((change: SessionChange) => void) | null,
+  catalog: { state: 'unknown', models: [] } as any
 }));
 vi.mock('electron', async () => {
   const { EventEmitter } = await import('node:events');
@@ -60,7 +61,7 @@ vi.mock('electron', async () => {
 });
 vi.mock('../src/main/config.js', () => ({ getConfig: () => mocks.config }));
 vi.mock('../src/main/logger.js', () => ({ logInfo: vi.fn(), logWarn: vi.fn() }));
-vi.mock('../src/main/chat-models.js', () => ({ getChatModels: () => ({ state: 'unknown', models: [] }) }));
+vi.mock('../src/main/chat-models.js', () => ({ getChatModels: () => mocks.catalog }));
 vi.mock('../src/main/projects.js', () => ({ listProjects: async () => mocks.projects }));
 vi.mock('../src/main/session/start-input.js', () => ({ sendDesktopInput: mocks.send }));
 vi.mock('../src/main/session/recorder.js', () => ({
@@ -70,7 +71,7 @@ vi.mock('../src/main/session/store.js', () => ({
   getSession: async () => mocks.session,
   readRecentEvents: async () => mocks.answer === null ? [] : [{ kind: 'assistant_message', message: { text: mocks.answer, truncated: false, chars: mocks.answer.length }, final: true }]
 }));
-import { QUICK_ASK_SHORTCUT, setQuickAskShortcut, shutdownQuickAsk, startQuickAsk } from '../src/main/quick-ask.js';
+import { QUICK_ASK_SHORTCUT, setQuickAskShortcut, shutdownQuickAsk, startQuickAsk, toggleQuickAsk } from '../src/main/quick-ask.js';
 
 const PROJECT = '6c0b1f9e-2a7d-4c3e-9f1a-000000000001';
 const owner = { isDestroyed: () => false, webContents: { isDestroyed: () => false, isLoadingMainFrame: () => false, send: vi.fn(), once: vi.fn() } };
@@ -81,7 +82,7 @@ beforeEach(() => {
   mocks.send.mockReset(); owner.webContents.send.mockClear(); requestOwner.mockClear();
   mocks.config = { ui: { quickAsk: false, theme: 'dark' } };
   mocks.projects = [{ id: PROJECT, name: 'demo-app', path: '/home/you/demo-app', createdAt: 1 }];
-  mocks.session = null; mocks.answer = null;
+  mocks.session = null; mocks.answer = null; mocks.catalog = { state: 'unknown', models: [] };
   mocks.send.mockImplementation(async (input: { id: string }) => ({ ...input, sessionId: input.id, state: 'queued', createdAt: Date.now() }));
 });
 afterEach(() => shutdownQuickAsk());
@@ -172,4 +173,37 @@ it('says a turn that stopped without an answer ended that way', async () => {
   mocks.session = { id: sessionId, activeTurnId: null, lastTurnEndAt: Date.now() + 1, lastTurnOutcome: 'stopped' };
   mocks.sessionChange!({ sessionIds: [sessionId] });
   await vi.waitFor(() => expect(win.webContents.send).toHaveBeenCalledWith('quick-ask:answer', { sessionId, text: null }));
+});
+
+it('opens nothing once shut down, so a press while the app quits cannot hold the quit open', () => {
+  mocks.config.ui.quickAsk = true;
+  startQuickAsk(() => owner as any, requestOwner);
+  const callback = mocks.shortcuts.get(QUICK_ASK_SHORTCUT)!;
+  shutdownQuickAsk();
+  expect(mocks.shortcuts.has(QUICK_ASK_SHORTCUT)).toBe(false);
+  // A press Electron had already queued before the release.
+  callback(); toggleQuickAsk();
+  expect(mocks.windows).toHaveLength(0);
+});
+
+it('sends with the composer default model, and High when no effort was saved', async () => {
+  mocks.config.ui.quickAsk = true;
+  mocks.catalog = { state: 'ready', models: [{ id: 'gpt-6', label: 'GPT-6', efforts: ['medium', 'high'] }, { id: 'gpt-5.6', label: 'GPT-5.6', efforts: ['low', 'medium'] }] };
+  startQuickAsk(() => owner as any, requestOwner);
+  const win = press();
+  const send = mocks.handlers.get('quick-ask:send')!;
+  const sent = () => mocks.send.mock.calls.at(-1)![0];
+  mocks.config.ui.defaultChatModel = 'gpt-6'; mocks.config.ui.defaultChatReasoning = 'medium';
+  await send({ sender: win.webContents }, { text: 'One', projectId: null });
+  expect(sent()).toMatchObject({ model: 'gpt-6', reasoningEffort: 'medium' });
+  delete mocks.config.ui.defaultChatReasoning;
+  await send({ sender: win.webContents }, { text: 'Two', projectId: null });
+  expect(sent()).toMatchObject({ model: 'gpt-6', reasoningEffort: 'high' });
+  mocks.config.ui.defaultChatModel = 'gpt-5.6';
+  await send({ sender: win.webContents }, { text: 'Three', projectId: null });
+  expect(sent()).toMatchObject({ model: 'gpt-5.6', reasoningEffort: 'low' });
+  // A saved effort the model no longer offers leaves the choice to ChatGPT, as before.
+  mocks.config.ui.defaultChatReasoning = 'high';
+  await send({ sender: win.webContents }, { text: 'Four', projectId: null });
+  expect(sent()).toMatchObject({ model: null, reasoningEffort: null });
 });

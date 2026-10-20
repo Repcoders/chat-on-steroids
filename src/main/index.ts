@@ -711,6 +711,9 @@ app.on('before-quit', () => {
   // From this point `will-quit` owns a bounded teardown. A Dock click/relaunch arriving while
   // that sequence drains must not recreate or reveal a window after the tray has disappeared.
   windowActivation.disable();
+  // The quick-ask shortcut is an activation source too: released here, it cannot open a window
+  // that the closing pass has already gone by.
+  shutdownQuickAsk();
   usageWarmup.abort();
   void stopAgentRuntimeGc();
 });
@@ -741,7 +744,6 @@ app.on('will-quit', (event) => {
   if (shutdownStarted) return;
   shutdownStarted = true;
   stopInputStartup();
-  shutdownQuickAsk();
   tray?.destroy();
   tray = null;
   // A person who pressed Restart and install sees what happens until the installer takes over;
