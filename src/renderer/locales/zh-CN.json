@@ -2790,5 +2790,10 @@
   "{0} sub-agents need attention": "{0} 个子智能体需要处理",
   "A tool call from an untrusted chat was refused. To allow it, open this chat's ⋯ menu in the sidebar (or right-click its row) and choose Trust chat.": "来自未受信任聊天的工具调用已被拒绝。要允许它，请在侧边栏中打开此聊天的 ⋯ 菜单（或右键点击其所在行），然后选择“信任聊天”。",
   "A tool call from a worker whose main chat is not currently allowed was refused. Open that main chat's ⋯ menu in the sidebar and choose Trust chat if it is untrusted, or Release chat if it is blocked.": "一个工作者的工具调用已被拒绝，因为它的主聊天当前未被允许。请在侧边栏中打开该主聊天的 ⋯ 菜单，若未受信任则选择“信任聊天”，若已被阻止则选择“解除阻止”。",
-  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "一个由应用创建的工作者的工具调用已被拒绝，因为启动它的主聊天尚未得到确认。请回到侧边栏中的该主聊天；其所在行出现后，打开 ⋯ 菜单并选择“信任聊天”（若已被阻止则选择“解除阻止”），待工作者在那里连接或恢复后再重试。"
+  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "一个由应用创建的工作者的工具调用已被拒绝，因为启动它的主聊天尚未得到确认。请回到侧边栏中的该主聊天；其所在行出现后，打开 ⋯ 菜单并选择“信任聊天”（若已被阻止则选择“解除阻止”），待工作者在那里连接或恢复后再重试。",
+  "Quick ask": "快速提问",
+  "Waiting for the answer…": "正在等待回答…",
+  "The chat ended without an answer. Open it to see what happened.": "对话结束了，但没有回答。打开它看看发生了什么。",
+  "Open chat": "打开对话",
+  "{0} opens a small window from any app. Ask a question for a project there and read the answer; the chat also appears in the sidebar.": "{0} 可在任何应用中打开一个小窗口。在其中针对某个项目提问并阅读回答；对话也会出现在侧边栏中。"
 }

@@ -46,6 +46,7 @@ import { initSkillsPath } from './skills.js';
 import { initUvRuntime } from './plugins/uv-runtime.js';
 import { initPetLibrary } from './pet-library.js';
 import { shutdownPetOverlay, startPetOverlay } from './pet-overlay.js';
+import { shutdownQuickAsk, startQuickAsk } from './quick-ask.js';
 import { usageOverview } from './session/usage.js';
 import {
   flushRecorder,
@@ -264,7 +265,8 @@ function createWindow(): void {
   // corpse. Dropping it is what makes those paths take their existing null branch.
   window.on('closed', () => {
     window = null;
-    if (!quitting && process.platform !== 'darwin' && !getConfig().ui.minimizeToTray) void shutdownPetOverlay();
+    // A hidden pet overlay or quick-ask window still counts as a window and would keep the app open.
+    if (!quitting && process.platform !== 'darwin' && !getConfig().ui.minimizeToTray) { void shutdownPetOverlay(); shutdownQuickAsk(); }
   });
 
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -656,6 +658,9 @@ void app.whenReady().then(async () => {
   // The desktop pet overlay is independent of the main window once started; it stays hidden
   // until a pet is enabled.
   await startPetOverlay(() => window, () => windowActivation.request());
+  // Opt-in; the shortcut is registered only while `ui.quickAsk` is on (ipc.ts follows changes).
+  // Startup awaits above; a quit during them must not start the shortcut after shutdown.
+  if (!quitting) startQuickAsk(() => window, () => windowActivation.request());
   // macOS `activate` can fire on first launch, so do not wire it at module load where it could
   // create a BrowserWindow before Electron is ready. Once the initial window path is established,
   // Dock activation/re-launch can safely recreate or focus it.
@@ -710,6 +715,9 @@ app.on('before-quit', () => {
   // From this point `will-quit` owns a bounded teardown. A Dock click/relaunch arriving while
   // that sequence drains must not recreate or reveal a window after the tray has disappeared.
   windowActivation.disable();
+  // The quick-ask shortcut is an activation source too: released here, it cannot open a window
+  // that the closing pass has already gone by.
+  shutdownQuickAsk();
   usageWarmup.abort();
   void stopAgentRuntimeGc();
 });

@@ -216,6 +216,7 @@ define the tool/config/wire contract. README and worklogs are secondary and can 
 | Follow-up behavior | Join the running turn (`ui.followUp: 'steer'`; a broken value loads as that). | Codex's "Follow-up behavior". Each running turn starts the composer's delivery choice from this default (`queue` selects After this turn); a choice made in the send menu lasts for that turn. Cmd/Ctrl+Shift+Enter sends the other way (`sendComposer('auto' \| 'after-turn')`); with no running turn it is an ordinary send. |
 | Enter key | Enter sends (`ui.enterSends`, missing means true). | Codex's "Enter key behavior". With `false`, Enter adds a line in the composer and Cmd/Ctrl+Enter sends; Shift+Enter always adds a line and Cmd/Ctrl+Shift+Enter keeps sending the other way (Follow-up behavior). |
 | Keep awake | The computer (`ui.keepAwake` on, missing means on; `ui.keepScreenAwake` off). | Codex's "Prevent sleep while running". One select: Off / The computer / The computer and screen. `keep-awake.ts` holds `powerSaveBlocker` (`prevent-app-suspension`: the system stays awake, the screen may sleep; with `keepScreenAwake`, `prevent-display-sleep`, because Windows Modern Standby laptops go to standby once the screen turns off whatever else is held, and the hold is swapped when the choice changes) while any session is working by `sessionWorkingAt` with the bridge's `sessionActivityExpiresAt` deadline, so a chat that died mid-turn releases it when its deadline passes. Refreshed on session changes, at the nearest deadline, every 60 s and when the setting changes. |
+| Quick ask | Off (`ui.quickAsk`, missing means off). | When on, `quick-ask.ts` registers one global shortcut (`QUICK_ASK_SHORTCUT`: Command+Shift+Space on macOS, Control+Alt+Space elsewhere) at startup and on the save that turns it on, and releases it on the save that turns it off and at quit; a press Electron queued before that, or a window still loading, then opens nothing. A shortcut another app holds is logged at startup and thrown from the save that turns it on, which still keeps the setting. Quitting (`before-quit`) releases the shortcut and closes the window before teardown, so a press during quit opens nothing; closing the main window without Keep running when closed (Windows/Linux) does the same, since a hidden window would keep the app open. See §18 Renderer and IPC. |
 | Browser bridge port | Auto. | `ui.browserBridgePort` accepts Auto or 8765–8769. Auto falls back to 18765–18769, then 38765–38769 (`BROWSER_BRIDGE_AUTO_PORTS`, mirrored by the extension's `PORTS`; #1314: Windows reserved the primary range). Effective `CLF_BRIDGE_PORTS` overrides it and disables the Settings control. |
 | Background chats | On. | Omitted legacy settings use On; explicit saved On/Off remains exact. Cold Windows startup requests a minimized browser window. |
 | Background placement | Window. | `ui.backgroundPlacement` `'window'` / `'group'` (an unknown saved value reads as `'window'`), published in `/status` as `backgroundPlacement`. Group mode puts every background tab in one collapsed "Chat On Steroids" tab group in the last-focused normal window (never the background window, never incognito), then keeps using it; failures fall back to the minimized window. No follow and no compaction tab selection in the user's window (#128). |
@@ -233,6 +234,7 @@ Paths in this section are repository-relative. Most mechanisms have `main`, `sha
 | Area | Files and responsibility |
 | --- | --- |
 | App shell | `src/main/index.ts`, `window-lifecycle.ts`, `window-layout.ts`, `window-icon.ts`, `tray-image.ts`, `shutdown.ts`: bootstrap, activation, geometry, tray and bounded exit. |
+| Quick ask | `src/main/quick-ask.ts`, `src/preload/quick-ask.ts`, `src/renderer/quick-ask.{html,ts,css}`, `src/shared/quick-ask.ts`: opt-in global shortcut, its small window, and a new chat's first message through `sendDesktopInput`. Its one durable value is the renderer's last picked project (`localStorage` `cos.quickAsk.project`, see §18). |
 | Config/security | `src/main/config.ts`, `platform.ts`, `secrets.ts`, `sandbox.ts`, `redaction.ts`; `src/shared/types.ts`, `capabilities.ts`: permission and host projection, secrets, approved paths. |
 | Publication | `src/main/connection.ts`, `mcp/server.ts`, `mcp/surfaces.ts`, `tunnel/{index,health,locate}.ts`, `diagnostics.ts`: endpoint/tunnel generation and truthful status. |
 | Local control API | `src/main/control-api.ts`, `src/main/control-reads.ts`, `src/main/control-actions.ts`, `src/shared/control-api.ts`: opt-in loopback listener, per-launch token, allowlisted read-only projections of other owners, and (behind `controlApi.allowActions`) send and cancel through the outbox and Stop through `stopSessionTurn`. Owns no fact. The session list and event page it serves come from `session/read-model.ts`, the same functions the renderer's IPC handlers call. |
@@ -4031,6 +4033,24 @@ On Windows the desktop Pets host must receive a bounded native shape before it i
 shown, and it stays bounded to the visible pet/tray/menu regions while click-through.
 The `pet-overlay:bounds` projection advertises that idle-shape requirement to the
 renderer; Linux/macOS retain their existing full click-through visual-surface contract.
+
+Quick ask (`ui.quickAsk`) is a second sandboxed window with its own fixed preload,
+`preload/quick-ask.ts` (`quickAskApi`: `state`, `send`, `openChat`, `hide`, `onShown`, `onAnswer`).
+`main/quick-ask.ts` answers only that window's `webContents`: `quick-ask:state` (theme colors and the
+projects the sidebar lists, `shared/quick-ask.ts` `QuickAskState`), `quick-ask:send` `{ text, projectId }`
+and the `quick-ask:openChat` / `quick-ask:hide` messages. Send is not a second send path: it files a
+new chat's first message through `sendDesktopInput` (`sessionId: null`, `mode: 'auto'`, the
+composer's `ui.defaultChatModel`/`defaultChatReasoning` when the catalog still offers them, with
+High or the model's first effort when no effort is saved, as the composer picks; else Automatic), and the outbox owns it from there. The window waits on that one chat: on its session
+changes, once `lastTurnEndAt` is past the send with no active turn, it pushes `quick-ask:answer`
+`{ sessionId, text }` with the newest recorded assistant message, or `text: null` for a turn that
+ended another way than completed (an interrupted turn, which a fresh turn for long work causes, keeps
+it waiting). The page draws that Markdown with a small tag allowlist through `sanitize-html.ts`; links
+read as their text. Open chat focuses the main window and selects the chat with `session:write`, the
+way a turn-done notification does; `quick-ask:openChat` opens only the chat this window started. The window hides on blur and Escape and keeps its last answer. The page remembers the last picked
+project in `localStorage` `cos.quickAsk.project` (owner: `renderer/quick-ask.ts`; a per-install
+convenience that survives restarts, never sent to main or the outbox). A saved id that is not in
+`QuickAskState.projects` any more selects No project instead.
 
 `renderer/main.ts` owns the shell/setup/settings; `chat.ts` owns sessions, composer and timeline.
 Projects, workers, plans, model choice, usage and plugins have focused modules (§4). The renderer

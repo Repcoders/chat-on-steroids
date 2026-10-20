@@ -22,6 +22,7 @@ export default defineConfig({
         input: {
           index: resolve(__dirname, 'src/preload/index.ts'),
           'pet-overlay': resolve(__dirname, 'src/preload/pet-overlay.ts'),
+          'quick-ask': resolve(__dirname, 'src/preload/quick-ask.ts'),
           'cos-browser': resolve(__dirname, 'src/preload/cos-browser.ts'),
           'cos-browser-worker': resolve(__dirname, 'src/preload/cos-browser-worker.ts'),
           'cos-browser-sign-in': resolve(__dirname, 'src/preload/cos-browser-sign-in.ts')
@@ -49,6 +50,7 @@ export default defineConfig({
         input: {
           index: resolve(__dirname, 'src/renderer/index.html'),
           'pet-overlay': resolve(__dirname, 'src/renderer/pet-overlay.html'),
+          'quick-ask': resolve(__dirname, 'src/renderer/quick-ask.html'),
           'update-progress': resolve(__dirname, 'src/renderer/update-progress.html'),
           'cos-browser': resolve(__dirname, 'src/renderer/cos-browser.html'),
           'cos-browser-sign-in': resolve(__dirname, 'src/renderer/cos-browser-sign-in.html')

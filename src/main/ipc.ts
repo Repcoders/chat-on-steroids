@@ -44,6 +44,7 @@ import { wakeBrowserUrl } from './browser-startup.js';
 import { registerPluginIpc } from './plugins-ipc.js';
 import { deletePet, importPet, loadPetAsset, petLibraryState, setPetEnabled, setPetFavorite } from './pet-library.js';
 import { petOverlayControlState, refreshPetOverlayActivities, refreshPetOverlayAppearance, setPetOverlayVisible } from './pet-overlay.js';
+import { setQuickAskShortcut } from './quick-ask.js';
 import { confirmedPluginSchemas, pluginRefreshPublications, pluginRefreshStatuses, onPluginRefreshChange, pluginRefreshUnreadable, resetPluginRefreshLedger } from './plugin-refresh.js';
 /**
  * IPC surface.
@@ -246,6 +247,7 @@ const settingsPatch = z.object({
     minimizeToTray: z.boolean(),
     autoConnect: z.boolean(),
     startAtLogin: z.boolean().optional(),
+    quickAsk: z.boolean().optional(),
     turnNotifications: z.boolean().optional(),
     rotateTurnMinutes: z.number().int().min(0).max(120).optional(),
     localAppUsage: z.boolean().optional(),
@@ -433,6 +435,7 @@ function mergeSettings(current: Config, base: SettingsSnapshot, wanted: Settings
       minimizeToTray: pick(current.ui.minimizeToTray, base.ui.minimizeToTray, wanted.ui.minimizeToTray),
       autoConnect: pick(current.ui.autoConnect, base.ui.autoConnect, wanted.ui.autoConnect),
       startAtLogin: pick(current.ui.startAtLogin, base.ui.startAtLogin, wanted.ui.startAtLogin),
+      quickAsk: pick(current.ui.quickAsk, base.ui.quickAsk, wanted.ui.quickAsk),
       turnNotifications: pick(current.ui.turnNotifications, base.ui.turnNotifications, wanted.ui.turnNotifications),
       rotateTurnMinutes: pick(current.ui.rotateTurnMinutes, base.ui.rotateTurnMinutes, wanted.ui.rotateTurnMinutes),
       localAppUsage: pick(current.ui.localAppUsage, base.ui.localAppUsage, wanted.ui.localAppUsage),
@@ -803,6 +806,12 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
       try { await (next.controlApi.enabled ? startControlApi() : stopControlApi()); }
       catch (error) { controlApiError = error; }
     }
+    // The quick-ask shortcut, the same way: a shortcut another app holds is reported, the save stays.
+    let quickAskError: unknown;
+    if ((before.ui.quickAsk === true) !== (next.ui.quickAsk === true)) {
+      try { setQuickAskShortcut(next.ui.quickAsk === true); }
+      catch (error) { quickAskError = error; }
+    }
     // Stable connector URLs (#924): turning it on keeps the URLs running now, so nothing has to be
     // re-entered in ChatGPT; turning it off forgets them, and the next start rotates again.
     if ((before.mcp.persistentUrls === true) !== (next.mcp.persistentUrls === true)) {
@@ -821,6 +830,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     if (authorityPersistError) throw authorityPersistError;
     if (loginStartupError) throw loginStartupError;
     if (controlApiError) throw controlApiError;
+    if (quickAskError) throw quickAskError;
     return buildState();
   });
 

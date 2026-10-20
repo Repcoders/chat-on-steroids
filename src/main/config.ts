@@ -369,6 +369,8 @@ const configSchema = z.object({
     minimizeToTray: z.boolean(),
     autoConnect: z.boolean(),
     startAtLogin: z.boolean().optional().default(false),
+    /** A global shortcut opens the quick-ask window from any app. Off by default. */
+    quickAsk: z.boolean().optional().default(false),
     turnNotifications: z.boolean().optional().default(true),
     // #1402: a fresh turn after this many minutes of one (0 = off). A malformed value keeps the default.
     rotateTurnMinutes: z.number().int().min(0).max(120).optional().default(30).catch(30),

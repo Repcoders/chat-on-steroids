@@ -1,0 +1,38 @@
+/* The quick-ask window (src/main/quick-ask.ts): the app's own type, ink and accent. */
+:root { --page: #f4f4f5; --ink: #0c0c0e; --soft: #56565e; --edge: #dcdce1; --field: #ffffff; --accent: #486f9d; color-scheme: light; }
+:root[data-theme="dark"] { --page: #181818; --ink: #eceeeb; --soft: #b5b7b3; --edge: #363834; --field: #222322; --accent: #b0cbed; color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--page); color: var(--ink); overflow: hidden;
+  font: 13.5px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased;
+}
+.quick-ask { display: flex; flex-direction: column; gap: 12px; height: 100%; padding: 14px; border: 1px solid var(--edge); }
+.ask { display: flex; flex-direction: column; gap: 8px; -webkit-app-region: drag; }
+textarea, select, button { font: inherit; color: inherit; -webkit-app-region: no-drag; }
+textarea {
+  width: 100%; resize: none; padding: 10px 12px; border: 1px solid var(--edge); border-radius: 10px;
+  background: var(--field); outline: none; font-size: 14.5px;
+}
+textarea:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.row { display: flex; gap: 8px; align-items: center; }
+select { flex: 1; min-width: 0; height: 30px; padding: 0 8px; border: 1px solid var(--edge); border-radius: 8px; background: var(--field); }
+#send { height: 30px; padding: 0 16px; border: 0; border-radius: 8px; background: var(--accent); color: var(--page); font-weight: 600; cursor: pointer; }
+#send:disabled { opacity: .5; cursor: default; }
+.result { display: flex; flex-direction: column; gap: 8px; min-height: 0; flex: 1; }
+.result[hidden] { display: none; }
+.status { margin: 0; color: var(--soft); font-size: 12.5px; }
+.status:empty { display: none; }
+.question { margin: 0; font-weight: 600; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.answer { flex: 0 1 auto; min-height: 0; overflow: auto; user-select: text; overflow-wrap: anywhere; }
+.answer:empty { display: none; }
+.answer > :first-child { margin-top: 0; }
+.answer > :last-child { margin-bottom: 0; }
+.answer pre { overflow: auto; padding: 8px 10px; border-radius: 8px; background: var(--field); border: 1px solid var(--edge); }
+.answer code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 12.5px; }
+.answer :not(pre) > code { padding: 1px 4px; border-radius: 4px; background: var(--field); }
+.answer table { border-collapse: collapse; }
+.answer th, .answer td { padding: 4px 8px; border: 1px solid var(--edge); }
+.link { align-self: flex-start; padding: 0; border: 0; background: none; color: var(--accent); cursor: pointer; }
+.link[hidden] { display: none; }
+html:lang(ja) body, html:lang(zh-CN) body, html:lang(zh-TW) body, html:lang(ko) body { letter-spacing: 0; }
