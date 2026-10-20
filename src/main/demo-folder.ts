@@ -23,19 +23,26 @@ export async function createDemoFolder(tempDir: string, platform: NodeJS.Platfor
     await fs.mkdir(folder);
     await fs.writeFile(path.join(folder, 'demo.txt'), `Chat On Steroids demo\n${DEMO_BEFORE}\n`);
     const pass = `PASS: demo.txt says "${DEMO_AFTER}".`;
-    const fail = `FAIL: demo.txt does not say "${DEMO_AFTER}" yet.`;
+    const fail = `FAIL: demo.txt should have the line "${DEMO_AFTER}" instead of "${DEMO_BEFORE}".`;
+    // Passes only for the requested edit: the new line is there as a whole line, and the old one is gone.
     if (platform === 'win32') {
+      // `for /f` reads lines ending in LF alone too, where `findstr /x` never matches.
       await fs.writeFile(path.join(folder, 'check.cmd'), [
-        '@echo off', 'cd /d "%~dp0"', `findstr /c:"${DEMO_AFTER}" demo.txt >nul`,
-        `if errorlevel 1 (`, `  echo ${fail}`, '  exit /b 1', ')', `echo ${pass}`, ''
+        '@echo off', 'setlocal enabledelayedexpansion', 'cd /d "%~dp0"', 'set found=',
+        'for /f "usebackq delims=" %%L in ("demo.txt") do (', '  set "line=%%L"',
+        `  if "!line!"=="${DEMO_BEFORE}" goto fail`, `  if "!line!"=="${DEMO_AFTER}" set found=1`, ')',
+        'if not defined found goto fail',
+        `echo ${pass}`, 'exit /b 0', ':fail', `echo ${fail}`, 'exit /b 1', ''
       ].join('\r\n'));
     } else {
       await fs.writeFile(path.join(folder, 'check.sh'), [
-        '#!/bin/sh', 'cd "$(dirname "$0")" || exit 1',
-        `if grep -q '${DEMO_AFTER}' demo.txt; then echo '${pass}'; else echo '${fail}'; exit 1; fi`, ''
+        '#!/bin/sh', 'cd "$(dirname "$0")" || exit 1', `lines=$(tr -d '\\r' < demo.txt)`,
+        `if printf '%s\\n' "$lines" | grep -qx '${DEMO_AFTER}' && ! printf '%s\\n' "$lines" | grep -qx '${DEMO_BEFORE}'; then`,
+        `  echo '${pass}'`, 'else', `  echo '${fail}'`, '  exit 1', 'fi', ''
       ].join('\n'), { mode: 0o755 });
     }
-    return { parent, folder: await rawRealpathNative(folder), run: platform === 'win32' ? '.\\check.cmd' : './check.sh' };
+    // Through sh on POSIX, since a temp folder may be mounted noexec.
+    return { parent, folder: await rawRealpathNative(folder), run: platform === 'win32' ? '.\\check.cmd' : 'sh ./check.sh' };
   } catch (error) {
     await removeDemoFolder(parent);
     throw error;

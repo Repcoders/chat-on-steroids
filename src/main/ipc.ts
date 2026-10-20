@@ -863,10 +863,13 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
         mainText('ChatGPT can read, edit and run commands in it, like in any folder you share. You can stop sharing it in Workspace.')
       ].join('\n\n'),
       buttons: [mainText('Cancel'), mainText('Share demo folder')],
-      defaultId: 1,
+      // Sharing a folder is a permission: Enter and Escape both keep it unshared.
+      defaultId: 0,
       cancelId: 0,
       noLink: true
     };
+    // The root this handler added, so a failure after approving takes it back with the folder.
+    let added: string | null = null;
     try {
       const owner = getWindow();
       const { response } = owner && !owner.isDestroyed() ? await dialog.showMessageBox(owner, options) : await dialog.showMessageBox(options);
@@ -874,13 +877,22 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
       // A folder already inside a shared one (a whole home folder) needs no second approval.
       let shared = await resolvePath(getConfig().roots, demo.folder).catch(error => { if (error instanceof SandboxError) return null; throw error; });
       if (!shared) {
-        push('state:changed', await approveRoot(demo.folder));
+        const before = new Set(getConfig().roots.map(root => root.name));
+        const state = await approveRoot(demo.folder);
+        added = state.config.roots.find(root => !before.has(root.name))?.name ?? null;
+        push('state:changed', state);
         shared = await resolvePath(getConfig().roots, demo.folder);
       }
       return { folder: shared.virtual, run: demo.run };
     } catch (error) {
-      // Kept only once shared: otherwise nothing would ever point at it again.
-      if (!(await resolvePath(getConfig().roots, demo.folder).then(() => true, () => false))) await removeDemoFolder(demo.parent);
+      if (added !== null) {
+        const name = added;
+        await updateConfig(config => ({ ...config, roots: config.roots.filter(root => root.name !== name) })).catch(() => undefined);
+        await removeDemoFolder(demo.parent);
+      } else if (!(await resolvePath(getConfig().roots, demo.folder).then(() => true, () => false))) {
+        // Kept only while an existing shared folder holds it.
+        await removeDemoFolder(demo.parent);
+      }
       throw error;
     }
   });

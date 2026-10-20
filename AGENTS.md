@@ -4070,10 +4070,12 @@ surface, the saves and Ready in the production renderer.
 Ready's Try a demo (shown only when all is set and access is not limited) calls `roots:demo`
 (`createDemoFolder`). Main (`demo-folder.ts`) makes a new `cos-demo-*/demo` folder in the system
 temp folder each time, with `demo.txt` and a check (`check.cmd` on Windows, `check.sh` elsewhere)
-that passes once the file's `DEMO_BEFORE` line reads `DEMO_AFTER` (`src/shared/demo-folder.ts`).
-It then asks in a main-process dialog, Cancel by default; declining removes the folder and
-returns null. Accepting shares it through the same `approveRoot` as the picker (unless an approved
-root already contains it) and returns its virtual folder and the command that runs the check.
+that passes only when a whole `DEMO_AFTER` line has replaced the `DEMO_BEFORE` line
+(`src/shared/demo-folder.ts`). It then asks in a main-process dialog, Cancel by default; declining
+removes the folder and returns null. Accepting shares it through the same `approveRoot` as the
+picker (unless an approved root already contains it) and returns its virtual folder and the
+command that runs the check (`sh ./check.sh`, since a temp folder may be mounted noexec). A
+failure after approving removes that root again with the folder.
 The renderer opens a new unfiled chat and puts the request in its composer; nothing is sent until
 the person sends it, and no local or ChatGPT Project is created.
 

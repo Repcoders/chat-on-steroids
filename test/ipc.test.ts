@@ -1238,13 +1238,32 @@ describe('root namespace invariants', () => {
     expect(shared.ok, shared.error).toBe(true);
     const root = getConfig().roots.find(row => row.name === 'demo')!;
     try {
-      expect(shared.data).toEqual({ folder: '/demo', run: process.platform === 'win32' ? '.\\check.cmd' : './check.sh' });
+      expect(shared.data).toEqual({ folder: '/demo', run: process.platform === 'win32' ? '.\\check.cmd' : 'sh ./check.sh' });
       expect(await fs.readFile(path.join(root.path, 'demo.txt'), 'utf8')).toContain(DEMO_BEFORE);
       expect(currentWindow).toBeNull();
-      expect(vi.mocked(dialog.showMessageBox).mock.calls.at(-1)?.at(-1)).toMatchObject({ buttons: ['Cancel', 'Share demo folder'], cancelId: 0 });
+      expect(vi.mocked(dialog.showMessageBox).mock.calls.at(-1)?.at(-1)).toMatchObject({ buttons: ['Cancel', 'Share demo folder'], defaultId: 0, cancelId: 0 });
     } finally {
       await fs.rm(path.dirname(root.path), { recursive: true, force: true });
     }
+  });
+
+  it('takes the demo folder back out of the shared folders when sharing it fails halfway', async () => {
+    const { tmpdir } = await import('node:os');
+    await saveConfig({ ...defaultConfig(), roots: [] });
+    const demoFolders = async () => (await fs.readdir(tmpdir())).filter(name => name.startsWith('cos-demo-'));
+    const before = new Set(await demoFolders());
+    // The root is approved, then telling the window about it fails.
+    currentWindow = {
+      setBackgroundColor: vi.fn(), setTitleBarOverlay: vi.fn(), isDestroyed: () => false,
+      webContents: { send: vi.fn((channel: string) => { if (channel === 'state:changed') throw new Error('window went away'); }) }
+    };
+    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({ response: 1 } as never);
+
+    const reply = await handlers.get('roots:demo')!(null, undefined) as any;
+    expect(reply.ok).toBe(false);
+    expect(reply.error).toMatch(/window went away/);
+    expect(getConfig().roots).toEqual([]);
+    expect((await demoFolders()).filter(name => !before.has(name))).toEqual([]);
   });
 
   it('refuses a live rename into the reserved /skills namespace', async () => {

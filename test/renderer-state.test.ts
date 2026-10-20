@@ -2936,7 +2936,7 @@ it('reports each path’s own sign-in, whatever the other browser says, and keep
 }, 60_000);
 
 it('offers a demo on Ready once all is set, and puts its request in a new chat for the person to send', async () => {
-  const createDemoFolder = vi.fn(async () => ({ ok: true, data: { folder: '/demo', run: './check.sh' } }));
+  const createDemoFolder = vi.fn(async () => ({ ok: true, data: { folder: '/demo', run: 'sh ./check.sh' } }));
   const sendInput = vi.fn(async () => ({ ok: true, data: null }));
   const mounted = await mountChat({ hasApiKey: true }, [], { createDemoFolder, sendInput });
   const doc = mounted.window.document;
@@ -2972,7 +2972,7 @@ it('offers a demo on Ready once all is set, and puts its request in a new chat f
   await settle();
   expect(createDemoFolder).toHaveBeenCalledTimes(2);
   expect(doc.querySelector('.panel.is-active')?.getAttribute('data-panel')).toBe('chat');
-  expect(input.value).toBe('This is a short demo in the folder /demo. Read demo.txt there, change the line “status: draft” to “status: done”, then run ./check.sh in that folder and tell me what it printed.');
+  expect(input.value).toBe('This is a short demo in the folder /demo. Read demo.txt there, change the line “status: draft” to “status: done”, then run sh ./check.sh in that folder and tell me what it printed.');
   // Nothing is sent by itself.
   expect(sendInput).not.toHaveBeenCalled();
 });
