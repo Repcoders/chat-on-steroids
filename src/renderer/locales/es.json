@@ -2882,5 +2882,16 @@
   "{0} sub-agents need attention|many": "{0} subagentes necesitan atención",
   "A tool call from an untrusted chat was refused. To allow it, open this chat's ⋯ menu in the sidebar (or right-click its row) and choose Trust chat.": "Se rechazó una llamada a herramienta de un chat no fiable. Para permitirla, abre el menú ⋯ de este chat en la barra lateral (o haz clic derecho en su fila) y elige «Confiar en el chat».",
   "A tool call from a worker whose main chat is not currently allowed was refused. Open that main chat's ⋯ menu in the sidebar and choose Trust chat if it is untrusted, or Release chat if it is blocked.": "Se rechazó una llamada a herramienta de un trabajador cuyo chat principal no está permitido ahora. Abre el menú ⋯ de ese chat principal en la barra lateral y elige «Confiar en el chat» si no es de confianza, o «Desbloquear chat» si está bloqueado.",
-  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "Se rechazó una llamada a herramienta de un trabajador creado por la aplicación porque aún no se ha comprobado el chat principal que lo inició. Vuelve a ese chat principal en la barra lateral; cuando aparezca su fila, abre su menú ⋯ y elige «Confiar en el chat», o «Desbloquear chat» si está bloqueado, y vuelve a intentarlo cuando el trabajador esté conectado o recuperado allí."
+  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "Se rechazó una llamada a herramienta de un trabajador creado por la aplicación porque aún no se ha comprobado el chat principal que lo inició. Vuelve a ese chat principal en la barra lateral; cuando aparezca su fila, abre su menú ⋯ y elige «Confiar en el chat», o «Desbloquear chat» si está bloqueado, y vuelve a intentarlo cuando el trabajador esté conectado o recuperado allí.",
+  "Scripts": "Scripts",
+  "Run one of this project's commands in a new terminal": "Ejecutar uno de los comandos de este proyecto en un terminal nuevo",
+  "Edit scripts…": "Editar scripts…",
+  "Add a script…": "Añadir un script…",
+  "Close a terminal before opening another (maximum 8)": "Cierra un terminal antes de abrir otro (máximo 8)",
+  "Scripts for {0}": "Scripts de {0}",
+  "Command": "Comando",
+  "Remove script": "Quitar script",
+  "Give every script a name and a command": "Pon a cada script un nombre y un comando",
+  "Add script": "Añadir script",
+  "A script opens a new terminal in this project's folder and types its command there, as you would. It runs only when you choose it from the project's menu.": "Un script abre un terminal nuevo en la carpeta de este proyecto y escribe allí su comando, como lo harías tú. Solo se ejecuta cuando lo eliges en el menú del proyecto."
 }

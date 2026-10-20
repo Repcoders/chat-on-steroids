@@ -5,7 +5,7 @@ import { el, icon, toast } from './dom.js';
 import { t, ui } from './i18n.js';
 import { onAppearanceChanged } from './appearance.js';
 import { enableTabReorder, reorderKey } from './tab-reorder.js';
-import type { LocalProject } from '../shared/projects.js';
+import type { LocalProject, ProjectScript } from '../shared/projects.js';
 
 type Tab = { id: string; title: string; node: HTMLElement; term: Terminal; fit: FitAddon; ready: boolean; exited: boolean; queued: number; writes: Promise<void> };
 export type WorkspaceTerminalTab = { id: string; title: string; exited: boolean };
@@ -96,8 +96,9 @@ export function createWorkspaceTerminal(onToggleBottom: () => void, initialMount
     empty.hidden = options.dockedTabs || tabs.size > 0; add.disabled = tabs.size >= 8;
     ui(empty, 'textContent', () => project ? t('Open a terminal in this project') : t('New terminal'));
   };
-  const create = (): string | null => {
-    const scope = project; if (tabs.size >= 8) return null;
+  /** A script's tab belongs to its own project and types its command once the shell is up. */
+  const create = (scope = project, script?: ProjectScript): string | null => {
+    if (tabs.size >= 8) return null;
     const id = crypto.randomUUID();
     const node = el('div', 'terminal-screen'); body.append(node);
     const term = new Terminal({ theme: terminalTheme(), cursorBlink: true, fontSize: 13, fontFamily: 'Cascadia Code, Consolas, monospace', scrollback: 5000, allowProposedApi: false });
@@ -106,7 +107,7 @@ export function createWorkspaceTerminal(onToggleBottom: () => void, initialMount
     tabs.set(id, tab); selected = id;
     if (!options.dockedTabs) setOpen(true);
     paint(); fit();
-    term.onData(data => {
+    const send = (data: string): void => {
       if (tab.exited || !tab.ready) return;
       if (tab.queued + data.length > 262_144) { toast(t('Terminal input is busy. Try a smaller paste.')); return; }
       tab.queued += data.length;
@@ -118,7 +119,8 @@ export function createWorkspaceTerminal(onToggleBottom: () => void, initialMount
           const result = await window.api.terminalWrite(id, chunk); if (!result.ok) toast(t(result.error));
         }).catch(error => toast(String(error))).finally(() => { tab.queued -= chunk.length; });
       }
-    });
+    };
+    term.onData(send);
     term.attachCustomKeyEventHandler(event => {
       if (event.type === 'keydown' && event.ctrlKey && event.key === '`') { onToggleBottom(); return false; }
       // Keep ordinary Ctrl+C as SIGINT; copy selection using Ctrl+Shift+C.
@@ -131,7 +133,12 @@ export function createWorkspaceTerminal(onToggleBottom: () => void, initialMount
       const result = await window.api.terminalCreate(id, scope?.id ?? null, Math.min(500, term.cols), Math.min(200, term.rows));
       if (!tabs.has(id)) { void window.api.terminalClose(id); return; }
       if (!result.ok) { tab.exited = true; term.writeln(`\r\n${result.error}`); }
-      else { tab.ready = true; tab.title = scope ? `${scope.name} · ${result.data.shell}` : result.data.shell; node.title = result.data.cwd; }
+      else {
+        tab.ready = true; node.title = result.data.cwd;
+        tab.title = scope ? `${scope.name} · ${script?.name ?? result.data.shell}` : result.data.shell;
+        // Enter, as a person would press it; the shell has the line even while it is still starting.
+        if (script) send(`${script.command}\r`);
+      }
       paint(); fit(); options.onTabsChanged?.(); if (open && selected === id) term.focus();
     })();
     return id;
@@ -171,6 +178,8 @@ export function createWorkspaceTerminal(onToggleBottom: () => void, initialMount
       if (createIfEmpty && !tabs.size) void create();
     },
     newTab(): string | null { return create(); },
+    /** Opens a terminal in the script's project and runs its command there; null when 8 are open. */
+    run(scope: LocalProject, script: ProjectScript): string | null { return create(scope, script); },
     tabs(): WorkspaceTerminalTab[] { return [...tabs.values()].map(tab => ({ id: tab.id, title: tab.title, exited: tab.exited })); },
     selectTab(id: string): void { if (!tabs.has(id)) return; selected = id; paint(); fit(); if (open) tabs.get(id)?.term.focus(); },
     closeTab,

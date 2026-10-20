@@ -7,7 +7,7 @@ import { bindBrowserInputProject, claimBrowserInput, enqueueInput, listInputs, p
 import { defaultConfig, initConfigPath, saveConfig } from '../src/main/config.js';
 import { initDurableStore, resetDurableForTests } from '../src/main/durable.js';
 import { createSession, getSession, initSessionStore, rebindSession, resetSessionStoreForTests, setSessionOrigin } from '../src/main/session/store.js';
-import { addProject, armProjectCreate, assignSessionProject, claimProjectCreate, completeProjectCreate, failProjectCreate, getProject, getSessionProject, inheritSessionProject, listProjects, markProjectGone, pendingProjectCreates, PROJECT_CREATE_ARMED_MS, PROJECT_CREATE_CLAIM_MS, projectWorkspace, removeProject, retryProjectCreate, setProjectColor } from '../src/main/projects.js';
+import { addProject, armProjectCreate, assignSessionProject, claimProjectCreate, completeProjectCreate, failProjectCreate, getProject, getSessionProject, inheritSessionProject, listProjects, markProjectGone, pendingProjectCreates, PROJECT_CREATE_ARMED_MS, PROJECT_CREATE_CLAIM_MS, projectWorkspace, removeProject, retryProjectCreate, setProjectColor, setProjectScripts } from '../src/main/projects.js';
 import { validateNewRoot } from '../src/main/sandbox.js';
 
 let directory: string, approved: string;
@@ -46,6 +46,24 @@ it('persists only predefined presentation colors without changing project worksp
   expect(await listProjects()).toEqual([colored]);
   await expect(setProjectColor(project.id, 'chartreuse' as any)).rejects.toThrow();
   expect(await setProjectColor(project.id, null)).toEqual(project);
+});
+
+it('keeps named one-line scripts per project, durably, and clears them with an empty list', async () => {
+  const project = await addProject(path.join(approved, 'first'));
+  const scripted = await setProjectScripts(project.id, [{ name: ' dev ', command: ' npm run dev ' }, { name: 'test', command: 'npm test -- --watch' }]);
+  expect(scripted).toEqual({ ...project, scripts: [{ name: 'dev', command: 'npm run dev' }, { name: 'test', command: 'npm test -- --watch' }] });
+  expect(await projectWorkspace(project.id)).toMatchObject({ real: project.path, virtual: '/work/first' });
+  resetDurableForTests(); initDurableStore(directory);
+  expect(await listProjects()).toEqual([scripted]);
+  // A newline or another control key would run more than the menu shows.
+  for (const command of ['npm test\nrm -rf .', 'npm test\rnpm run build','npm\u0003', '   ']) {
+    await expect(setProjectScripts(project.id, [{ name: 'bad', command }])).rejects.toThrow();
+  }
+  await expect(setProjectScripts(project.id, [{ name: '', command: 'npm test' }])).rejects.toThrow();
+  await expect(setProjectScripts(project.id, Array.from({ length: 21 }, (_, index) => ({ name: `s${index}`, command: 'npm test' })))).rejects.toThrow();
+  await expect(setProjectScripts(randomUUID(), [{ name: 'dev', command: 'npm run dev' }])).rejects.toThrow(/not found/);
+  expect(await listProjects()).toEqual([scripted]);
+  expect(await setProjectScripts(project.id, [])).toEqual(project);
 });
 
 it('resolves a native picker alias to the approved identity without granting outside aliases', async () => {

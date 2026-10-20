@@ -9,7 +9,7 @@ import { parseRemote, remoteIdentity, sftpFor } from './remote/ssh.js';
 import { SftpError, type SftpClient } from './remote/sftp.js';
 import type { RemoteFolder, Root } from '../shared/types.js';
 import { bindSessionProject, findSessionByConversation, getSession } from './session/store.js';
-import { CHATGPT_PROJECT_ID, PROJECT_COLORS, type ChatgptProjectLink, type LocalProject, type ProjectColor } from '../shared/projects.js';
+import { CHATGPT_PROJECT_ID, PROJECT_COLORS, PROJECT_SCRIPT_LIMITS, type ChatgptProjectLink, type LocalProject, type ProjectColor, type ProjectScript } from '../shared/projects.js';
 
 const at = z.number().finite().nonnegative();
 const requestId = z.string().uuid();
@@ -21,9 +21,14 @@ const chatgptSchema = z.discriminatedUnion('state', [
   z.object({ state: z.literal('failed'), requestId, error: z.string().max(500), updatedAt: at }),
   z.object({ state: z.literal('uncertain'), requestId, error: z.string().max(500), updatedAt: at })
 ]);
+// One line each: a script is typed into a shell, and a newline or control key would run more than it shows.
+const scriptText = (max: number) => z.string().trim().min(1).max(max).regex(/^[^\u0000-\u001f\u007f]*$/);
+const scriptSchema = z.object({ name: scriptText(PROJECT_SCRIPT_LIMITS.name), command: scriptText(PROJECT_SCRIPT_LIMITS.command) }).strict();
+const scriptsSchema = z.array(scriptSchema).max(PROJECT_SCRIPT_LIMITS.count);
 const projectSchema = z.object({
   id: z.string().uuid(), name: z.string().min(1).max(160), path: z.string().min(1).max(32768),
   color: z.enum(PROJECT_COLORS).optional(),
+  scripts: scriptsSchema.optional(),
   createdAt: z.number().finite().nonnegative(), ungrouped: z.boolean().optional(),
   chatgpt: chatgptSchema.optional(),
   remote: z.object({ host: z.string().min(1).max(255), port: z.number().int().min(1).max(65535).optional(), path: z.string().min(1).max(4096) }).optional()
@@ -126,6 +131,23 @@ export function setProjectColor(projectId: string, color: ProjectColor | null): 
     if (project.color === (normalized ?? undefined)) return project;
     const { color: _, ...withoutColor } = project;
     const updated: LocalProject = normalized ? { ...withoutColor, color: normalized } : withoutColor;
+    await writeDurableNow('projects', projects.map(row => row.id === projectId ? updated : row));
+    return updated;
+  });
+  mutations = operation.catch(() => undefined);
+  return operation;
+}
+
+/** Replaces the project's scripts; an empty list removes them. Like color, it never touches workspace authority. */
+export function setProjectScripts(projectId: string, scripts: ProjectScript[]): Promise<LocalProject> {
+  const operation = mutations.then(async () => {
+    z.string().uuid().parse(projectId);
+    const normalized = scriptsSchema.parse(scripts);
+    const projects = await listProjects();
+    const project = projects.find(row => row.id === projectId);
+    if (!project) throw new Error('Project not found');
+    const { scripts: _, ...withoutScripts } = project;
+    const updated: LocalProject = normalized.length ? { ...withoutScripts, scripts: normalized } : withoutScripts;
     await writeDurableNow('projects', projects.map(row => row.id === projectId ? updated : row));
     return updated;
   });

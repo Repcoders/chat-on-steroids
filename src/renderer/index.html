@@ -1522,6 +1522,16 @@
         <div class="pet-delete-actions"><button class="btn" id="sshProjectCancel" type="button">Cancel</button><button class="btn btn-solid" id="sshProjectSubmit" type="submit">Test and add</button></div>
       </form>
     </dialog>
+    <dialog class="plugin-dialog project-scripts-dialog" id="projectScriptsDialog" aria-labelledby="projectScriptsTitle">
+      <div class="plugin-dialog-head"><h2 id="projectScriptsTitle">Scripts</h2><button class="btn" id="projectScriptsClose" type="button">Close</button></div>
+      <form id="projectScriptsForm" class="plugin-dialog-body">
+        <p>A script opens a new terminal in this project's folder and types its command there, as you would. It runs only when you choose it from the project's menu.</p>
+        <div id="projectScriptsList" class="project-scripts-list"></div>
+        <button class="btn project-scripts-add" id="projectScriptsAdd" type="button">Add script</button>
+        <p id="projectScriptsError" class="plugin-error" role="alert" hidden></p>
+        <div class="pet-delete-actions"><button class="btn" id="projectScriptsCancel" type="button">Cancel</button><button class="btn btn-solid" id="projectScriptsSubmit" type="submit">Save</button></div>
+      </form>
+    </dialog>
     <dialog class="search-dialog" id="searchDialog" aria-label="Search chats">
       <div class="search-dialog-field">
         <i class="ico ph ph-magnifying-glass" aria-hidden="true"></i>

@@ -2836,5 +2836,16 @@
   "{0} sub-agents need attention|one": "{0} Unteragent braucht Aufmerksamkeit",
   "A tool call from an untrusted chat was refused. To allow it, open this chat's ⋯ menu in the sidebar (or right-click its row) and choose Trust chat.": "Ein Tool-Aufruf aus einem nicht vertrauten Chat wurde abgelehnt. Um ihn zu erlauben, öffne in der Seitenleiste das ⋯-Menü dieses Chats (oder klicke seine Zeile mit der rechten Maustaste an) und wähle „Chat vertrauen“.",
   "A tool call from a worker whose main chat is not currently allowed was refused. Open that main chat's ⋯ menu in the sidebar and choose Trust chat if it is untrusted, or Release chat if it is blocked.": "Ein Tool-Aufruf eines Workers wurde abgelehnt, weil sein Haupt-Chat gerade nicht erlaubt ist. Öffne in der Seitenleiste das ⋯-Menü dieses Haupt-Chats und wähle „Chat vertrauen“, wenn er nicht vertraut ist, oder „Chat freigeben“, wenn er blockiert ist.",
-  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "Ein Tool-Aufruf eines von der App gestarteten Workers wurde abgelehnt, weil der Haupt-Chat, der ihn gestartet hat, noch nicht nachgewiesen ist. Geh in der Seitenleiste zu diesem Haupt-Chat; sobald seine Zeile da ist, öffne sein ⋯-Menü und wähle „Chat vertrauen“ oder, wenn er blockiert ist, „Chat freigeben“. Versuche es dann erneut, sobald der Worker dort verbunden oder wiederhergestellt ist."
+  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "Ein Tool-Aufruf eines von der App gestarteten Workers wurde abgelehnt, weil der Haupt-Chat, der ihn gestartet hat, noch nicht nachgewiesen ist. Geh in der Seitenleiste zu diesem Haupt-Chat; sobald seine Zeile da ist, öffne sein ⋯-Menü und wähle „Chat vertrauen“ oder, wenn er blockiert ist, „Chat freigeben“. Versuche es dann erneut, sobald der Worker dort verbunden oder wiederhergestellt ist.",
+  "Scripts": "Skripte",
+  "Run one of this project's commands in a new terminal": "Einen Befehl dieses Projekts in einem neuen Terminal ausführen",
+  "Edit scripts…": "Skripte bearbeiten …",
+  "Add a script…": "Skript hinzufügen …",
+  "Close a terminal before opening another (maximum 8)": "Schließe ein Terminal, bevor du ein weiteres öffnest (höchstens 8)",
+  "Scripts for {0}": "Skripte für {0}",
+  "Command": "Befehl",
+  "Remove script": "Skript entfernen",
+  "Give every script a name and a command": "Gib jedem Skript einen Namen und einen Befehl",
+  "Add script": "Skript hinzufügen",
+  "A script opens a new terminal in this project's folder and types its command there, as you would. It runs only when you choose it from the project's menu.": "Ein Skript öffnet ein neues Terminal im Ordner dieses Projekts und tippt dort seinen Befehl ein, so wie du es tun würdest. Es läuft nur, wenn du es im Menü des Projekts auswählst."
 }

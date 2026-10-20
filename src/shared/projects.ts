@@ -1,6 +1,13 @@
 export const PROJECT_COLORS = ['blue', 'green', 'amber', 'purple', 'rose', 'teal'] as const;
 export type ProjectColor = typeof PROJECT_COLORS[number];
 
+/**
+ * A named command the person runs from the project's menu: it opens a new workspace terminal in
+ * the project's folder and types the command there. The app and models never run it themselves.
+ */
+export interface ProjectScript { name: string; command: string }
+export const PROJECT_SCRIPT_LIMITS = { count: 20, name: 60, command: 2000 } as const;
+
 /** Explicit local folder selection. The project grants no filesystem permission. */
 export interface LocalProject {
   id: string;
@@ -10,6 +17,8 @@ export interface LocalProject {
   remote?: import('./types.js').RemoteFolder;
   /** Optional presentation-only sidebar accent. Never changes workspace or permission semantics. */
   color?: ProjectColor;
+  /** Optional named commands for the workspace terminal; they grant no permission of their own. */
+  scripts?: ProjectScript[];
   createdAt: number;
   /** Removed sidebar group; existing conversations and queued work retain their folder. */
   ungrouped?: boolean;
