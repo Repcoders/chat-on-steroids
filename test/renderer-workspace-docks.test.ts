@@ -185,6 +185,22 @@ it('opens a view from Ctrl+Shift+digit as the browser really reports it', () => 
   expect(files).toHaveBeenCalledOnce();
 });
 
+it('opens the Chat map from its own entry and Ctrl+Shift+5, and says why it is off without a chat', () => {
+  const { docks } = setup();
+  let chat = false;
+  const map = vi.fn();
+  docks.register('map', 'Chat map', 'i-tree', map, vi.fn(), () => chat);
+  const quick = document.querySelector<HTMLButtonElement>('#workDockRight .work-dock-quick[data-view=map]')!;
+  expect(quick.textContent).toBe('Chat mapCtrl+Shift+5');
+  expect(quick.disabled).toBe(true); expect(quick.title).toBe('Open a chat to see its map');
+  chat = true; docks.sync();
+  expect(quick.disabled).toBe(false);
+  document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: '%', code: 'Digit5', ctrlKey: true, shiftKey: true }));
+  expect(map).toHaveBeenCalledOnce();
+  expect(document.getElementById('workDockRight')!.hidden).toBe(false);
+  expect(document.querySelector('#workDockRight [role=tab]')?.textContent).toBe('Chat map');
+});
+
 it('resizes the bottom dock from its top edge with drag feedback', () => {
   setup();
   const app = document.querySelector<HTMLElement>('.app')!, bottom = document.getElementById('workDockBottom')!;

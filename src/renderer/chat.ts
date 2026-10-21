@@ -32,6 +32,7 @@ import { renderRecoveryCountdowns } from './recovery.js';
 import type { RecoveryCountdown } from '../shared/recovery.js';
 import { communicationTitle, foldAgentCommunication, participatingWorkers, workerAvatar } from './agent-communication.js';
 import { structureTimeline, type RoundPart } from './timeline-rounds.js';
+import { chatMap, createChatMap, type MapSource } from './chat-map.js';
 import type { TurnTrace } from '../shared/turn-trace.js';
 import { initContextMeter, paintContextMeter } from './context-meter.js';
 import { installComposerDockMotion, installComposerHeightMotion } from './composer-motion.js';
@@ -325,6 +326,7 @@ function replaceComposerDraft(): void {
 }
 let pendingNewInput: { id: string; generation: number } | null = null;
 let agentPanel: ReturnType<typeof createAgentPanel> | null = null;
+let chatMapPanel: ReturnType<typeof createChatMap> | null = null;
 let filePanel: ReturnType<typeof createFilePanel> | null = null;
 let reviewPanel: ReturnType<typeof createFilePanel> | null = null;
 const expandedWorkers = new Set<string>();
@@ -4012,7 +4014,11 @@ async function revealChatLocation(id: string, location: SessionSearchLocation): 
     if (!loaded || !events.length) { historyBefore = null; detailFor = null; void loadDetail(); return; }
     row = rowFor();
   }
-  if (!row) return;
+  if (row) revealRow(row);
+}
+
+/** Scrolls the timeline to one of its loaded rows and washes it briefly, as a reader's own jump there. */
+function revealRow(row: HTMLElement): void {
   readTimeline();
   row.scrollIntoView({ block: 'center' });
   row.classList.remove('is-search-hit');
@@ -5421,33 +5427,39 @@ function roundGroup(part: Extract<RoundPart, { kind: 'work' }>, members: HTMLEle
  * place; a round's sentences stand as prose and its activity folds under one title.
  */
 function renderRounds(rows: HTMLElement[], outlines: Readonly<Record<string, TurnTrace>>, working: boolean, liveTurn: string | null,
-  scope: string | null, groups: Map<string, HTMLElement>, says: Map<string, { text: string; row: HTMLElement }>, workerBadges: boolean): HTMLElement[] {
+  scope: string | null, groups: Map<string, HTMLElement>, says: Map<string, { text: string; row: HTMLElement }>, workerBadges: boolean,
+  map?: MapSource[]): HTMLElement[] {
   const keyOf = (row: HTMLElement, index: number) => row.dataset.timelineKey ?? `line:${index}`;
   const byKey = new Map(rows.map((row, index) => [keyOf(row, index), row]));
   const parts = structureTimeline(rows.map((row, index) => ({ key: keyOf(row, index), event: rowEvents.get(row), tail: row === turnNow })), outlines, working, liveTurn);
   const out: HTMLElement[] = [], kept = new Set<string>();
+  // Each drawn part, with the row that shows it, for the Chat map (chat-map.ts).
+  const draw = (node: HTMLElement, part: RoundPart, members: HTMLElement[] = [node]): void => {
+    out.push(node);
+    map?.push({ part, target: node.dataset.timelineKey, events: members.flatMap(row => rowEvents.get(row) ?? []) });
+  };
   for (const part of parts) {
     // A message read as a sentence before it was known to be the answer reads as the answer now.
-    if (part.kind === 'row') { const row = byKey.get(part.key)!; row.classList.remove('is-interim'); out.push(row); continue; }
+    if (part.kind === 'row') { const row = byKey.get(part.key)!; row.classList.remove('is-interim'); draw(row, part); continue; }
     if (part.kind === 'say') {
       const row = part.rowKey ? byKey.get(part.rowKey)! : sayRow(part, says);
       row.classList.add('is-interim');
       kept.add(part.key);
-      out.push(row);
+      draw(row, part);
       continue;
     }
     const members = part.rows.map(key => byKey.get(key)).filter((row): row is HTMLElement => !!row);
-    if (!members.length && part.recap && !part.live) { kept.add(`recap:${scope}:${part.key}`); out.push(recapLine(part, scope, groups)); continue; }
+    if (!members.length && part.recap && !part.live) { kept.add(`recap:${scope}:${part.key}`); draw(recapLine(part, scope, groups), part, []); continue; }
     if (!members.length) continue;
     // One action without a recap is that action: a title over it would only repeat it.
-    if (members.length === 1 && !part.recap) { markNativeStep(members[0]!, false); out.push(members[0]!); continue; }
+    if (members.length === 1 && !part.recap) { markNativeStep(members[0]!, false); draw(members[0]!, part); continue; }
     // Paging can extend or trim the start of a round, which moves its key; the disclosure its rows
     // already sit in stays the same node, so neither its open state nor the reader's place moves.
     const previous = members.map(row => row.closest<HTMLElement>('.tool-group'))
       .find(group => !!group?.dataset.timelineKey && groups.get(group.dataset.timelineKey) === group && !kept.has(group.dataset.timelineKey));
     const key = previous?.dataset.timelineKey ?? `group:${scope}:${part.key}`;
     kept.add(key);
-    out.push(roundGroup(part, members, key, groups, workerBadges));
+    draw(roundGroup(part, members, key, groups, workerBadges), part, members);
   }
   for (const key of groups.keys()) if (!kept.has(key)) groups.delete(key);
   for (const key of says.keys()) if (!kept.has(key)) says.delete(key);
@@ -5670,8 +5682,10 @@ function paintDetail(followBottom = historyBefore === null): void {
   appendRetiredInputs(Infinity);
   for (const key of rowCache.keys()) if (!keep.has(key)) rowCache.delete(key);
   placeTurnLines(timelineRows, workedSeconds);
+  const mapSources: MapSource[] = [];
   reconcileChildren($('timeline'), groupImageRows(renderRounds(timelineRows, tracesFor === selectedId ? traces : {}, turnWorking,
-    turnWorking ? openTurnId(events) : null, selectedId, toolGroups, sayRows, true)));
+    turnWorking ? openTurnId(events) : null, selectedId, toolGroups, sayRows, true, mapSources)));
+  chatMapPanel?.update(chatMap(mapSources));
   // Rounds that arrive after this paint enter with a fade; the chat as it opened does not.
   roundsEnter = timelineRows.length > 0;
   paintPendingInputs();
@@ -8189,6 +8203,16 @@ export function initChat(next: Deps): void {
     filePanel?.mountAt(mount); void filePanel?.show();
   }, () => filePanel?.hide(), () => selectedLocalProject() !== null);
   docks.register('agents', 'Sub-agents', 'i-agents', () => agentPanel?.show(), () => agentPanel?.hide(), () => selectedId !== null);
+  chatMapPanel = createChatMap({
+    onJump: key => {
+      // While another chat loads, the rows (and the map) are still the previous chat's.
+      if (selectedId === null || detailFor !== selectedId) return;
+      const row = [...$('timeline').querySelectorAll<HTMLElement>('[data-timeline-key]')].find(node => node.dataset.timelineKey === key);
+      if (row) revealRow(row);
+    },
+    onEscape: () => { docks.setOpen(false); docks.rightToggle.focus(); }
+  });
+  docks.register('map', 'Chat map', 'i-tree', mount => chatMapPanel?.show(mount), () => chatMapPanel?.hide(), () => selectedId !== null);
   $('attachImages').addEventListener('click', async () => {
     const owner = composerDraftOwner();
     appendImages(owner, await run(api.chooseFiles()));

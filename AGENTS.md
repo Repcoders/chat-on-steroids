@@ -4477,7 +4477,7 @@ The Files panel projects the current session's LocalProject through fixed IPC us
 UUID and relative paths. It does not change the main composer or grant additional filesystem
 access. Main re-resolves current approved roots and rejects traversal, symbolic links/junctions
 and project-root mutation. The renderer's `workspace-docks.ts` owns the right tool dock and
-bottom terminal dock; Files, Review, Sub-agents and each Terminal view retain their own content
+bottom terminal dock; Files, Review, Sub-agents, Chat map and each Terminal view retain their own content
 and async lifetimes. Closing the right dock hides its active tool but retains its tab selection.
 Every dock track change (right column, bottom row) goes through `moveWorkDock`, which animates
 resolved pixel tracks (CSS keeps the resting layout). Open/close slide the content whole at its
@@ -4488,7 +4488,11 @@ and bottom-terminal tabs share one pill layout with a truncating `.tab-label`, a
 pointer drag or Ctrl+Shift+Left/Right; the owner's order stays authoritative. Selecting a tab
 updates the existing pills; only tab, order or title changes rebuild them.
 The right dock has launcher shortcuts, tool tabs and a `+` tool menu. Its Files, Review,
-Sub-agents and Terminal actions open right tabs; repeated Terminal `+` actions add a shell there.
+Sub-agents, Chat map and Terminal actions open right tabs (Ctrl+Shift+1-5 in the launcher's order);
+repeated Terminal `+` actions add a shell there. The Chat map (`renderer/chat-map.ts`) outlines the
+open chat from the parts the main timeline drew (each question, then its rounds with recap, action
+count and failed calls, and chat errors in place) and scrolls the timeline to the row a node names;
+it covers only the loaded history pages, and filters to errors or edited questions.
 With no tabs, the right dock shows only launcher shortcuts; its tab bar and `+` stay hidden.
 The `+` popover must receive real pointer input above any active tool header.
 The bottom dock has no generic shortcut screen or second tool tab strip; Terminal owns its own

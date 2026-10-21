@@ -657,8 +657,11 @@ code {
   100% { background: transparent; box-shadow: 0 0 0 8px transparent; }
 }
 @keyframes search-hit-ring { 0%, 35% { box-shadow: 0 0 0 2px var(--accent-edge); } 100% { box-shadow: 0 0 0 2px transparent; } }
+/* A round the Chat map jumped to washes the same way: its title, its recap or its one row. */
+:is(.tool-group.is-search-hit > summary, .round-recap.is-search-hit > p, .ev.is-search-hit:not(:has(.said))) { border-radius: 8px; animation: search-hit 2.6s ease-out; }
 @media (prefers-reduced-motion: reduce) {
   .is-search-hit .said:not(.is-user) { animation: none; background: var(--accent-wash); box-shadow: 0 0 0 8px var(--accent-wash); }
+  :is(.tool-group.is-search-hit > summary, .round-recap.is-search-hit > p, .ev.is-search-hit:not(:has(.said))) { animation: none; background: var(--accent-wash); box-shadow: 0 0 0 8px var(--accent-wash); }
   .is-search-hit .said.is-user > .user-message-text { animation: none; box-shadow: 0 0 0 2px var(--accent-edge); }
 }
 .search-status { padding: 8px 10px; color: var(--faint); font-size: calc(12px * var(--text-scale, 1)); }
@@ -4673,7 +4676,33 @@ select option::checkmark { order: 1; margin-inline-start: auto; color: var(--ink
 .work-dock-menu-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; text-align: left; font-size: calc(12px * var(--text-scale, 1)); }
 .work-dock-menu-item:hover, .work-dock-menu-item:focus-visible { background: var(--hover); }
 .work-dock-body { position: relative; display: flex; flex: 1; min-width: 0; min-height: 0; }
-.work-dock-body > :is(.file-panel, .agent-panel) { width: 100%; flex: 1; border-left: 0; }
+.work-dock-body > :is(.file-panel, .agent-panel, .chat-map) { width: 100%; flex: 1; border-left: 0; }
+/* Chat map (chat-map.ts): each question, then the rounds that answered it on one quiet rail. */
+.chat-map { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--page); }
+.chat-map-filters { display: flex; gap: 4px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.chat-map-filter { height: 28px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--soft);
+  font: inherit; font-size: calc(12px * var(--text-scale, 1)); font-weight: 500; cursor: pointer; transition: background-color 120ms ease, color 120ms ease; }
+.chat-map-filter:hover, .chat-map-filter.is-selected { background: var(--hover); color: var(--ink); }
+.chat-map-filter:focus-visible { outline: 1px solid var(--accent-edge); outline-offset: -1px; }
+.chat-map-list { flex: 1; min-height: 0; margin: 0; padding: 8px 8px 24px; overflow-y: auto; list-style: none; }
+.chat-map-rounds { margin: 0 0 6px 21px; padding: 0 0 0 8px; border-left: 1px solid var(--line); list-style: none; }
+.chat-map-node { display: flex; align-items: baseline; gap: 8px; width: 100%; min-width: 0; padding: 6px 8px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--ink); font: inherit; font-size: calc(13px * var(--text-scale, 1)); line-height: 1.45; text-align: start; cursor: pointer; }
+.chat-map-node:hover:not(:disabled), .chat-map-node.is-current { background: var(--hover); }
+.chat-map-node:focus-visible { outline: 1px solid var(--accent-edge); outline-offset: -1px; }
+.chat-map-node:disabled { color: var(--faint); cursor: default; }
+.chat-map-node.is-prompt .chat-map-text { flex: 1; min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.chat-map-number { flex: 0 0 18px; color: var(--faint); font-size: calc(11px * var(--text-scale, 1)); font-variant-numeric: tabular-nums; text-align: end; }
+.chat-map-edited { flex: none; color: var(--faint); font-size: calc(11px * var(--text-scale, 1)); }
+.chat-map-node.is-round { align-items: center; padding: 4px 8px; color: var(--soft); font-size: calc(12px * var(--text-scale, 1)); line-height: 1.4; }
+.chat-map-node.is-round:hover, .chat-map-node.is-round.is-current { color: var(--ink); }
+.chat-map-node.is-round .chat-map-text { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.chat-map-node.is-round > .ico { --ico: 13px; flex: none; color: var(--faint); }
+.chat-map-node.is-live > .ico { color: var(--green); }
+.chat-map-node:is(.is-error, .is-failed) > .ico { color: var(--red); }
+.chat-map-count, .chat-map-failed { flex: none; color: var(--faint); font-size: calc(11px * var(--text-scale, 1)); font-variant-numeric: tabular-nums; }
+.chat-map-failed { color: var(--red); }
+.chat-map-empty { margin: 16px 20px; color: var(--faint); font-size: calc(13px * var(--text-scale, 1)); }
 .work-dock-empty { width: 100%; display: grid; place-items: center; padding: 24px; }
 .work-dock-launch { display: grid; gap: 5px; width: min(360px, 100%); }
 .work-dock-quick { display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 12px; text-align: left; color: var(--soft); }

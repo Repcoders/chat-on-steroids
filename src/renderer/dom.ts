@@ -76,6 +76,7 @@ const ICONS: Readonly<Record<string, string>> = {
   'i-zoom-out': 'magnifying-glass-minus',
   'i-zoom-reset': 'arrow-counter-clockwise',
   'i-trash': 'trash',
+  'i-tree': 'tree-structure',
   'i-warning': 'warning',
   'i-x': 'x'
 };
