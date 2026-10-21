@@ -4391,8 +4391,15 @@ Appearance uses `ui.appearance` in the existing config, with separate Light/Dark
 sidebar and accent RGB colors plus contrast. Native color pickers and HEX fields allow every
 six-digit RGB color. A shared font choice, 12–18px base text size and translucent-sidebar switch
 apply immediately; Reset appearance restores both palettes and typography without changing the
-theme, language, setup profile or sidebar layout. `ui.appearance.sidebarLayout` (Layout → Sidebar
-layout: `'projects'`, the default project tree, or `'inbox'`) is read by `chat.ts` from the config,
+theme, language, setup profile or sidebar layout. Presets (`APPEARANCE_PRESETS` and
+`presetColors` in `src/shared/appearance.ts`, one of them near-black) and theme codes set only
+the Colors section: both palettes and the translucent-sidebar switch. Font, text size, theme,
+language and sidebar layout stay. A theme code is one line of JSON,
+`{"cosTheme":1,"light":…,"dark":…,"translucentSidebar":…}` (`themeCode`/`parseThemeCode`). Copy
+code writes it through `clipboard:write`; Paste code reads it from a text field in a dialog, never
+from the clipboard. `parseThemeCode` returns six-digit colors, whole contrasts from 0 to 100 and
+the boolean, or null; the save still passes the appearance schema. `ui.appearance.sidebarLayout`
+(Layout → Sidebar layout: `'projects'`, the default project tree, or `'inbox'`) is read by `chat.ts` from the config,
 never browser storage; a save without it or with another value loads as `'projects'` while the
 rest of the appearance is kept, and the state push after a save repaints the sidebar. Text size
 scales the existing typography hierarchy, including code, independently of window zoom. System font retains the locale-specific fallback stack.

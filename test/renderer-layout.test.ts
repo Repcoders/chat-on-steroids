@@ -52,6 +52,8 @@ it('finds settings on every settings page by name, description and section, neve
   // Its one setting is found by its description ("For privacy, …"), after every name.
   expect(privacy).toContain('Screenshot only the active window');
   expect(searchSettings(entries, 'typography font', 'en').map(entry => entry.title)).toEqual(['Font']);
+  // A name that is the whole query comes before longer names that start with it, wherever they sit.
+  expect(searchSettings(entries, 'theme', 'en')[0]!.title).toBe('Theme');
   // A Setup step is found by its name, although only the open step shows.
   expect(searchSettings(entries, 'api key', 'en')[0]!.target.dataset.railStep).toBe('key');
   // Conditional rows hidden on their page are not offered.
