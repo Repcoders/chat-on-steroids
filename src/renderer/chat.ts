@@ -26,6 +26,7 @@ import { createSidebarOrder, SIDEBAR_PROJECT_SCOPE } from './sidebar-order.js';
 import { createSidebarPins, pinnedSortScope } from './sidebar-pins.js';
 import { createSidebarCompletionState } from './sidebar-completion.js';
 import { toolResultText } from './tool-result.js';
+import { TOOL_IMAGE_TYPES } from '../shared/tool-result.js';
 import { renderEditCards } from './tool-artifacts.js';
 import { chatErrorPresentation, duplicateChatErrors } from './chat-error.js';
 import { renderRecoveryCountdowns } from './recovery.js';
@@ -3979,9 +3980,11 @@ async function revealSearchMatch(id: string, query: string): Promise<void> {
   await revealChatLocation(id, location);
 }
 
-/** The loaded timeline row of one recorded message, by the key the timeline gives that message. */
+/** The loaded timeline row of one recorded message or call, by the key the timeline gives it. */
 function rowForLocation(location: SessionSearchLocation): HTMLElement | null {
-  const event = events.find(candidate => candidate.seq === location.seq) ?? (location.messageId === null ? undefined
+  const event = events.find(candidate => candidate.seq === location.seq) ?? (location.callId !== undefined
+    ? events.find(candidate => candidate.kind === 'tool_call' && candidate.call.callId === location.callId)
+    : location.messageId === null ? undefined
     : events.find(candidate => candidate.kind === location.kind && 'messageId' in candidate && candidate.messageId === location.messageId));
   if (!event) return null;
   const key = itemKey({ kind: 'event', event });
@@ -4013,6 +4016,12 @@ async function revealChatLocation(id: string, location: SessionSearchLocation): 
     row = rowFor();
   }
   if (!row) return;
+  if (location.kind === 'tool_call') {
+    // A match in a call's arguments or result sits in its round and its row, both closed until opened.
+    for (let fold = row.parentElement?.closest('details'); fold; fold = fold.parentElement?.closest('details')) fold.open = true;
+    const box = row.querySelector<HTMLDetailsElement>('details.tool');
+    if (box) box.open = true;
+  }
   readTimeline();
   row.scrollIntoView({ block: 'center' });
   row.classList.remove('is-search-hit');
@@ -4260,7 +4269,7 @@ function appendToolOutput(box: HTMLDetailsElement, { call }: Extract<SessionEven
   }
 
   appendText(() => `${t('Arguments')} · ${call.tool}`, call.args.text, call.args.truncated, call.args.chars);
-  const images = call.assets?.filter(asset => ['image/png', 'image/jpeg', 'image/webp'].includes(asset.mimeType)) ?? [];
+  const images = call.assets?.filter(asset => TOOL_IMAGE_TYPES.includes(asset.mimeType)) ?? [];
   const readable = toolResultText(call.result.text, call.result.truncated, images.length > 0);
   if (readable) appendText(() => `${t('Result')} · ${call.tool} · ${Math.round(call.durationMs)} ms`, readable, call.result.truncated && images.length === 0, call.result.chars);
   // Older recordings did not retain the reason an image asset was omitted. Explain

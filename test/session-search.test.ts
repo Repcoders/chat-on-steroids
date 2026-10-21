@@ -217,6 +217,89 @@ it('finds a phrase as the chat shows it, across bold, code and links', async () 
   expect((await findInSession(id, 'use bold literally')).map(location => location.seq)).toEqual([said[2]!.seq]);
 });
 
+it("finds a phrase in a tool call's arguments and result, where the chat draws the call", async () => {
+  // Ctrl+F read only messages: an error a command printed was never found, though its row shows it.
+  const { appendEvent, writeOverflowText } = await import('../src/main/session/store.js');
+  const id = await chat('Build', [['user', 'Run the build']]);
+  let time = Date.now();
+  const stored = (text: string) => ({ text, chars: text.length, truncated: false });
+  const call = (callId: string, args: string, result: ReturnType<typeof stored> & { assetId?: string }, extra: object = {}) =>
+    appendEvent(id, { kind: 'tool_call', source: 'mcp', time: time++, turnId: 'turn-1', call: {
+      callId, tool: 'exec_command', requestId: null, conversationId: null, attribution: 'request_id', attributionMethod: 'request_id',
+      args: stored(args), result, outcome: 'ok', durationMs: 1, summary: { kind: 'run', title: 'Ran a command', tone: 'neutral' }, ...extra
+    } });
+  const running = await call('call-build', '{"cmd":"npm run build"}', stored(''));
+  const done = await call('call-build', '{"cmd":"npm run build"}',
+    stored(JSON.stringify({ content: [{ type: 'text', text: 'error TS2304: Cannot find name   PLACEHOLDER_WIDGET' }] })));
+  const asset = (await writeOverflowText(id, `${'x'.repeat(9_000)} PLACEHOLDER_WIDGET`))!;
+  // Only the overflow asset holds it: the row shows the inline text, so the phrase is not there.
+  await call('call-long', '{"cmd":"cat big.log"}', { text: 'x'.repeat(8_000), chars: 9_020, truncated: true, assetId: asset });
+  // A cut image envelope reads as a note in its row, not as its bytes.
+  await call('call-shot', '{"cmd":"shot"}', { text: '{"content":[{"type":"image","data":"PLACEHOLDER_WIDGET', chars: 90_000, truncated: true },
+    { assets: [{ id: 'shot', mimeType: 'image/png', bytes: 10 }] });
+  await call('call-grep', '{"cmd":"grep -r placeholder_widget src"}', stored('no matches'));
+  await upsertMessageEvent(id, { kind: 'assistant_message', source: 'extension', time: time++, messageId: 'answer', turnId: 'turn-1',
+    message: stored('Fixed: PLACEHOLDER_WIDGET is declared now.'), state: 'final', final: true });
+  await flushSessions();
+  const said = await readEvents(id, { kinds: ['user_message', 'assistant_message'] });
+  const grep = (await readEvents(id, { kinds: ['tool_call'] })).at(-1)!;
+  const found = await findInSession(id, 'cannot find name placeholder_widget');
+  // The call's latest revision, kept where it first appeared, and its id for a later revision.
+  expect(found).toEqual([{ seq: done.seq, kind: 'tool_call', messageId: null, callId: 'call-build', position: running.seq }]);
+  // Arguments match too, and calls stand before the answer that followed them.
+  expect((await findInSession(id, 'placeholder_widget')).map(location => location.seq)).toEqual([done.seq, grep.seq, said.at(-1)!.seq]);
+  // The phrase is plain text, whatever characters it holds.
+  expect((await findInSession(id, '{"cmd":"grep -r placeholder_widget src"}')).map(location => location.seq)).toEqual([grep.seq]);
+  expect(await findInSession(id, 'grep .* src')).toEqual([]);
+});
+
+it('steps through calls and answers in the order the chat draws them', async () => {
+  // An answer ChatGPT opened early and finished last is drawn at its turn's end, below a later
+  // answer and the calls between them; in spoken order it came first and pulled every call above it.
+  const { appendEvent } = await import('../src/main/session/store.js');
+  const id = await chat('Order', [['user', 'Check the widget']]);
+  let time = Date.now();
+  const stored = (text: string) => ({ text, chars: text.length, truncated: false });
+  const answer = (messageId: string, text: string, final: boolean) => upsertMessageEvent(id, { kind: 'assistant_message', source: 'extension',
+    time: time++, messageId, turnId: 'turn-1', message: stored(text), state: final ? 'final' : 'streaming', final });
+  const call = (callId: string) => appendEvent(id, { kind: 'tool_call', source: 'mcp', time: time++, turnId: 'turn-1', call: {
+    callId, tool: 'exec_command', requestId: null, conversationId: null, attribution: 'request_id', attributionMethod: 'request_id',
+    args: stored(`{"cmd":"check PLACEHOLDER_ORDER ${callId}"}`), result: stored('ok'), outcome: 'ok', durationMs: 1, summary: { kind: 'run', title: 'Ran', tone: 'neutral' } } });
+  await answer('opened-early', 'Working on PLACEHOLDER_ORDER', false);
+  const first = await call('call-1');
+  await answer('between', 'PLACEHOLDER_ORDER is half done.', true);
+  const second = await call('call-2');
+  await answer('opened-early', 'Done: PLACEHOLDER_ORDER works.', true);
+  await flushSessions();
+  const said = await readEvents(id, { kinds: ['assistant_message'] });
+  const seqOf = (messageId: string) => said.find(event => event.kind === 'assistant_message' && event.messageId === messageId)!.seq;
+  expect((await findInSession(id, 'placeholder_order')).map(location => location.seq))
+    .toEqual([first.seq, seqOf('between'), second.seq, seqOf('opened-early')]);
+});
+
+it('keeps a question whose text changed above the calls it asked for', async () => {
+  // A new text moves a question's work stamp, so the transcript lists it after the answer, but the
+  // chat still draws it where it first appeared, above the call and the answer.
+  const { appendEvent } = await import('../src/main/session/store.js');
+  const id = await chat('Edited', []);
+  let time = Date.now();
+  const stored = (text: string) => ({ text, chars: text.length, truncated: false });
+  const question = (text: string) => upsertMessageEvent(id, { kind: 'user_message', source: 'app', time: time++, messageId: 'question',
+    turnId: 'turn-1', message: stored(text) });
+  await question('Check PLACEHOLDER_EDIT');
+  const call = await appendEvent(id, { kind: 'tool_call', source: 'mcp', time: time++, turnId: 'turn-1', call: {
+    callId: 'call-1', tool: 'exec_command', requestId: null, conversationId: null, attribution: 'request_id', attributionMethod: 'request_id',
+    args: stored('{"cmd":"check PLACEHOLDER_EDIT"}'), result: stored('ok'), outcome: 'ok', durationMs: 1, summary: { kind: 'run', title: 'Ran', tone: 'neutral' } } });
+  await upsertMessageEvent(id, { kind: 'assistant_message', source: 'extension', time: time++, messageId: 'answer', turnId: 'turn-1',
+    message: stored('PLACEHOLDER_EDIT is fine.'), state: 'final', final: true });
+  await question('Check PLACEHOLDER_EDIT again');
+  await flushSessions();
+  const said = await readEvents(id, { kinds: ['user_message', 'assistant_message'] });
+  const seqOf = (kind: string) => said.find(event => event.kind === kind)!.seq;
+  expect((await findInSession(id, 'placeholder_edit')).map(location => location.seq))
+    .toEqual([seqOf('user_message'), call.seq, seqOf('assistant_message')]);
+});
+
 it('locates a reply by its native message id, where it first appeared (#482)', async () => {
   // Branch in new chat links back to the exact reply it was branched from.
   const id = await chat('Branch source', [['user', 'try one'], ['assistant', 'Approach A.'], ['user', 'go on'], ['assistant', 'Approach A, step two.']]);

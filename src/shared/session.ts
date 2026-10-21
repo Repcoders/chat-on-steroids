@@ -1296,10 +1296,12 @@ export interface SessionSearchResult {
 }
 /** The message a text match was found in, to open the chat there (`sessions:locate-match`). */
 export interface SessionSearchLocation {
-  /** The message's event, as the timeline holds it. */
+  /** The message's or tool call's event, as the timeline holds it. */
   seq: number;
-  kind: 'user_message' | 'assistant_message';
+  kind: 'user_message' | 'assistant_message' | 'tool_call';
   messageId: string | null;
+  /** A tool call's id, which keeps its row when a later revision of the call replaces `seq`. */
+  callId?: string;
   /** Where the message first appeared, in the timeline's paging order (origin, else seq). */
   position: number;
 }
