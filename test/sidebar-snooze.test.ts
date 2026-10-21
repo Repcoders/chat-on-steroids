@@ -41,6 +41,19 @@ it('wakes a chat that does anything after it was snoozed, and on Unsnooze', () =
   expect(snooze.until('b', 700)).toBeNull();
 });
 
+it('keeps a chat snoozed while it works and as that work ends, then wakes it on anything after', () => {
+  clock = 1_000_000;
+  const snooze = fixture();
+  snooze.snooze('a', clock + HOUR, 500, true);
+  expect(snooze.until('a', 600, true)).toBe(clock + HOUR);
+  expect(snooze.until('a', 700, false)).toBe(clock + HOUR);
+  expect(snooze.until('a', 700, false)).toBe(clock + HOUR);
+  // Kept across a restart, from the end of that work on.
+  const saved = fixture(dom.window.localStorage.getItem(KEY)!);
+  expect(saved.until('a', 700)).toBe(clock + HOUR);
+  expect(saved.until('a', 701, true)).toBeNull();
+});
+
 it('remembers snoozes across a restart and ignores broken, oversized or far-off storage', () => {
   clock = 1_000_000;
   fixture().snooze('kept', clock + HOUR, 1);

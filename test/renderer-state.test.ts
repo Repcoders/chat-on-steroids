@@ -1191,6 +1191,51 @@ it('wakes a snoozed chat on new activity, on an approval waiting, and at its tim
   expect(doc.querySelector('#chatList > details.session-diagnostics')).toBeNull();
 });
 
+it('keeps a chat snoozed while its turn or a sub-agent runs on, and wakes it on a new turn or an approval', async () => {
+  // Gitar, fork #21: snoozing a chat whose turn was still running brought it back at its next update.
+  const now = Date.now();
+  const running = { activityExpiresAt: now + 60 * 60_000 };
+  const worker = (extra: Record<string, unknown> = {}) =>
+    inboxChat('w', { updatedAt: now - 5000, origin: { kind: 'worker', fromSessionId: 'sub', agentId: 'w', task: '' }, ...extra });
+  let rows = [inboxChat('run', { updatedAt: now - 1000, ...running }), inboxChat('ask', { updatedAt: now - 2000, ...running }),
+    inboxChat('sub', { updatedAt: now - 3000 }), worker(running), inboxChat('plain', { updatedAt: now - 4000 })];
+  let state: Record<string, string[]> = {};
+  let changed: () => void = () => undefined;
+  const mounted = await mountInbox({
+    listSessions: async () => listed(rows, state),
+    onSessionChanged: (fn: () => void) => { changed = fn; return () => undefined; }
+  });
+  const doc = mounted.window.document;
+  const row = (id: string) => doc.querySelector<HTMLElement>(`.sess[data-id="${id}"]`);
+  // Each update renames 'plain', so the sidebar has surely repainted when its new name shows.
+  let paints = 0;
+  const update = async (next: typeof rows, ids: string[]) => {
+    const title = `plain ${++paints}`;
+    rows = next.map(entry => entry.id === 'plain' ? { ...entry, title } : entry);
+    changed();
+    await vi.waitFor(() => expect(row('plain')!.textContent).toContain(title));
+    expect(inboxCardIds(doc)).toEqual(ids);
+  };
+  const at = (id: string) => rows.find(entry => entry.id === id)!;
+  await vi.waitFor(() => expect(inboxCardIds(doc)).toEqual(['run', 'ask', 'sub', 'plain']));
+  for (const id of ['run', 'ask', 'sub']) {
+    rowMenuItem(row(id)!, 'snooze')!.click();
+    doc.querySelector<HTMLButtonElement>('[data-row-action="snooze-week"]')!.click();
+  }
+  expect(inboxCardIds(doc)).toEqual(['plain']);
+  // The running turns record more, and the sub-agent too: that is the work they were doing.
+  await update(rows.map(entry => ({ ...entry, updatedAt: entry.id === 'plain' ? entry.updatedAt : Date.now() + 5 })), ['plain']);
+  // The turn and the sub-agent finish: still snoozed.
+  const ended = { activityExpiresAt: null, lastTurnOutcome: 'completed', lastTurnEndAt: Date.now() + 10, updatedAt: Date.now() + 10 };
+  await update([inboxChat('run', ended), at('ask'), at('sub'), worker(ended), at('plain')], ['plain']);
+  // A chat that needs the person comes back while it runs.
+  state = { approval: ['c-ask'] };
+  await update(rows, ['ask', 'plain']);
+  // A new turn after the one it was snoozed in is new activity.
+  await update([{ ...at('run'), ...running, updatedAt: Date.now() + 20 }, ...rows.slice(1)], ['ask', 'run', 'plain']);
+  await update([...rows.slice(0, 3), worker({ ...running, updatedAt: Date.now() + 30 }), at('plain')], ['ask', 'sub', 'run', 'plain']);
+});
+
 it('wakes a snoozed chat when one of its sub-agents waits on an approval or a stopped recovery', async () => {
   const now = Date.now();
   const worker = (id: string, parent: string) => inboxChat(id, { updatedAt: now - 5000, origin: { kind: 'worker', fromSessionId: parent, agentId: id, task: '' } });

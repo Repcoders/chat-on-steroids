@@ -4114,8 +4114,9 @@ weeks ahead so the one repaint timer stays in range). Snooze (an hour, tomorrow 
 8:00, local time) moves a recorded chat from its list, in the tree and the inbox, to a closed
 Snoozed disclosure at the end that shows when each one wakes. It wakes for good at its time (the
 activity-expiry timer repaints then), on any newer `updatedAt` of the chat or its workers, when an
-approval or stopped recovery waits on it or one of its workers, or on Unsnooze. Nothing about the
-chat itself changes.
+approval or stopped recovery waits on it or one of its workers, or on Unsnooze. Work already running
+when it was snoozed is not new: its updates and the update that ends it leave it snoozed. Nothing
+about the chat itself changes.
 The worker drawer is a read-only split view of the selected worker's own recorded conversation;
 opening it never switches the prime composer. Its cards show the scoped worker id, task, observed
 current-conversation model and broker status when known, falling back to recorded session activity.

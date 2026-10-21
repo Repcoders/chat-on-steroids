@@ -1,7 +1,8 @@
 /**
  * Snoozed chats: a local presentation preference, like pins (#1133). A snoozed chat leaves its list
  * for the Snoozed group at the end of the sidebar until its time comes or it does something new,
- * whichever is first; then it is back in its place and stays there. The chat itself, its project
+ * whichever is first; then it is back in its place and stays there. Work it was already doing when
+ * it was snoozed is not new: its updates and its end leave it snoozed. The chat itself, its project
  * and its search results never change.
  */
 const STORAGE_KEY = 'chat-on-steroids.sidebar-snooze';
@@ -36,6 +37,8 @@ interface Snooze {
   until: number;
   /** The chat's last activity when it was snoozed: anything later wakes it. */
   activeAt: number;
+  /** Still in the work it was doing when it was snoozed: that work moves `activeAt` on instead. */
+  busy: boolean;
 }
 
 export function createSidebarSnooze(now: () => number = Date.now) {
@@ -48,25 +51,25 @@ export function createSidebarSnooze(now: () => number = Date.now) {
       for (const entry of saved) {
         if (snoozed.size >= MAX_SNOOZED) break;
         if (!Array.isArray(entry)) continue;
-        const [id, until, activeAt] = entry as unknown[];
+        const [id, until, activeAt, busy] = entry as unknown[];
         if (typeof id === 'string' && id.length > 0 && id.length <= 160 && Number.isFinite(until) && Number.isFinite(activeAt) &&
-            (until as number) <= latest) snoozed.set(id, { until: until as number, activeAt: activeAt as number });
+            (until as number) <= latest) snoozed.set(id, { until: until as number, activeAt: activeAt as number, busy: busy === true });
       }
     }
   } catch { /* Unavailable/corrupt layout storage must not prevent opening chats. */ }
 
   function save(): void {
-    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...snoozed].map(([id, entry]) => [id, entry.until, entry.activeAt]))); }
+    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...snoozed].map(([id, entry]) => [id, entry.until, entry.activeAt, entry.busy]))); }
     catch { /* Keep the snoozes in this window when layout storage is unavailable. */ }
   }
 
   return {
-    /** Snoozes one chat until `until`; `activeAt` is its last activity now. */
-    snooze(id: string, until: number, activeAt: number): void {
+    /** Snoozes one chat until `until`; `activeAt` is its last activity now, `busy` whether it is working. */
+    snooze(id: string, until: number, activeAt: number, busy = false): void {
       snoozed.delete(id);
       // The oldest snooze gives way at the bound; a snooze is never refused.
       if (snoozed.size >= MAX_SNOOZED) snoozed.delete(snoozed.keys().next().value!);
-      snoozed.set(id, { until, activeAt });
+      snoozed.set(id, { until, activeAt, busy });
       save();
     },
     wake(id: string): void {
@@ -74,11 +77,20 @@ export function createSidebarSnooze(now: () => number = Date.now) {
     },
     /**
      * When a snoozed chat wakes, or null when it is not snoozed. Its time passing or any activity
-     * after `activeAt` wakes it for good.
+     * after `activeAt` wakes it for good, except while the work it was doing when snoozed goes on
+     * (`busy`) and in the update that ends it.
      */
-    until(id: string, activeAt: number): number | null {
+    until(id: string, activeAt: number, busy = false): number | null {
       const entry = snoozed.get(id);
       if (!entry) return null;
+      if (entry.until > now() && entry.busy) {
+        if (activeAt > entry.activeAt || !busy) {
+          entry.activeAt = Math.max(entry.activeAt, activeAt);
+          entry.busy = busy;
+          save();
+        }
+        return entry.until;
+      }
       if (entry.until > now() && activeAt <= entry.activeAt) return entry.until;
       snoozed.delete(id);
       save();
