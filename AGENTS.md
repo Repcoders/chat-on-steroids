@@ -233,7 +233,7 @@ Paths in this section are repository-relative. Most mechanisms have `main`, `sha
 | Area | Files and responsibility |
 | --- | --- |
 | App shell | `src/main/index.ts`, `window-lifecycle.ts`, `window-layout.ts`, `window-icon.ts`, `tray-image.ts`, `shutdown.ts`: bootstrap, activation, geometry, tray and bounded exit. |
-| Config/security | `src/main/config.ts`, `platform.ts`, `secrets.ts`, `sandbox.ts`, `redaction.ts`; `src/shared/types.ts`, `capabilities.ts`: permission and host projection, secrets, approved paths. |
+| Config/security | `src/main/config.ts`, `platform.ts`, `secrets.ts`, `sandbox.ts`, `redaction.ts`; `src/shared/types.ts`, `capabilities.ts`, `secret-shapes.ts`: permission and host projection, secrets, approved paths. |
 | Publication | `src/main/connection.ts`, `mcp/server.ts`, `mcp/surfaces.ts`, `tunnel/{index,health,locate}.ts`, `diagnostics.ts`: endpoint/tunnel generation and truthful status. |
 | Local control API | `src/main/control-api.ts`, `src/main/control-reads.ts`, `src/main/control-actions.ts`, `src/shared/control-api.ts`: opt-in loopback listener, per-launch token, allowlisted read-only projections of other owners, and (behind `controlApi.allowActions`) send and cancel through the outbox and Stop through `stopSessionTurn`. Owns no fact. The session list and event page it serves come from `session/read-model.ts`, the same functions the renderer's IPC handlers call. |
 | Tool dispatch | `src/main/mcp/{tools,kernel,inbound,call-context,tool-declarations}.ts`, `tools-core.ts`, `tools-desktop.ts`, `tools-plugins.ts`: declarations, exact caller, live guards and evidence. |
@@ -1363,6 +1363,18 @@ a worker's or helper's, whose tasks come from the app. Messages without text, st
 queued inputs are not recalled either. The list is read at the first press, so a message recorded
 while paging doesn't shift it. Each recalled message is announced through the sr-only polite region
 `#recallAnnounce`. Recall only fills the composer; nothing is stored and nothing is sent.
+Secret guard (`paintSecretNotice` in `chat.ts`): before a composer send or a Plan request goes to the
+planner, `findSecretShapes` (`src/shared/secret-shapes.ts`) reads the authored text, and the Goal or
+Loop objective when a send takes it along (`sentObjective`), for the credential shapes the control API masks (`redactSecretText` uses the same list). On a match nothing
+is sent: the `#secretDraft` dock row names each match by its harmless start (`ghp_…`, never the
+secret) with Redact and send, which replaces the matches in the composer and the objective with `[redacted]` and sends,
+and Send anyway, which sends the draft as typed. A Plan hold's buttons send the request to the
+planner instead. The hold belongs to that exact draft, objective, chat and route; an edit to either, another chat,
+or turning Plan on or off drops it, and the next send checks again. An objective that changes while
+the model is confirmed is checked again before it leaves. The Goal editor's Save, which starts a chat
+from the objective or saves a running chat's objective, is not checked. A prepared plan's stages were
+written from the checked request and are not read again; attached files are not read. Like the mask,
+it is a list of shapes, not a promise: a password in prose passes.
 
 `session/start-input.ts` returns durable local admission before waiting for connector readiness
 or browser delivery. Each New Chat opening reserves its own local session in the outbox, then
