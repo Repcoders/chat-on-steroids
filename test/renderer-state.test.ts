@@ -1094,6 +1094,218 @@ it('shows unattributed activity at the end of the inbox, as the tree does, with 
   expect(doc.activeElement).toBe(box()!.querySelector('summary'));
 });
 
+it('snoozes a chat into Snoozed at the end of the list, in the tree and the inbox, until Unsnooze', async () => {
+  const now = Date.now();
+  const { project } = projectSidebarFixture();
+  const rows = [inboxChat('quiet', { updatedAt: now - 1000 }), inboxChat('task', { projectId: project.id, updatedAt: now - 2000 }), inboxChat('other', { updatedAt: now })];
+  let changed: () => void = () => undefined;
+  const mounted = await mountChat({}, [], {
+    listProjects: async () => ({ ok: true, data: [project] }),
+    listSessions: async () => listed(rows),
+    onSessionChanged: (fn: () => void) => { changed = fn; return () => undefined; }
+  });
+  const doc = mounted.window.document;
+  const row = (id: string) => doc.querySelector<HTMLElement>(`.sess[data-id="${id}"]`);
+  const box = () => doc.querySelector<HTMLDetailsElement>('#chatList > details.session-diagnostics');
+  const snoozedIds = () => [...box()?.querySelectorAll<HTMLElement>(':scope > .sess') ?? []].map(entry => entry.dataset.id);
+  await vi.waitFor(() => expect(row('quiet')).not.toBeNull());
+  // A submenu of three times, each showing when it ends.
+  rowMenuItem(row('quiet')!, 'snooze')!.click();
+  const choices = [...doc.querySelectorAll<HTMLElement>('.row-menu[data-parent-action="snooze"] .row-menu-item')];
+  expect(choices.map(choice => choice.dataset.rowAction)).toEqual(['snooze-hour', 'snooze-tomorrow', 'snooze-week']);
+  expect(choices.map(choice => choice.querySelector('.row-menu-label')?.textContent)).toEqual(['In an hour', 'Tomorrow', 'Next week']);
+  expect(choices.every(choice => choice.querySelector('.row-menu-hint')?.textContent)).toBe(true);
+  doc.querySelector<HTMLButtonElement>('[data-row-action="snooze-tomorrow"]')!.click();
+  expect(window.localStorage.getItem('chat-on-steroids.sidebar-snooze')).toContain('quiet');
+  // Out of its list, once, into a closed group at the end that has the keyboard now.
+  expect(snoozedIds()).toEqual(['quiet']);
+  expect(doc.querySelectorAll('.sess[data-id="quiet"]')).toHaveLength(1);
+  expect(box()!.open).toBe(false);
+  expect(box()!.querySelector('summary')!.textContent).toBe('Snoozed · 1');
+  expect(doc.activeElement).toBe(box()!.querySelector('summary'));
+  expect(row('quiet')!.querySelector('.sess-age')?.textContent).toBeTruthy();
+  expect(row('quiet')!.title).toContain('Snoozed until ');
+  // A project's chat goes to the same group; its project section no longer lists it.
+  rowMenuItem(row('task')!, 'snooze')!.click();
+  doc.querySelector<HTMLButtonElement>('[data-row-action="snooze-week"]')!.click();
+  expect(snoozedIds()).toEqual(['quiet', 'task']);
+  expect(doc.querySelector(`[data-project-id="${project.id}"] .sess[data-id="task"]`)).toBeNull();
+  // The inbox draws the same group after its own lists, and the snooze survived the switch.
+  const { defaultAppearance } = await import('../src/shared/appearance.js');
+  mounted.state.config = { ...mounted.state.config, ui: { ...mounted.state.config.ui, appearance: { ...defaultAppearance(), sidebarLayout: 'inbox' } } };
+  mounted.push(structuredClone(mounted.state));
+  await settle();
+  expect(inboxCardIds(doc)).toEqual(['other']);
+  expect(snoozedIds()).toEqual(['quiet', 'task']);
+  // Unsnooze, in its menu where Snooze was, brings it back at once.
+  expect(rowMenuItem(row('quiet')!, 'snooze')).toBeNull();
+  rowMenuItem(row('quiet')!, 'unsnooze')!.click();
+  expect(inboxCardIds(doc)).toEqual(['other', 'quiet']);
+  expect(snoozedIds()).toEqual(['task']);
+  expect(doc.activeElement).toBe(row('quiet')!.querySelector('.sess-top'));
+  // Kept across a repaint from a new list.
+  changed();
+  await settle();
+  expect(snoozedIds()).toEqual(['task']);
+  expect(window.localStorage.getItem('chat-on-steroids.sidebar-snooze')).not.toContain('quiet');
+});
+
+it('wakes a snoozed chat on new activity, on an approval waiting, and at its time without any push', async () => {
+  const now = Date.now();
+  let rows = [inboxChat('a1', { updatedAt: now - 1000 }), inboxChat('a2', { updatedAt: now - 2000 }), inboxChat('a3', { updatedAt: now - 3000 })];
+  let approval: string[] = [];
+  let changed: () => void = () => undefined;
+  const mounted = await mountInbox({
+    listSessions: async () => listed(rows, { approval }),
+    onSessionChanged: (fn: () => void) => { changed = fn; return () => undefined; }
+  });
+  const doc = mounted.window.document;
+  const row = (id: string) => doc.querySelector<HTMLElement>(`.sess[data-id="${id}"]`);
+  const snooze = (id: string, choice: string) => {
+    rowMenuItem(row(id)!, 'snooze')!.click();
+    doc.querySelector<HTMLButtonElement>(`[data-row-action="snooze-${choice}"]`)!.click();
+  };
+  await vi.waitFor(() => expect(inboxCardIds(doc)).toEqual(['a1', 'a2', 'a3']));
+  snooze('a1', 'week');
+  snooze('a2', 'week');
+  expect(inboxCardIds(doc)).toEqual(['a3']);
+  // a1 records something new: back in its place, and it stays there.
+  rows = [inboxChat('a1', { updatedAt: Date.now() + 5 }), ...rows.slice(1)];
+  changed();
+  await vi.waitFor(() => expect(inboxCardIds(doc)).toEqual(['a1', 'a3']));
+  // a2 needs an approval: the person has to see it.
+  approval = ['c-a2'];
+  changed();
+  await vi.waitFor(() => expect(inboxCardIds(doc)).toEqual(['a2', 'a1', 'a3']));
+  // Answered, it stays awake, back in its place by recency.
+  approval = [];
+  changed();
+  await vi.waitFor(() => expect(inboxCardIds(doc)).toEqual(['a1', 'a2', 'a3']));
+  // a3's hour ends in a moment: the sidebar repaints for it with nothing else happening.
+  const realNow = Date.now.bind(Date);
+  const clock = vi.spyOn(Date, 'now').mockImplementation(() => realNow() - 60 * 60_000 + 1500);
+  snooze('a3', 'hour');
+  clock.mockRestore();
+  changed();
+  await vi.waitFor(() => expect(inboxCardIds(doc)).toEqual(['a1', 'a2']));
+  await vi.waitFor(() => expect(inboxCardIds(doc)).toEqual(['a1', 'a2', 'a3']), { timeout: 5000 });
+  expect(doc.querySelector('#chatList > details.session-diagnostics')).toBeNull();
+});
+
+it('keeps a chat snoozed while its turn or a sub-agent runs on, and wakes it on a new turn or an approval', async () => {
+  // Gitar, fork #21: snoozing a chat whose turn was still running brought it back at its next update.
+  const now = Date.now();
+  const running = { activityExpiresAt: now + 60 * 60_000 };
+  const worker = (extra: Record<string, unknown> = {}) =>
+    inboxChat('w', { updatedAt: now - 5000, origin: { kind: 'worker', fromSessionId: 'sub', agentId: 'w', task: '' }, ...extra });
+  let rows = [inboxChat('run', { updatedAt: now - 1000, ...running }), inboxChat('ask', { updatedAt: now - 2000, ...running }),
+    inboxChat('sub', { updatedAt: now - 3000 }), worker(running), inboxChat('plain', { updatedAt: now - 4000 })];
+  let state: Record<string, string[]> = {};
+  let changed: () => void = () => undefined;
+  const mounted = await mountInbox({
+    listSessions: async () => listed(rows, state),
+    onSessionChanged: (fn: () => void) => { changed = fn; return () => undefined; }
+  });
+  const doc = mounted.window.document;
+  const row = (id: string) => doc.querySelector<HTMLElement>(`.sess[data-id="${id}"]`);
+  // Each update renames 'plain', so the sidebar has surely repainted when its new name shows.
+  let paints = 0;
+  const update = async (next: typeof rows, ids: string[]) => {
+    const title = `plain ${++paints}`;
+    rows = next.map(entry => entry.id === 'plain' ? { ...entry, title } : entry);
+    changed();
+    await vi.waitFor(() => expect(row('plain')!.textContent).toContain(title));
+    expect(inboxCardIds(doc)).toEqual(ids);
+  };
+  const at = (id: string) => rows.find(entry => entry.id === id)!;
+  await vi.waitFor(() => expect(inboxCardIds(doc)).toEqual(['run', 'ask', 'sub', 'plain']));
+  for (const id of ['run', 'ask', 'sub']) {
+    rowMenuItem(row(id)!, 'snooze')!.click();
+    doc.querySelector<HTMLButtonElement>('[data-row-action="snooze-week"]')!.click();
+  }
+  expect(inboxCardIds(doc)).toEqual(['plain']);
+  // The running turns record more, and the sub-agent too: that is the work they were doing.
+  await update(rows.map(entry => ({ ...entry, updatedAt: entry.id === 'plain' ? entry.updatedAt : Date.now() + 5 })), ['plain']);
+  // The turn and the sub-agent finish: still snoozed.
+  const ended = { activityExpiresAt: null, lastTurnOutcome: 'completed', lastTurnEndAt: Date.now() + 10, updatedAt: Date.now() + 10 };
+  await update([inboxChat('run', ended), at('ask'), at('sub'), worker(ended), at('plain')], ['plain']);
+  // A chat that needs the person comes back while it runs.
+  state = { approval: ['c-ask'] };
+  await update(rows, ['ask', 'plain']);
+  // A new turn after the one it was snoozed in is new activity.
+  await update([{ ...at('run'), ...running, updatedAt: Date.now() + 20 }, ...rows.slice(1)], ['ask', 'run', 'plain']);
+  await update([...rows.slice(0, 3), worker({ ...running, updatedAt: Date.now() + 30 }), at('plain')], ['ask', 'sub', 'run', 'plain']);
+});
+
+it('wakes a snoozed chat on a new turn that follows the one it was snoozed in with no idle update between', async () => {
+  // CodeRabbit and Gitar, fork #21: a turn starting straight after the snoozed one stayed hidden while the chat looked busy throughout.
+  const now = Date.now();
+  const running = { activityExpiresAt: now + 60 * 60_000 };
+  const worker = (id: string, parent: string, extra: Record<string, unknown>) =>
+    inboxChat(id, { updatedAt: now - 5000, origin: { kind: 'worker', fromSessionId: parent, agentId: id, task: '' }, ...running, ...extra });
+  let rows = [inboxChat('next', { updatedAt: now - 1000, ...running, activeTurnId: 't1' }), inboxChat('sub', { updatedAt: now - 2000 }),
+    worker('w', 'sub', { activeTurnId: 'w1' }), inboxChat('lead', { updatedAt: now - 3000, ...running, activeTurnId: 'l1' }),
+    worker('lw', 'lead', { activeTurnId: 'x1' }), inboxChat('plain', { updatedAt: now - 4000 })];
+  let changed: () => void = () => undefined;
+  const mounted = await mountInbox({
+    listSessions: async () => listed(rows),
+    onSessionChanged: (fn: () => void) => { changed = fn; return () => undefined; }
+  });
+  const doc = mounted.window.document;
+  const row = (id: string) => doc.querySelector<HTMLElement>(`.sess[data-id="${id}"]`);
+  // Each update renames 'plain', so the sidebar has surely repainted when its new name shows.
+  let paints = 0;
+  const update = async (changes: Record<string, Record<string, unknown>>, ids: string[]) => {
+    const title = `plain ${++paints}`;
+    rows = rows.map(entry => ({ ...entry, ...changes[entry.id], ...(entry.id === 'plain' ? { title } : {}) }));
+    changed();
+    await vi.waitFor(() => expect(row('plain')!.textContent).toContain(title));
+    expect(inboxCardIds(doc).sort()).toEqual(ids);
+  };
+  await vi.waitFor(() => expect(inboxCardIds(doc).sort()).toEqual(['lead', 'next', 'plain', 'sub']));
+  for (const id of ['next', 'sub', 'lead']) {
+    rowMenuItem(row(id)!, 'snooze')!.click();
+    doc.querySelector<HTMLButtonElement>('[data-row-action="snooze-week"]')!.click();
+  }
+  // The same turns record more: still snoozed.
+  await update({ next: { updatedAt: Date.now() + 5 }, w: { updatedAt: Date.now() + 5 }, lead: { updatedAt: Date.now() + 5 } }, ['plain']);
+  // A sub-agent's next turn while its parent's snoozed turn runs on is part of that turn.
+  await update({ lw: { updatedAt: Date.now() + 10, activeTurnId: 'x2' } }, ['plain']);
+  // The chat's next turn, or a sub-agent's next turn with the chat idle, is new.
+  await update({ next: { updatedAt: Date.now() + 15, activeTurnId: 't2' } }, ['next', 'plain']);
+  await update({ w: { updatedAt: Date.now() + 20, activeTurnId: 'w2' } }, ['next', 'plain', 'sub']);
+});
+
+it('wakes a snoozed chat when one of its sub-agents waits on an approval or a stopped recovery', async () => {
+  const now = Date.now();
+  const worker = (id: string, parent: string) => inboxChat(id, { updatedAt: now - 5000, origin: { kind: 'worker', fromSessionId: parent, agentId: id, task: '' } });
+  const rows = [inboxChat('p1', { updatedAt: now - 1000 }), worker('w1', 'p1'), inboxChat('p2', { updatedAt: now - 2000 }), worker('w2', 'p2'), inboxChat('plain', { updatedAt: now - 3000 })];
+  let state: Record<string, string[]> = {};
+  let changed: () => void = () => undefined;
+  const mounted = await mountInbox({
+    listSessions: async () => listed(rows, state),
+    onSessionChanged: (fn: () => void) => { changed = fn; return () => undefined; }
+  });
+  const doc = mounted.window.document;
+  const row = (id: string) => doc.querySelector<HTMLElement>(`.sess[data-id="${id}"]`);
+  await vi.waitFor(() => expect(inboxCardIds(doc)).toEqual(['p1', 'p2', 'plain']));
+  for (const id of ['p1', 'p2']) {
+    rowMenuItem(row(id)!, 'snooze')!.click();
+    doc.querySelector<HTMLButtonElement>('[data-row-action="snooze-week"]')!.click();
+  }
+  expect(inboxCardIds(doc)).toEqual(['plain']);
+  // Nothing new was recorded, but the person has to answer the worker: its parent comes back.
+  state = { approval: ['c-w1'] };
+  changed();
+  await vi.waitFor(() => expect(inboxCardIds(doc)).toEqual(['p1', 'plain']));
+  // While it waits, Snooze is not offered: it would come straight back.
+  expect(rowMenuItem(row('p1')!, 'snooze')).toBeNull();
+  closeRowMenus(doc);
+  state = { recoveryStopped: ['c-w2'] };
+  changed();
+  await vi.waitFor(() => expect(inboxCardIds(doc)).toEqual(['p2', 'p1', 'plain']));
+});
+
 it('marks a collapsed chat whose sub-agent needs you, over its own spinner, in the project tree', async () => {
   // VM, 2026-10-20: a worker waited on ChatGPT's approval card for half an hour; its chat's row in
   // the tree showed only the arrow, so nothing said it needed anyone until the row was opened.
@@ -1362,7 +1574,7 @@ it('offers a chat\'s actions in one menu, by kind of row, and opens it with a ri
   expect(row(chat.id).querySelectorAll('.sess-actions button').length).toBe(1);
   const actions = (): Array<string | undefined> => [...doc.querySelectorAll<HTMLElement>('.row-menu .row-menu-item')].map(item => item.dataset.rowAction);
   rowMenuItem(row(chat.id), 'rename');
-  expect(actions()).toEqual(['pin', 'rename', 'open', 'copy-link', 'block', 'remove']);
+  expect(actions()).toEqual(['pin', 'snooze', 'rename', 'open', 'copy-link', 'block', 'remove']);
   expect(doc.querySelector('.row-menu [data-row-action="remove"]')!.classList.contains('is-danger')).toBe(true);
   closeRowMenus(doc);
   // A row that is not a chat offers only what applies to it.

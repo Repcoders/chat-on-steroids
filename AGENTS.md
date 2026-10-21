@@ -4109,6 +4109,15 @@ unpinned groups and a drag never crosses between them. Only recorded chats are p
 workers or unattributed activity. Pinned rows carry a quiet pin mark at rest (it makes way for the
 row's "⋯" on hover, focus or while its menu is open), and Pin chat/Unpin chat is the first item of
 the chat's row menu, keeping keyboard focus on the rebuilt row's menu button.
+`renderer/sidebar-snooze.ts` keeps snoozed chats the same way (localStorage, 500 ids, at most two
+weeks ahead so the one repaint timer stays in range). Snooze (an hour, tomorrow 8:00, next Monday
+8:00, local time) moves a recorded chat from its list, in the tree and the inbox, to a closed
+Snoozed disclosure at the end that shows when each one wakes. It wakes for good at its time (the
+activity-expiry timer repaints then), on any newer `updatedAt` of the chat or its workers, when an
+approval or stopped recovery waits on it or one of its workers, or on Unsnooze. Work already running
+when it was snoozed is not new: its updates and the update that ends it leave it snoozed. A turn it
+was not snoozed in is new, told by `activeTurnId` even with no idle update between: the chat's own,
+or a worker's unless it starts inside the chat's snoozed turn. Nothing about the chat itself changes.
 The worker drawer is a read-only split view of the selected worker's own recorded conversation;
 opening it never switches the prime composer. Its cards show the scoped worker id, task, observed
 current-conversation model and broker status when known, falling back to recorded session activity.
