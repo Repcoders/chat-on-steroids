@@ -117,6 +117,15 @@ it.each(['playfulStatus', 'playfulContinue', 'followOutput'] as const)('saves th
   expect(getConfig().ui[key]).toBe(wanted);
 });
 
+it('saves the Read aloud voice and speed from Settings, keeps them across a stale save, and refuses an unlisted speed', async () => {
+  const base = getConfig();
+  expect(await save({ ...base, ui: { ...base.ui, readAloudVoice: 'urn:voice:placeholder', readAloudRate: 1.5 } }, base)).toMatchObject({ ok: true });
+  expect(getConfig().ui).toMatchObject({ readAloudVoice: 'urn:voice:placeholder', readAloudRate: 1.5 });
+  expect(await save({ ...base, ui: { ...base.ui, theme: base.ui.theme === 'light' ? 'dark' : 'light' } }, base)).toMatchObject({ ok: true });
+  expect(getConfig().ui).toMatchObject({ readAloudVoice: 'urn:voice:placeholder', readAloudRate: 1.5 });
+  expect(await save({ ...base, ui: { ...base.ui, readAloudRate: 9 } }, base)).toMatchObject({ ok: false });
+});
+
 it('saves Auto-select Skills through Settings and preserves it across a stale unrelated save', async () => {
   const base = getConfig();
   const wanted = !(base.ui.autoSelectSkills ?? false);

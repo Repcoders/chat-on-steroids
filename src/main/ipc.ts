@@ -65,6 +65,7 @@ import {
   GOAL_MODES,
   GOAL_PROVIDERS,
   GOAL_REASONING_LEVELS,
+  READ_ALOUD_RATES,
   type AppState,
   type Config
 } from '../shared/types.js';
@@ -237,6 +238,8 @@ const settingsPatch = z.object({
     backgroundPlacement: z.enum(['window', 'group']).optional(),
     followUp: z.enum(['steer', 'queue']).optional(),
     enterSends: z.boolean().optional(),
+    readAloudVoice: z.string().trim().min(1).max(300).optional(),
+    readAloudRate: z.number().refine(rate => (READ_ALOUD_RATES as readonly number[]).includes(rate)).optional(),
     browserBridgePort: browserBridgePortSchema.optional(),
     browserOnly: z.boolean().optional(),
     autoRefreshPlugins: z.boolean().optional(),
@@ -422,6 +425,8 @@ function mergeSettings(current: Config, base: SettingsSnapshot, wanted: Settings
       backgroundPlacement: pick(current.ui.backgroundPlacement, base.ui.backgroundPlacement, wanted.ui.backgroundPlacement),
       followUp: pick(current.ui.followUp, base.ui.followUp, wanted.ui.followUp),
       enterSends: pick(current.ui.enterSends, base.ui.enterSends, wanted.ui.enterSends),
+      readAloudVoice: pick(current.ui.readAloudVoice, base.ui.readAloudVoice, wanted.ui.readAloudVoice),
+      readAloudRate: pick(current.ui.readAloudRate, base.ui.readAloudRate, wanted.ui.readAloudRate),
       browserBridgePort: wanted.ui.browserBridgePort === undefined ? current.ui.browserBridgePort
         : pick(current.ui.browserBridgePort ?? 'auto', base.ui.browserBridgePort ?? 'auto', wanted.ui.browserBridgePort),
       browserOnly: pick(current.ui.browserOnly, base.ui.browserOnly, wanted.ui.browserOnly),

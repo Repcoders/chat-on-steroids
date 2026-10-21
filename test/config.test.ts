@@ -449,6 +449,18 @@ describe('settings migration', () => {
     expect((await loadConfig()).ui.enterSends).toBe(false);
   });
 
+  it('reads aloud with the system voice at normal speed until a choice is saved, and drops a broken one', async () => {
+    const config = defaultConfig();
+    expect(config.ui).not.toHaveProperty('readAloudVoice');
+    await saveConfig({ ...config, ui: { ...config.ui, readAloudVoice: 'urn:voice:placeholder', readAloudRate: 1.25 } });
+    expect((await loadConfig()).ui).toMatchObject({ readAloudVoice: 'urn:voice:placeholder', readAloudRate: 1.25 });
+    await fs.writeFile(path.join(dir, 'config.json'), JSON.stringify({ ...config, ui: { ...config.ui, readAloudVoice: 7, readAloudRate: 40, enterSends: false } }), 'utf8');
+    const loaded = (await loadConfig()).ui;
+    expect(loaded.readAloudVoice).toBeUndefined();
+    expect(loaded.readAloudRate).toBeUndefined();
+    expect(loaded.enterSends).toBe(false);
+  });
+
   it('keeps the thorough handoff length for older and broken configs, and saves a choice', async () => {
     const config = defaultConfig();
     expect(config.compaction.handoffLength).toBe('thorough');

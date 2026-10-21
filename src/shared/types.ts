@@ -142,6 +142,9 @@ export interface TunnelSettings {
 export const CHAT_BROWSERS = ['chrome', 'edge', 'brave', 'firefox', 'cos'] as const;
 export type ChatBrowser = (typeof CHAT_BROWSERS)[number];
 
+/** The speeds Read aloud offers; 1 is the voice's own. */
+export const READ_ALOUD_RATES = [0.75, 1, 1.25, 1.5, 2] as const;
+
 export interface UiPrefs {
   /** Recover an unfinished silent executor turn only while Goal and Loop are both off. */
   autoContinue?: boolean;
@@ -205,6 +208,10 @@ export interface UiPrefs {
   followUp?: 'steer' | 'queue';
   /** Codex's "Enter key behavior": Enter sends (missing or true), or only Cmd/Ctrl+Enter sends (false). */
   enterSends?: boolean;
+  /** Read aloud's voice, by the system voice's `voiceURI`; missing or not installed means the system default. */
+  readAloudVoice?: string;
+  /** Read aloud's speed, one of READ_ALOUD_RATES; missing means 1. */
+  readAloudRate?: number;
   /** Keep the computer from sleeping while a chat is working (Codex: Prevent sleep while running). Missing means on. */
   keepAwake?: boolean;
   /** With keepAwake: also keep the screen on (Modern Standby laptops sleep once it turns off). */

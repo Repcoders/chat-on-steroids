@@ -2816,6 +2816,7 @@ input[readonly] {
 .answer-action:hover, .answer-export[open] > .answer-action { background: var(--hover); color: var(--ink); }
 .answer-action:focus-visible { outline: 1px solid var(--accent-edge); outline-offset: -1px; }
 .answer-action.is-done { color: var(--green); }
+.answer-read.is-reading { color: var(--ink); }
 .answer-export { anchor-scope: --answer-export; }
 .answer-export > summary { anchor-name: --answer-export; }
 .answer-export::details-content { transition: content-visibility 120ms allow-discrete; }

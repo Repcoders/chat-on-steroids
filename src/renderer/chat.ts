@@ -39,7 +39,8 @@ import { sanitizeHtmlTree } from './sanitize-html.js';
 import { drawMath, mathExtensions, separateDisplayMath, type MathSlots } from './math.js';
 import { DEFAULT_HELPER_CHAT_MODEL, isAstraModel } from '../shared/chat-models.js';
 import { supportsFinishAutomation } from '../shared/finish.js';
-import { answerAnchors, messageAnswerAnchors } from '../shared/markdown-export.js';
+import { answerAnchors, messageAnswerAnchors, transcriptEntries, turnAnswerEntries } from '../shared/markdown-export.js';
+import { onReadAloudChange, pauseReadAloud, readAloudAvailable, readAloudState, resumeReadAloud, startReadAloud, stopReadAloud } from './read-aloud.js';
 import type { InputImage, InputAttachment, InputAutomation } from '../shared/input.js';
 import { authoredTextOf, injectableAttachments, queuedFollowup, MAX_INPUT_IMAGES } from '../shared/input.js';
 import type { InputArgs, InputEntry } from '../main/session/input.js';
@@ -4625,7 +4626,22 @@ function answerActions(turnId: string | null, messageId?: string): HTMLElement {
     else document.removeEventListener('pointerdown', close, true);
   });
   menu.addEventListener('keydown', event => { if (event.key === 'Escape') { menu.open = false; trigger.focus(); } });
-  bar.append(copy, menu);
+  const read = el('button', 'answer-action answer-read') as HTMLButtonElement;
+  read.type = 'button';
+  read.dataset.readKey = `${sessionId}\u0000${turnId ?? `message:${messageId}`}`;
+  read.append(icon('i-speaker'));
+  paintReadAloud(read);
+  read.addEventListener('click', () => {
+    const key = read.dataset.readKey!;
+    const reading = readAloudState(key);
+    if (reading === 'reading') stopReadAloud();
+    else if (reading === 'paused') resumeReadAloud();
+    else if (sessionId && selectedId === sessionId) {
+      const prefs = deps.state()?.config.ui;
+      startReadAloud(key, answerMarkdown(turnId, messageId), { voice: prefs?.readAloudVoice, rate: prefs?.readAloudRate });
+    }
+  });
+  bar.append(copy, menu, read);
   const branch = branchPoint(messageId);
   if (branch) {
     // Branch in new chat (#482): ChatGPT's own branch at this reply, made with the first message.
@@ -4641,6 +4657,23 @@ function answerActions(turnId: string | null, messageId?: string): HTMLElement {
     bar.append(button);
   }
   return bar;
+}
+
+/** What Read aloud speaks: the messages Copy copies, as this window recorded them. */
+function answerMarkdown(turnId: string | null, messageId?: string): string {
+  const entries = turnId ? turnAnswerEntries(events, turnId)
+    : transcriptEntries(events).filter(entry => entry.role === 'assistant' && !entry.turnId && entry.messageId === messageId);
+  return entries.map(entry => withoutProviderDirectives(withoutMessageReaction(entry.stored.text))).join('\n\n');
+}
+
+/** The speaker under an answer: Read aloud, Stop reading while it reads, Resume once typing paused it. */
+function paintReadAloud(button: HTMLButtonElement): void {
+  const reading = readAloudState(button.dataset.readKey!);
+  button.hidden = !readAloudAvailable();
+  setIcon(button.firstElementChild as HTMLElement, reading === 'reading' ? 'i-stop' : reading === 'paused' ? 'i-play' : 'i-speaker');
+  const label = () => reading === 'reading' ? t('Stop reading') : reading === 'paused' ? t('Resume reading') : t('Read aloud');
+  ui(button, 'title', label); ui(button, 'aria-label', label);
+  button.classList.toggle('is-reading', reading !== 'idle');
 }
 
 /**
@@ -7864,6 +7897,8 @@ function selectSession(id: string): void {
   // An edit belongs to its chat: leaving it gives the composer back the draft it held before.
   if (editingQuestion) endEditing(true);
   const ownerChanged = id !== selectedId;
+  // The speaker that stops it goes with the chat.
+  if (ownerChanged) stopReadAloud();
   rememberDraft();
   selectionGeneration++; chatFind?.selectionChanged(); replaceComposerDraft();
   inputQueueGeneration++;
@@ -7909,6 +7944,7 @@ function selectSession(id: string): void {
 
 function selectNewChat(projectId: string | null = null, branch: typeof newChatBranch = null): void {
   if (editingQuestion) endEditing(true);
+  stopReadAloud();
   newChatBranch = branch;
   rememberDraft(); selectionGeneration++; chatFind?.selectionChanged(); replaceComposerDraft(); pendingNewInput = null;
   inputQueueGeneration++;
@@ -8291,7 +8327,10 @@ export function initChat(next: Deps): void {
     for (const menu of composerMenus) if (!menu.contains(event.target as Node) || ((event.target as HTMLElement).closest('button') && !(event.target as HTMLElement).closest('[data-keep-menu]'))) menu.open = false;
   });
   document.addEventListener('keydown', (event) => { if (event.key === 'Escape') for (const menu of composerMenus) menu.open = false; });
+  onReadAloudChange(() => document.querySelectorAll<HTMLButtonElement>('.answer-read').forEach(paintReadAloud));
   $('chatInput').addEventListener('input', () => {
+    // Typing pauses an answer being read aloud; its speaker resumes it.
+    pauseReadAloud();
     recall = null;
     // The same message recalled again later must change the live region to be read again.
     const recalled = $('recallAnnounce'); if (recalled.textContent) recalled.textContent = '';

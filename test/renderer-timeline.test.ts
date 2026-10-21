@@ -166,7 +166,7 @@ async function settleHistoryFrame(w: Pick<Window, 'requestAnimationFrame'>): Pro
   await settle();
 }
 
-async function boot(events: SessionEvent[], selectExisting = true, pausedHelpers: Array<{ id: string; sourceSessionId: string }> = [], projects: LocalProject[] = [], options: { origin?: SessionSummary["origin"]; developerMode?: boolean; playfulStatus?: boolean; followOutput?: boolean; followUp?: 'steer' | 'queue'; enterSends?: boolean; sessions?: SessionSummary[]; pro?: boolean; astra?: boolean; reserveOpenings?: boolean; handoff?: Handoff | null; deferProcessStop?: boolean; defaultChatModel?: string; noModels?: boolean; approvalCard?: () => unknown; answerApproval?: (id: string, cardId: string, choice: string) => unknown; summary?: Partial<SessionSummary>; holdInputs?: Promise<void> } = {}) {
+async function boot(events: SessionEvent[], selectExisting = true, pausedHelpers: Array<{ id: string; sourceSessionId: string }> = [], projects: LocalProject[] = [], options: { origin?: SessionSummary["origin"]; developerMode?: boolean; playfulStatus?: boolean; followOutput?: boolean; followUp?: 'steer' | 'queue'; enterSends?: boolean; sessions?: SessionSummary[]; pro?: boolean; astra?: boolean; reserveOpenings?: boolean; handoff?: Handoff | null; deferProcessStop?: boolean; defaultChatModel?: string; noModels?: boolean; approvalCard?: () => unknown; answerApproval?: (id: string, cardId: string, choice: string) => unknown; summary?: Partial<SessionSummary>; holdInputs?: Promise<void>; speech?: unknown } = {}) {
   const html = await fs.readFile(path.join(process.cwd(), 'src', 'renderer', 'index.html'), 'utf8');
   dom = new JSDOM(html, { url: 'https://local.test/', pretendToBeVisual: true });
   const w = dom.window;
@@ -332,6 +332,11 @@ async function boot(events: SessionEvent[], selectExisting = true, pausedHelpers
     }
   );
   Object.defineProperty(w, 'api', { value: api, configurable: true });
+  // jsdom has no speechSynthesis; `speech` stands in for the system's.
+  if (options.speech) Object.assign(w, { speechSynthesis: options.speech, SpeechSynthesisUtterance: class extends w.EventTarget {
+    voice = null; lang = ''; rate = 1;
+    constructor(public text: string) { super(); }
+  } });
 
   await import('../src/renderer/main.js');
   await settle();
@@ -5378,6 +5383,42 @@ it('offers copy and Markdown export under the answer of a completed turn only', 
   expect(choices.map(choice => choice.textContent)).toEqual(['This answer', 'Whole session']);
   choices[1]!.click(); await settle();
   expect(api.exportMarkdown).toHaveBeenCalledWith({ id: summary([]).id, scope: 'session', turnId: undefined, target: 'file' });
+});
+
+it('reads a completed answer aloud without its code block, pauses while you type and resumes from its speaker', async () => {
+  const spoken: Array<{ text: string; rate: number }> = [];
+  const speech = Object.assign(new EventTarget(), {
+    getVoices: () => [{ voiceURI: 'urn:voice:one', name: 'Voice One', lang: 'en-US' }],
+    speak: vi.fn((utterance: { text: string; rate: number }) => { spoken.push(utterance); }),
+    cancel: vi.fn(), pause: vi.fn(), resume: vi.fn()
+  });
+  const reply: SessionEvent = { kind: 'assistant_message', seq: 1, time: T0, source: 'extension', turnId: 'done-turn', messageId: 'reply', message: text('Run this:\n\n```sh\nnpm test\n```\n\nThen check **the output**.'), final: true, state: 'final' };
+  const { w } = await boot([reply, { seq: 2, time: T0 + 1_000, source: 'extension', kind: 'turn_end', turnId: 'done-turn', outcome: 'completed' }], true, [], [], { speech });
+  const speaker = () => w.document.querySelector<HTMLButtonElement>('.answer-actions .answer-read')!;
+  expect(speaker().hidden).toBe(false);
+  expect(speaker().getAttribute('aria-label')).toBe('Read aloud');
+  speaker().click();
+  expect(spoken.map(utterance => utterance.text)).toEqual(['Run this:', 'Then check the output.']);
+  expect(spoken[0]!.rate).toBe(1);
+  expect(speaker().getAttribute('aria-label')).toBe('Stop reading');
+
+  const input = w.document.getElementById('chatInput') as HTMLTextAreaElement;
+  input.value = 'a'; input.dispatchEvent(new w.Event('input', { bubbles: true }));
+  expect(speech.pause).toHaveBeenCalledOnce();
+  expect(speaker().getAttribute('aria-label')).toBe('Resume reading');
+  speaker().click();
+  expect(speech.resume).toHaveBeenCalled();
+  expect(speaker().getAttribute('aria-label')).toBe('Stop reading');
+  speaker().click();
+  expect(speech.cancel).toHaveBeenCalled();
+  expect(speaker().getAttribute('aria-label')).toBe('Read aloud');
+});
+
+it('hides the speaker under an answer when the system has no voices', async () => {
+  const reply: SessionEvent = { kind: 'assistant_message', seq: 1, time: T0, source: 'extension', turnId: 'done-turn', messageId: 'reply', message: text('Done.'), final: true, state: 'final' };
+  const { w } = await boot([reply, { seq: 2, time: T0 + 1_000, source: 'extension', kind: 'turn_end', turnId: 'done-turn', outcome: 'completed' }]);
+  expect(w.document.querySelector<HTMLButtonElement>('.answer-actions .answer-read')?.hidden).toBe(true);
+  expect(w.document.getElementById('readAloudVoiceRow')!.hidden).toBe(true);
 });
 
 it('does not offer copy or export after an interrupted turn', async () => {
