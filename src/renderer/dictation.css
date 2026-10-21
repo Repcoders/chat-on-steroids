@@ -58,6 +58,18 @@
 .composer:has(.composer-dictation-button[data-state='error']) .composer-dictation-status {
   color: var(--red);
 }
+/* The speech language chip: the glyph alone for Windows' own language, else its tag. */
+.dictation-language-menu[hidden] { display: none; }
+.dictation-language-menu > summary { gap: 5px; padding: 7px 6px; }
+.dictation-language-menu > summary > .ico { font-size: 17px; }
+.dictation-language-menu > .composer-popover { width: 260px; max-height: min(320px, 60vh); overflow-y: auto; }
+#dictationLanguageChoices { display: flex; flex-direction: column; gap: 2px; }
+#dictationLanguageChoices button[aria-checked='true'] { background: var(--control-selected); }
+#dictationLanguageChoices small { color: var(--soft); font-size: calc(11px * var(--text-scale, 1)); }
+#dictationLanguageChoices p { margin: 0; padding: 6px 10px; font-size: calc(12px * var(--text-scale, 1)); }
+.dictation-language-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dictation-language-check { visibility: hidden; }
+#dictationLanguageChoices [aria-checked='true'] .dictation-language-check { visibility: visible; }
 @media (prefers-reduced-motion: reduce) {
   .composer-dictation-button { transition: none; }
 }

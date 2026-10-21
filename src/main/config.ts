@@ -1,5 +1,6 @@
 import { DEFAULT_HELPER_CHAT_MODEL, SUPERSEDED_HELPER_CHAT_MODELS } from '../shared/chat-models.js';
 import { UI_LANGUAGES } from '../shared/ui-language.js';
+import { isDictationLanguageTag } from '../shared/dictation.js';
 import { DEFAULT_RECORDING_STORAGE_GIB, REASONING_EFFORTS, RECORDING_STORAGE_LIMITS_GIB, type RecordingStorageLimitGiB } from '../shared/session.js';
 import { appearanceSchema } from './appearance-schema.js';
 import { BROWSER_BRIDGE_PORTS } from '../shared/browser-bridge.js';
@@ -348,6 +349,8 @@ const configSchema = z.object({
     mentionCore: z.boolean().optional().default(true),
     mentionPlugins: z.boolean().optional().default(false),
     language: z.enum(UI_LANGUAGES).optional(),
+    // The speech language the microphone listens in; missing is Windows' own speech language.
+    dictationLanguage: z.string().refine(isDictationLanguageTag).optional().catch(undefined),
     // The version this install last started as; What's New shows once per real update (#1172).
     lastSeenVersion: z.string().trim().min(1).max(40).optional().catch(undefined),
     browserPreferences: z.object({ overwrite: z.boolean(), durations: z.boolean() }).strict().optional(),

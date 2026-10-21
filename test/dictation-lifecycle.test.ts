@@ -7,12 +7,17 @@ type Handler = (event: { sender: EventEmitter }, payload?: unknown) => Promise<u
 const mock = vi.hoisted(() => ({
   handlers: new Map<string, Handler>(),
   appOnce: vi.fn(),
-  spawn: vi.fn()
+  spawn: vi.fn(),
+  config: { ui: {} as { dictationLanguage?: string } }
 }));
 
 vi.mock('electron', () => ({
   app: { once: mock.appOnce },
   ipcMain: { handle: (channel: string, handler: Handler) => mock.handlers.set(channel, handler) }
+}));
+vi.mock('../src/main/config.js', () => ({
+  getConfig: () => mock.config,
+  updateConfig: async (update: (config: typeof mock.config) => typeof mock.config) => (mock.config = update(mock.config))
 }));
 vi.mock('node:child_process', async importOriginal => ({
   ...(await importOriginal<typeof import('node:child_process')>()),
@@ -43,6 +48,7 @@ beforeEach(() => {
   mock.handlers.clear();
   mock.appOnce.mockReset();
   mock.spawn.mockReset();
+  mock.config = { ui: {} };
   Object.defineProperty(process, 'platform', { ...platformDescriptor, value: 'win32' });
 });
 afterEach(() => {
@@ -112,7 +118,7 @@ describe('Windows dictation child lifetime', () => {
     // against the system's own metadata (no SDK), with the recognizer's default dictation topic.
     expect(script).toContain('CompileAssemblyFromSource($options, $cosRecognizerSource)');
     expect(script).toContain('\\System32\\WinMetadata\\Windows.Media.winmd');
-    expect(script).toContain('recognizer = new SpeechRecognizer();');
+    expect(script).toContain('recognizer = language == null ? new SpeechRecognizer() : new SpeechRecognizer(language);');
     expect(script).toContain('session.ResultGenerated += (s, e) => {');
     expect(script).not.toContain('Constraints.Add');
     expect(script).toContain("Send 'status' 'listening' 'modern'");
@@ -122,6 +128,59 @@ describe('Windows dictation child lifetime', () => {
     // Without a microphone the fallback says so in words the app translates, not a raw .NET message.
     expect(script).toContain("try { $legacy.SetInputToDefaultAudioDevice() } catch { throw 'No microphone is available.");
     expect(script).toContain("Send 'status' 'listening' 'legacy'");
+  });
+
+  it("starts in the saved speech language, and in Windows' own when none or a malformed one is saved", async () => {
+    mock.config.ui.dictationLanguage = 'de-DE';
+    const { sender, child } = startTestSession();
+    await mock.handlers.get('dictation:start')!({ sender });
+    const script = scriptOf(mock.spawn.mock.calls[0]!);
+    expect(script).toContain("$cosLanguage = 'de-DE'");
+    expect(script).toContain('[CosDictation]::Start($cosLanguage)');
+    expect(script).toContain('if (string.Equals(installed.LanguageTag, tag, StringComparison.OrdinalIgnoreCase))');
+    // The fallback picks the matching installed recognizer, else one of the same language.
+    expect(script).toContain('if($cosLanguage) { try { $culture = [System.Globalization.CultureInfo]::new($cosLanguage) } catch { } }');
+    child.emit('exit', 0, null);
+
+    for (const saved of [undefined, "de'; Remove-Item x"]) {
+      mock.config.ui.dictationLanguage = saved;
+      mock.spawn.mockClear();
+      await mock.handlers.get('dictation:start')!({ sender });
+      expect(scriptOf(mock.spawn.mock.calls[0]!)).toContain("$cosLanguage = ''");
+      child.emit('exit', 0, null);
+    }
+  });
+
+  it('lists the speech languages Windows can dictate in without opening the microphone', async () => {
+    mock.config.ui.dictationLanguage = 'de-DE';
+    const { sender, child } = startTestSession();
+    const reply = mock.handlers.get('dictation:languages')!({ sender });
+    const script = scriptOf(mock.spawn.mock.calls[0]!);
+    expect(script).toContain('[Windows.Media.SpeechRecognition.SpeechRecognizer]::SupportedTopicLanguages');
+    expect(script).toContain('InstalledRecognizers()');
+    expect(script).not.toMatch(/SetInputToDefaultAudioDevice|StartAsync|RecognizeAsync/);
+    // The process can exit before its stdout is drained: the list is read once stdout closes.
+    child.emit('exit', 0, null);
+    child.stdout.emit('data', JSON.stringify([{ tag: 'en-US', name: 'English (United States)' }, { tag: 'de-DE', name: 'Deutsch (Deutschland)' }, { tag: 'en-US', name: 'English' }]) + '\r\n');
+    child.emit('close', 0, null);
+    expect(await reply).toEqual({ ok: true, data: {
+      languages: [{ tag: 'de-DE', name: 'Deutsch (Deutschland)' }, { tag: 'en-US', name: 'English (United States)' }], selected: 'de-DE'
+    } });
+    const stranger = Object.assign(new EventEmitter(), { isDestroyed: () => false, send: vi.fn() });
+    expect(await mock.handlers.get('dictation:languages')!({ sender: stranger })).toMatchObject({ ok: false });
+  });
+
+  it('remembers a picked language, and refuses anything that is not a language tag', async () => {
+    const { sender } = startTestSession();
+    const pick = mock.handlers.get('dictation:language')!;
+    expect(await pick({ sender }, 'de-DE')).toEqual({ ok: true, data: undefined });
+    expect(mock.config.ui.dictationLanguage).toBe('de-DE');
+    expect(await pick({ sender }, "de'; Remove-Item x")).toMatchObject({ ok: false });
+    expect(await pick({ sender }, 42)).toMatchObject({ ok: false });
+    expect(mock.config.ui.dictationLanguage).toBe('de-DE');
+    expect(await pick({ sender }, '')).toEqual({ ok: true, data: undefined });
+    expect(mock.config.ui.dictationLanguage).toBeUndefined();
+    expect(mock.spawn).not.toHaveBeenCalled();
   });
 
   it.runIf(process.platform === 'win32')('the recognizer script parses, and its loop exits when its parent disappears or Stop asks (no microphone)', () => {

@@ -11,19 +11,21 @@
  * cannot leave the microphone listening; only an explicit Stop allows grace.
  */
 import { app, ipcMain, type BrowserWindow, type WebContents } from 'electron';
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { spawn, type ChildProcess, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { DictationEvent } from '../shared/dictation.js';
-import { parseDictationEvent } from '../shared/dictation.js';
+import type { DictationEvent, DictationLanguage } from '../shared/dictation.js';
+import { isDictationLanguageTag, parseDictationEvent, parseDictationLanguages } from '../shared/dictation.js';
+import { getConfig, updateConfig } from './config.js';
 
 const SCRIPT = [
   "$ErrorActionPreference='Stop'",
   '[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)',
   '$cosParentPid = __COS_PARENT_PID__',
   "$cosStopFile = '__COS_STOP_FILE__'",
+  "$cosLanguage = '__COS_LANGUAGE__'",
   'function Send([string]$type,[string]$value,[string]$engine) {',
   "  $data = if($type -eq 'status') { @{type='status';status=$value} } elseif($type -eq 'error') { @{type='error';message=$value} } else { @{type=$type;text=$value} }",
   '  if($engine) { $data.engine = $engine }',
@@ -45,6 +47,7 @@ const SCRIPT = [
   'using System.Text;',
   'using System.Threading;',
   'using Windows.Foundation;',
+  'using Windows.Globalization;',
   'using Windows.Media.SpeechRecognition;',
   'public static class CosDictation {',
   '  static SpeechRecognizer recognizer;',
@@ -69,9 +72,13 @@ const SCRIPT = [
   '    while (op.Status == AsyncStatus.Started && DateTime.UtcNow < until) Thread.Sleep(10);',
   '    if (op.Status == AsyncStatus.Error) throw op.ErrorCode;',
   '  }',
-  '  public static void Start() {',
+  '  public static void Start(string tag) {',
+  "    // The chosen language when this Windows has it for dictation, else Windows' speech language.",
+  '    Language language = null;',
+  '    foreach (var installed in SpeechRecognizer.SupportedTopicLanguages)',
+  '      if (string.Equals(installed.LanguageTag, tag, StringComparison.OrdinalIgnoreCase)) { language = installed; break; }',
   "    // No constraint added: the recognizer's default is Windows' dictation topic.",
-  '    recognizer = new SpeechRecognizer();',
+  '    recognizer = language == null ? new SpeechRecognizer() : new SpeechRecognizer(language);',
   '    var compiled = Await(recognizer.CompileConstraintsAsync());',
   '    if (compiled.Status != SpeechRecognitionResultStatus.Success) throw new InvalidOperationException("Dictation is not available: " + compiled.Status);',
   '    session = recognizer.ContinuousRecognitionSession;',
@@ -99,6 +106,7 @@ const SCRIPT = [
   '  $options = New-Object System.CodeDom.Compiler.CompilerParameters',
   '  $options.ReferencedAssemblies.AddRange([string[]]@(',
   "    \"$env:windir\\System32\\WinMetadata\\Windows.Foundation.winmd\",",
+  "    \"$env:windir\\System32\\WinMetadata\\Windows.Globalization.winmd\",",
   "    \"$env:windir\\System32\\WinMetadata\\Windows.Media.winmd\",",
   '    "${runtime}System.Runtime.dll",',
   '    "${runtime}System.Runtime.InteropServices.WindowsRuntime.dll"))',
@@ -116,7 +124,7 @@ const SCRIPT = [
   '  try {',
   '    CompileRecognizer',
   '    $modern = $true',
-  '    [CosDictation]::Start()',
+  '    [CosDictation]::Start($cosLanguage)',
   "    $engine = 'modern'",
   "    Send 'status' 'listening' 'modern'",
   '  } catch {',
@@ -131,6 +139,7 @@ const SCRIPT = [
   '    $available = @([System.Speech.Recognition.SpeechRecognitionEngine]::InstalledRecognizers())',
   "    if($available.Count -eq 0) { throw 'No Windows speech recognizer is installed. Install a Windows speech language pack.' }",
   '    $culture = [System.Globalization.CultureInfo]::CurrentUICulture',
+  '    if($cosLanguage) { try { $culture = [System.Globalization.CultureInfo]::new($cosLanguage) } catch { } }',
   '    $choice = $available | Where-Object { $_.Culture.Name -eq $culture.Name } | Select-Object -First 1',
   '    if(-not $choice) { $choice = $available | Where-Object { $_.Culture.TwoLetterISOLanguageName -eq $culture.TwoLetterISOLanguageName } | Select-Object -First 1 }',
   '    if(-not $choice) { $choice = $available[0] }',
@@ -187,6 +196,47 @@ const SCRIPT = [
   'exit 0'
 ].join('\r\n');
 
+/**
+ * Lists the speech languages this Windows can dictate in: the dictation topic languages of
+ * Windows' own engine (which can include online ones), then the System.Speech recognizers
+ * installed for the fallback. No microphone opens.
+ */
+const LANGUAGES_SCRIPT = [
+  "$ErrorActionPreference='Stop'",
+  '[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)',
+  '$rows = @()',
+  'try {',
+  '  $null = [Windows.Media.SpeechRecognition.SpeechRecognizer,Windows.Media.SpeechRecognition,ContentType=WindowsRuntime]',
+  '  foreach($l in [Windows.Media.SpeechRecognition.SpeechRecognizer]::SupportedTopicLanguages) { $rows += @{tag=$l.LanguageTag;name=$l.NativeName} }',
+  '} catch { }',
+  'try {',
+  '  Add-Type -AssemblyName System.Speech',
+  '  foreach($r in [System.Speech.Recognition.SpeechRecognitionEngine]::InstalledRecognizers()) { $rows += @{tag=$r.Culture.Name;name=$r.Culture.NativeName} }',
+  '} catch { }',
+  '[Console]::Out.WriteLine((ConvertTo-Json -InputObject @($rows) -Compress -Depth 3))',
+  'exit 0'
+].join('\r\n');
+
+/** One PowerShell read at a time; an empty list when it cannot run or says nothing usable. */
+function listLanguages(): Promise<DictationLanguage[]> {
+  return new Promise(resolve => {
+    let child: ChildProcess;
+    try {
+      child = spawn('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand',
+        Buffer.from(LANGUAGES_SCRIPT, 'utf16le').toString('base64')], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch { resolve([]); return; }
+    let output = '';
+    const timer = setTimeout(() => child.kill(), 15_000);
+    timer.unref();
+    child.stdout?.setEncoding('utf8');
+    child.stdout?.on('data', (chunk: string) => { output += chunk; if (output.length > 65_536) child.kill(); });
+    child.stderr?.resume();
+    child.once('error', () => { clearTimeout(timer); resolve([]); });
+    // `close`, not `exit`: stdout may still hold the end of the list when the process exits.
+    child.once('close', () => { clearTimeout(timer); resolve(output.length > 65_536 ? [] : parseDictationLanguages(output)); });
+  });
+}
+
 type OwnedProcess = {
   child: ChildProcessWithoutNullStreams;
   owner: WebContents;
@@ -241,8 +291,10 @@ export function registerDictationIpc(getWindow: () => BrowserWindow | null): voi
     if (active)
       return { ok: false as const, error: 'Dictation is already running' };
     const stopFile = path.join(os.tmpdir(), `cos-dictation-${process.pid}-${randomUUID()}.stop`);
+    const saved = getConfig().ui.dictationLanguage;
     const script = SCRIPT.replace('__COS_PARENT_PID__', String(process.pid))
-      .replace('__COS_STOP_FILE__', () => stopFile.replaceAll("'", "''"));
+      .replace('__COS_STOP_FILE__', () => stopFile.replaceAll("'", "''"))
+      .replace('__COS_LANGUAGE__', () => isDictationLanguageTag(saved) ? saved : '');
     const encoded = Buffer.from(script, 'utf16le').toString('base64');
     let child: ChildProcessWithoutNullStreams;
     try {
@@ -289,6 +341,28 @@ export function registerDictationIpc(getWindow: () => BrowserWindow | null): voi
     });
     event.sender.once('destroyed', () => { if (active === row) stop(row); });
     return { ok: true as const, data: { status: 'starting' as const } };
+  });
+  let listing: Promise<DictationLanguage[]> | null = null;
+  ipcMain.handle('dictation:languages', async event => {
+    const window = getWindow();
+    if (!window || window.isDestroyed() || event.sender !== window.webContents)
+      return { ok: false as const, error: 'Dictation is not owned by this window' };
+    if (process.platform !== 'win32')
+      return { ok: false as const, error: 'Microphone dictation currently requires Windows' };
+    listing ??= listLanguages().finally(() => { listing = null; });
+    return { ok: true as const, data: { languages: await listing, selected: getConfig().ui.dictationLanguage ?? '' } };
+  });
+  // The next start uses it; '' goes back to Windows' own speech language.
+  ipcMain.handle('dictation:language', async (event, payload: unknown) => {
+    const window = getWindow();
+    if (!window || window.isDestroyed() || event.sender !== window.webContents)
+      return { ok: false as const, error: 'Dictation is not owned by this window' };
+    if (payload !== '' && !isDictationLanguageTag(payload))
+      return { ok: false as const, error: 'Unknown dictation language' };
+    const dictationLanguage = payload || undefined;
+    if (getConfig().ui.dictationLanguage !== dictationLanguage)
+      await updateConfig(config => ({ ...config, ui: { ...config.ui, dictationLanguage } }));
+    return { ok: true as const, data: undefined };
   });
   ipcMain.handle('dictation:stop', async event => {
     const window = getWindow();

@@ -180,6 +180,8 @@ export interface UiPrefs {
   mentionPlugins?: boolean;
   /** The interface language the window last reported; the browser extension follows it. */
   language?: import('./ui-language.js').UiLanguage;
+  /** The composer microphone's speech language (a BCP 47 tag); missing uses Windows' speech language. */
+  dictationLanguage?: string;
   /** The version this install last started as; What's New shows once per real update (#1172). */
   lastSeenVersion?: string;
   /**

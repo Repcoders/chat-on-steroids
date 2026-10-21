@@ -174,6 +174,13 @@ describe('settings migration', () => {
     await saveConfig({ ...defaultConfig(), ui: { ...defaultConfig().ui, rotateTurnMinutes: 0 } });
     expect((await loadConfig()).ui.rotateTurnMinutes).toBe(0);
   });
+  it('keeps the chosen dictation language and drops one that is not a language tag', async () => {
+    expect(defaultConfig().ui.dictationLanguage).toBeUndefined();
+    await saveConfig({ ...defaultConfig(), ui: { ...defaultConfig().ui, dictationLanguage: 'de-DE' } });
+    expect((await loadConfig()).ui.dictationLanguage).toBe('de-DE');
+    await fs.writeFile(path.join(dir, 'config.json'), JSON.stringify({ ...defaultConfig(), ui: { ...defaultConfig().ui, dictationLanguage: "de'; exit", startAtLogin: true } }), 'utf8');
+    expect((await loadConfig()).ui).toMatchObject({ dictationLanguage: undefined, startAtLogin: true });
+  });
   it('reads other apps’ usage for fresh and legacy settings and keeps it off once switched off', async () => {
     expect(defaultConfig().ui.localAppUsage).toBe(true);
     const legacy = defaultConfig(); delete legacy.ui.localAppUsage;
