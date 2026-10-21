@@ -923,8 +923,14 @@ lives in the document body, outside the sidebar the activity repaints, so a repa
 it; it finds its row's button again by owner (`data-row-menu`), stays inside the window, opens
 submenus beside their item, and is keyboard-driven (arrows, Right/Left for submenus, Escape gives
 focus back to the button). A project's menu: New chat in this project (`data-new-project`, which
-also shows the chat screen), Color (a submenu: None and the palette as radio items, each calling
-the same `projects:color` owner; choices wait while a save is pending) and Remove. A chat's
+also shows the chat screen), Project home, Color (a submenu: None and the palette as radio items, each calling
+the same `projects:color` owner; choices wait while a save is pending) and Remove. Project home
+(`renderer/project-home.ts`) is a read-only dialog: the folder, the branch and change count from the
+same `projectGit:snapshot` read Review uses (none for a project on a server), the project's loaded
+chats newest first with their sub-agents, the last activity, and New chat, Files and Review. New
+chat always selects a new chat in the project; Files and Review open their panel, first selecting a
+new chat in the project unless the open chat is already in it. Opening it reads the
+project's first history page once, as a first expand does. A chat's
 menu: Rename and Open in browser, Block/Release and, in strict mode, Trust/Untrust, then Remove;
 the Unattributed row offers only its app-wide Block/Allow (never in strict mode) and Remove.
 Choosing an item gives focus back to the row's button before the action runs, so a color save's

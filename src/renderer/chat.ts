@@ -96,12 +96,14 @@ import { APPROVAL_ANSWERED_TEXT, APPROVAL_PROGRESS_PREFIX, APPROVAL_WAITING_TEXT
 import { STRICT_REFUSAL_PROGRESS_PREFIX, UNPROVEN_WORKER_NOTICE, UNTRUSTED_NOTICE, UNTRUSTED_WORKER_NOTICE } from '../shared/trust-notices.js';
 import { openRowMenu, rowMenuOpenFor, toggleRowMenu, type RowMenuItem, type RowMenuOptions } from './row-menu.js';
 import { createSearchPopup } from './search-popup.js';
+import { createProjectHome, type ProjectHomeChat } from './project-home.js';
 import { primaryShortcut } from './shortcuts.js';
 import { initSshProjectDialog } from './ssh-project-dialog.js';
 
 const api = window.api;
 let chatSearch: ChatSearch | null = null;
 let chatFind: ReturnType<typeof initChatFind> | null = null;
+let projectHome: ReturnType<typeof createProjectHome> | null = null;
 
 
 /**
@@ -180,11 +182,12 @@ function rowMenuButton(owner: string): HTMLElement | null {
 const savingProjectColor = new Set<string>();
 const removingProject = new Set<string>();
 
-/** A project's menu: its color (a submenu) and taking it off the sidebar. A new chat has its own button on the row. */
+/** A project's menu: its home, its color (a submenu) and taking it off the sidebar. A new chat has its own button on the row. */
 function projectMenuItems(id: string): RowMenuItem[] {
   const color = projects.find(row => row.id === id)?.color ?? null;
   const link = projects.find(row => row.id === id)?.chatgpt;
   return [
+    { action: 'home', icon: 'i-home', label: () => t('Project home'), run: () => projectHome?.open(id) },
     // Only when its native ChatGPT Project could not be created; otherwise nothing about it shows.
     ...(link?.state === 'failed' || link?.state === 'uncertain' ? [{
       action: 'chatgpt-retry', icon: 'i-retry', disabled: retryingChatgptProject.has(id),
@@ -207,6 +210,20 @@ function projectMenuItems(id: string): RowMenuItem[] {
       run: () => void removeProjectFromSidebar(id)
     }
   ];
+}
+
+/** The project's chats as its home lists them, newest first: each with its sub-agents, as the sidebar groups them. */
+function projectHomeChats(id: string): ProjectHomeChat[] {
+  const children = workerChildren();
+  return sessions
+    .filter(entry => entry.origin?.kind !== 'worker' && (entry.conversationId || entry.origin?.kind === 'desktop') && projectGroup(entry.projectId) === id)
+    .map(entry => {
+      const workers = children.get(entry.id) ?? [];
+      return { id: entry.id, title: shownSessionTitle(entry), workers: workers.length,
+        updatedAt: Math.max(entry.updatedAt, ...workers.map(worker => worker.updatedAt)),
+        working: sessionWorking(entry) || workers.some(sessionWorking) };
+    })
+    .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 const retryingChatgptProject = new Set<string>();
@@ -1911,6 +1928,8 @@ function paintSessions(): void {
   if (renaming && (document.activeElement as HTMLElement | null)?.classList.contains('sess-rename')) return;
   const layout = sidebarLayout();
   paintedLayout = layout;
+  // An open project home lists the same chats.
+  projectHome?.update();
   $('sessionList').classList.toggle('is-inbox', layout === 'inbox');
   if (layout !== 'inbox') inboxPicker.close();
   if (layout === 'inbox') {
@@ -8189,6 +8208,25 @@ export function initChat(next: Deps): void {
     filePanel?.mountAt(mount); void filePanel?.show();
   }, () => filePanel?.hide(), () => selectedLocalProject() !== null);
   docks.register('agents', 'Sub-agents', 'i-agents', () => agentPanel?.show(), () => agentPanel?.hide(), () => selectedId !== null);
+  // Files and Review follow the selected chat's project: a chat elsewhere gives way to a new chat in this one.
+  const showProjectPanel = (id: string, panel: 'files' | 'review'): void => {
+    if (selectedLocalProject()?.id !== id) selectNewChat(id);
+    docks.activate(panel);
+  };
+  projectHome = createProjectHome({
+    project: id => projects.find(row => row.id === id),
+    chats: projectHomeChats,
+    // Read once, as a first expand does; "Show more" in the sidebar reads on.
+    loadChats: id => { if (!projectHistory.get(id)?.asked) void loadProjectHistory(id); },
+    snapshot: async id => {
+      const reply = await api.getProjectGitSnapshot(id);
+      return reply.ok ? reply.data ?? null : null;
+    },
+    open: id => { if (id !== selectedId) { pendingNewInput = null; selectSession(id); } },
+    newChat: id => selectNewChat(id),
+    files: id => showProjectPanel(id, 'files'),
+    review: id => showProjectPanel(id, 'review')
+  });
   $('attachImages').addEventListener('click', async () => {
     const owner = composerDraftOwner();
     appendImages(owner, await run(api.chooseFiles()));
