@@ -24,7 +24,7 @@ import { shownSessionTitle } from './session-title.js';
 import { preserveTimelineViewport, ROUNDING_PX } from './timeline-scroll.js';
 import { createSidebarOrder, SIDEBAR_PROJECT_SCOPE } from './sidebar-order.js';
 import { createSidebarPins, pinnedSortScope } from './sidebar-pins.js';
-import { createSidebarSnooze, SNOOZE_CHOICES, snoozeUntil, wakeLabel, type SnoozeChoice } from './sidebar-snooze.js';
+import { createSidebarSnooze, SNOOZE_CHOICES, snoozeUntil, wakeLabel, type SnoozeChoice, type SnoozeTurns } from './sidebar-snooze.js';
 import { createSidebarCompletionState } from './sidebar-completion.js';
 import { toolResultText } from './tool-result.js';
 import { renderEditCards } from './tool-artifacts.js';
@@ -315,6 +315,9 @@ const snoozeActivity = (entry: SessionSummary, workers: SessionSummary[] = []): 
 /** A chat or one of its sub-agents is working: its updates are that work, not something new. */
 const snoozeBusy = (entry: SessionSummary, workers: SessionSummary[] = []): boolean =>
   sessionWorking(entry) || workers.some(worker => workerState(worker) === 'running');
+/** The turns a chat and its sub-agents have open: any other one wakes it from a snooze. */
+const snoozeTurns = (entry: SessionSummary, workers: SessionSummary[] = []): SnoozeTurns =>
+  ({ own: entry.activeTurnId ?? null, workers: workers.flatMap(worker => worker.activeTurnId ? [worker.activeTurnId] : []) });
 /**
  * When a snoozed chat wakes, or null when it is in its list: its time, new activity, or an approval
  * or a stopped recovery waiting on the person, its own or a sub-agent's, brings it back.
@@ -322,7 +325,7 @@ const snoozeBusy = (entry: SessionSummary, workers: SessionSummary[] = []): bool
 function snoozedUntil(entry: SessionSummary, workers: SessionSummary[] = []): number | null {
   if (!sidebarSnooze || !pinnable(entry)) return null;
   if (waitsOnPerson(entry, workers)) { sidebarSnooze.wake(entry.id); return null; }
-  return sidebarSnooze.until(entry.id, snoozeActivity(entry, workers), snoozeBusy(entry, workers));
+  return sidebarSnooze.until(entry.id, snoozeActivity(entry, workers), snoozeBusy(entry, workers), snoozeTurns(entry, workers));
 }
 /** An approval or a stopped recovery waits on the person, in the chat or one of its sub-agents. */
 function waitsOnPerson(entry: SessionSummary, workers: SessionSummary[] = []): boolean {
@@ -1064,7 +1067,7 @@ function sessionRow(summary: SessionSummary): HTMLElement {
           run: () => {
             const at = snoozeUntil(choice, Date.now());
             const current = workerChildren().get(summary.id);
-            sidebarSnooze?.snooze(summary.id, at, snoozeActivity(summary, current), snoozeBusy(summary, current));
+            sidebarSnooze?.snooze(summary.id, at, snoozeActivity(summary, current), snoozeBusy(summary, current), snoozeTurns(summary, current));
             paintSessions();
             // Its row went into Snoozed: the keyboard goes to that group's heading, not to the page.
             $('sessionList').querySelector<HTMLElement>('[data-inbox-control="snoozed"]')?.focus({ preventScroll: true });

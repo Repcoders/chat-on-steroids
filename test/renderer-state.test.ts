@@ -1116,6 +1116,7 @@ it('snoozes a chat into Snoozed at the end of the list, in the tree and the inbo
   expect(choices.map(choice => choice.querySelector('.row-menu-label')?.textContent)).toEqual(['In an hour', 'Tomorrow', 'Next week']);
   expect(choices.every(choice => choice.querySelector('.row-menu-hint')?.textContent)).toBe(true);
   doc.querySelector<HTMLButtonElement>('[data-row-action="snooze-tomorrow"]')!.click();
+  expect(window.localStorage.getItem('chat-on-steroids.sidebar-snooze')).toContain('quiet');
   // Out of its list, once, into a closed group at the end that has the keyboard now.
   expect(snoozedIds()).toEqual(['quiet']);
   expect(doc.querySelectorAll('.sess[data-id="quiet"]')).toHaveLength(1);
@@ -1234,6 +1235,45 @@ it('keeps a chat snoozed while its turn or a sub-agent runs on, and wakes it on 
   // A new turn after the one it was snoozed in is new activity.
   await update([{ ...at('run'), ...running, updatedAt: Date.now() + 20 }, ...rows.slice(1)], ['ask', 'run', 'plain']);
   await update([...rows.slice(0, 3), worker({ ...running, updatedAt: Date.now() + 30 }), at('plain')], ['ask', 'sub', 'run', 'plain']);
+});
+
+it('wakes a snoozed chat on a new turn that follows the one it was snoozed in with no idle update between', async () => {
+  // CodeRabbit and Gitar, fork #21: a turn starting straight after the snoozed one stayed hidden while the chat looked busy throughout.
+  const now = Date.now();
+  const running = { activityExpiresAt: now + 60 * 60_000 };
+  const worker = (id: string, parent: string, extra: Record<string, unknown>) =>
+    inboxChat(id, { updatedAt: now - 5000, origin: { kind: 'worker', fromSessionId: parent, agentId: id, task: '' }, ...running, ...extra });
+  let rows = [inboxChat('next', { updatedAt: now - 1000, ...running, activeTurnId: 't1' }), inboxChat('sub', { updatedAt: now - 2000 }),
+    worker('w', 'sub', { activeTurnId: 'w1' }), inboxChat('lead', { updatedAt: now - 3000, ...running, activeTurnId: 'l1' }),
+    worker('lw', 'lead', { activeTurnId: 'x1' }), inboxChat('plain', { updatedAt: now - 4000 })];
+  let changed: () => void = () => undefined;
+  const mounted = await mountInbox({
+    listSessions: async () => listed(rows),
+    onSessionChanged: (fn: () => void) => { changed = fn; return () => undefined; }
+  });
+  const doc = mounted.window.document;
+  const row = (id: string) => doc.querySelector<HTMLElement>(`.sess[data-id="${id}"]`);
+  // Each update renames 'plain', so the sidebar has surely repainted when its new name shows.
+  let paints = 0;
+  const update = async (changes: Record<string, Record<string, unknown>>, ids: string[]) => {
+    const title = `plain ${++paints}`;
+    rows = rows.map(entry => ({ ...entry, ...changes[entry.id], ...(entry.id === 'plain' ? { title } : {}) }));
+    changed();
+    await vi.waitFor(() => expect(row('plain')!.textContent).toContain(title));
+    expect(inboxCardIds(doc).sort()).toEqual(ids);
+  };
+  await vi.waitFor(() => expect(inboxCardIds(doc).sort()).toEqual(['lead', 'next', 'plain', 'sub']));
+  for (const id of ['next', 'sub', 'lead']) {
+    rowMenuItem(row(id)!, 'snooze')!.click();
+    doc.querySelector<HTMLButtonElement>('[data-row-action="snooze-week"]')!.click();
+  }
+  // The same turns record more: still snoozed.
+  await update({ next: { updatedAt: Date.now() + 5 }, w: { updatedAt: Date.now() + 5 }, lead: { updatedAt: Date.now() + 5 } }, ['plain']);
+  // A sub-agent's next turn while its parent's snoozed turn runs on is part of that turn.
+  await update({ lw: { updatedAt: Date.now() + 10, activeTurnId: 'x2' } }, ['plain']);
+  // The chat's next turn, or a sub-agent's next turn with the chat idle, is new.
+  await update({ next: { updatedAt: Date.now() + 15, activeTurnId: 't2' } }, ['next', 'plain']);
+  await update({ w: { updatedAt: Date.now() + 20, activeTurnId: 'w2' } }, ['next', 'plain', 'sub']);
 });
 
 it('wakes a snoozed chat when one of its sub-agents waits on an approval or a stopped recovery', async () => {

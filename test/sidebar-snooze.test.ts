@@ -54,6 +54,25 @@ it('keeps a chat snoozed while it works and as that work ends, then wakes it on 
   expect(saved.until('a', 701, true)).toBeNull();
 });
 
+it('wakes a busy chat on a turn it was not snoozed in, across a restart and for a snooze saved before turns were kept', () => {
+  clock = 1_000_000;
+  const turns = (own: string | null, ...workers: string[]) => ({ own, workers });
+  const snooze = fixture();
+  snooze.snooze('a', clock + HOUR, 500, true, turns('t1', 'w1'));
+  // A sub-agent's next turn inside the chat's own snoozed turn is part of it.
+  expect(snooze.until('a', 600, true, turns('t1', 'w2'))).toBe(clock + HOUR);
+  const saved = fixture(dom.window.localStorage.getItem(KEY)!);
+  expect(saved.until('a', 600, true, turns('t1', 'w2'))).toBe(clock + HOUR);
+  expect(saved.until('a', 700, true, turns('t2', 'w2'))).toBeNull();
+  // The chat idle, a sub-agent's next turn is new.
+  snooze.snooze('b', clock + HOUR, 500, true, turns(null, 'w1'));
+  expect(snooze.until('b', 600, true, turns(null, 'w3'))).toBeNull();
+  // Saved without turns: the ones open at the first look are the ones it was snoozed in.
+  const old = fixture(JSON.stringify([['c', clock + HOUR, 500, true]]));
+  expect(old.until('c', 600, true, turns('t1'))).toBe(clock + HOUR);
+  expect(old.until('c', 700, true, turns('t2'))).toBeNull();
+});
+
 it('remembers snoozes across a restart and ignores broken, oversized or far-off storage', () => {
   clock = 1_000_000;
   fixture().snooze('kept', clock + HOUR, 1);
