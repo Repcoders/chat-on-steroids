@@ -2790,5 +2790,12 @@
   "{0} sub-agents need attention": "対応が必要なサブエージェント {0}件",
   "A tool call from an untrusted chat was refused. To allow it, open this chat's ⋯ menu in the sidebar (or right-click its row) and choose Trust chat.": "信頼されていないチャットからのツール呼び出しが拒否されました。許可するには、サイドバーでこのチャットの ⋯ メニューを開き（または行を右クリックし）、「チャットを信頼」を選んでください。",
   "A tool call from a worker whose main chat is not currently allowed was refused. Open that main chat's ⋯ menu in the sidebar and choose Trust chat if it is untrusted, or Release chat if it is blocked.": "メインチャットが現在許可されていないワーカーからのツール呼び出しが拒否されました。サイドバーでそのメインチャットの ⋯ メニューを開き、信頼されていなければ「チャットを信頼」、ブロックされていれば「ブロックを解除」を選んでください。",
-  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "アプリが作成したワーカーからのツール呼び出しが、それを開始したメインチャットがまだ確認できないため拒否されました。サイドバーでそのメインチャットに戻り、行が表示されたら ⋯ メニューを開いて「チャットを信頼」（ブロックされていれば「ブロックを解除」）を選び、ワーカーがそこで接続または復旧してから再試行してください。"
+  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "アプリが作成したワーカーからのツール呼び出しが、それを開始したメインチャットがまだ確認できないため拒否されました。サイドバーでそのメインチャットに戻り、行が表示されたら ⋯ メニューを開いて「チャットを信頼」（ブロックされていれば「ブロックを解除」）を選び、ワーカーがそこで接続または復旧してから再試行してください。",
+  "New here? Try it on a demo folder: ChatGPT reads a file, edits it and runs a check.": "はじめてですか？デモ用フォルダーで試せます。ChatGPT がファイルを読み、編集し、チェックを実行します。",
+  "Try a demo": "デモを試す",
+  "This is a short demo in the folder {0}. Read demo.txt there, change the line “{1}” to “{2}”, then run {3} in that folder and tell me what it printed.": "これはフォルダー {0} での短いデモです。そこにある demo.txt を読み、「{1}」の行を「{2}」に変更してから、そのフォルダーで {3} を実行し、表示された内容を教えてください。",
+  "Share a demo folder with ChatGPT?": "デモ用フォルダーを ChatGPT と共有しますか？",
+  "Chat On Steroids made a new folder for a first try, with a text file and a check to run: {0}": "Chat On Steroids が最初のお試し用に、テキストファイルと実行するチェックを入れた新しいフォルダーを作成しました: {0}",
+  "ChatGPT can read, edit and run commands in it, like in any folder you share. You can stop sharing it in Workspace.": "ChatGPT は共有した他のフォルダーと同じように、この中で読み取り、編集、コマンドの実行ができます。共有はワークスペースで解除できます。",
+  "Share demo folder": "デモ用フォルダーを共有"
 }

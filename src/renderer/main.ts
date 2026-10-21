@@ -59,7 +59,7 @@ import {
 } from '../shared/types.js';
 import type { SwarmState } from '../shared/session.js';
 import { $, ago, disclosureChevron, el, icon, run, shortAgo, toast } from './dom.js';
-import { chatApply, chatSettingsPatch, chatVisible, initChat, openChatSearch, openChatView } from './chat.js';
+import { chatApply, chatSettingsPatch, chatVisible, initChat, openChatSearch, openChatView, startDemoChat } from './chat.js';
 import { publishStopNoticeTexts } from './stop-notices.js';
 import { publishMainTexts } from './main-texts.js';
 import { paintSharedTunnel } from './tunnel-warning.js';
@@ -2182,6 +2182,8 @@ function paintReady(shown: string[], done: Set<string>, cosBrowser: boolean, all
   // Limited access still ends setup, but never quietly: what is missing, and the way back to change it.
   $('readyLimited').hidden = !limited;
   $('readyStart').hidden = !allSet;
+  // The demo edits a file and runs a check, which limited access cannot.
+  $('readyDemo').hidden = !allSet || limited;
   step('ready').classList.toggle('is-all-set', allSet);
   const list = $('readyChecks');
   const rows = shown.map(name => {
@@ -2684,6 +2686,16 @@ $('installUpdate').addEventListener('click', installUpdate);
 $('connectionPopoverToggle').addEventListener('click', () => void toggleConnection());
 $('wizConnect').addEventListener('click', () => void toggleConnection());
 $('readyStart').addEventListener('click', () => showTab('chat'));
+$('readyDemoStart').addEventListener('click', async event => {
+  const button = event.currentTarget as HTMLButtonElement;
+  button.disabled = true;
+  try {
+    const demo = await run(api.createDemoFolder());
+    if (!demo) return;
+    showTab('chat');
+    startDemoChat(demo);
+  } finally { button.disabled = false; }
+});
 $('showCosBrowser').addEventListener('click', event => void run(
   (event.currentTarget as HTMLElement).dataset.signedIn === 'true' ? api.signOutChatGpt() : api.showCosBrowser()));
 /** Setup's browser choice is the same save as choosing it in Settings, so both share one rule. */

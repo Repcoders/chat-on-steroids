@@ -1219,6 +1219,169 @@ describe('root namespace invariants', () => {
     expect(getConfig().roots).toHaveLength(1);
   });
 
+  it('shares Try a demo’s new folder only once the person agrees, and removes it when they decline', async () => {
+    const { tmpdir } = await import('node:os');
+    const { DEMO_BEFORE } = await import('../src/shared/demo-folder.js');
+    await saveConfig({ ...defaultConfig(), roots: [] });
+    const demo = (): Promise<any> => handlers.get('roots:demo')!(null, undefined) as Promise<any>;
+    const demoFolders = async () => (await fs.readdir(tmpdir())).filter(name => name.startsWith('cos-demo-'));
+    const before = new Set(await demoFolders());
+
+    // Declined: nothing shared, and nothing left behind in the temporary folder.
+    expect(await demo()).toEqual({ ok: true, data: null });
+    expect(dialog.showMessageBox).toHaveBeenCalledTimes(1);
+    expect(getConfig().roots).toEqual([]);
+    expect((await demoFolders()).filter(name => !before.has(name))).toEqual([]);
+
+    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({ response: 1 } as never);
+    const shared = await demo();
+    expect(shared.ok, shared.error).toBe(true);
+    const root = getConfig().roots.find(row => row.name === 'demo')!;
+    try {
+      expect(shared.data).toEqual({ folder: '/demo', run: process.platform === 'win32' ? '.\\check.cmd' : 'sh ./check.sh' });
+      expect(await fs.readFile(path.join(root.path, 'demo.txt'), 'utf8')).toContain(DEMO_BEFORE);
+      expect(currentWindow).toBeNull();
+      expect(vi.mocked(dialog.showMessageBox).mock.calls.at(-1)?.at(-1)).toMatchObject({ buttons: ['Cancel', 'Share demo folder'], defaultId: 0, cancelId: 0 });
+    } finally {
+      await fs.rm(path.dirname(root.path), { recursive: true, force: true });
+    }
+  });
+
+  it('takes the demo folder back out of the shared folders when sharing it fails halfway', async () => {
+    const { tmpdir } = await import('node:os');
+    await saveConfig({ ...defaultConfig(), roots: [] });
+    const demoFolders = async () => (await fs.readdir(tmpdir())).filter(name => name.startsWith('cos-demo-'));
+    const before = new Set(await demoFolders());
+    // The root is approved, then telling the window about it fails once.
+    let failed = false;
+    const delivered: any[] = [];
+    currentWindow = {
+      setBackgroundColor: vi.fn(), setTitleBarOverlay: vi.fn(), isDestroyed: () => false,
+      webContents: { send: vi.fn((channel: string, state: any) => {
+        if (channel !== 'state:changed') return;
+        if (!failed) { failed = true; throw new Error('window went away'); }
+        delivered.push(state);
+      }) }
+    };
+    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({ response: 1 } as never);
+
+    const reply = await handlers.get('roots:demo')!(null, undefined) as any;
+    expect(reply.ok).toBe(false);
+    expect(reply.error).toMatch(/window went away/);
+    expect(getConfig().roots).toEqual([]);
+    expect((await demoFolders()).filter(name => !before.has(name))).toEqual([]);
+    // The window is told again, without the root.
+    await vi.waitFor(() => expect(delivered.at(-1)?.config.roots).toEqual([]));
+  });
+
+  it('takes back only its own root when one of two demos shared at once fails', async () => {
+    await saveConfig({ ...defaultConfig(), roots: [] });
+    let pushes = 0;
+    currentWindow = {
+      setBackgroundColor: vi.fn(), setTitleBarOverlay: vi.fn(), isDestroyed: () => false,
+      webContents: { send: vi.fn((channel: string) => { if (channel === 'state:changed' && ++pushes === 2) throw new Error('window went away'); }) }
+    };
+    vi.mocked(dialog.showMessageBox).mockResolvedValue({ response: 1 } as never);
+    const demo = (): Promise<any> => handlers.get('roots:demo')!(null, undefined) as Promise<any>;
+
+    const replies = await Promise.all([demo(), demo()]);
+    const shared = replies.filter(reply => reply.ok);
+    expect(shared).toHaveLength(1);
+    // The demo that succeeded keeps its root and folder; the failed one left nothing behind.
+    const roots = getConfig().roots;
+    try {
+      expect(roots.map(root => `/${root.name}`)).toEqual([shared[0].data.folder]);
+      expect((await fs.stat(roots[0]!.path)).isDirectory()).toBe(true);
+      // The failed demo's rollback tells the window once more; let it land in this test.
+      await vi.waitFor(() => expect(vi.mocked(currentWindow!.webContents.send).mock.calls.filter(([channel]) => channel === 'state:changed')).toHaveLength(3));
+    } finally {
+      for (const root of roots) await fs.rm(path.dirname(root.path), { recursive: true, force: true });
+    }
+  });
+
+  it('leaves the window on the newest folders when two demos are shared at once', async () => {
+    await saveConfig({ ...defaultConfig(), roots: [] });
+    const send = vi.fn();
+    currentWindow = { setBackgroundColor: vi.fn(), setTitleBarOverlay: vi.fn(), isDestroyed: () => false, webContents: { send } };
+    vi.mocked(dialog.showMessageBox).mockResolvedValue({ response: 1 } as never);
+    // The first state build is slow, so it finishes after the second demo's.
+    vi.mocked(safeStorage.isAsyncEncryptionAvailable).mockImplementationOnce(() => new Promise(resolve => setTimeout(() => resolve(true), 50)));
+    const demo = (): Promise<any> => handlers.get('roots:demo')!(null, undefined) as Promise<any>;
+    const replies = await Promise.all([demo(), demo()]);
+    const roots = getConfig().roots;
+    try {
+      expect(replies.map(reply => reply.ok)).toEqual([true, true]);
+      // An older state built before the second approval must not be the last one the window gets.
+      const states = send.mock.calls.filter(([channel]) => channel === 'state:changed').map(([, state]) => state);
+      expect(states.at(-1)?.config.roots.map((root: { name: string }) => root.name).sort()).toEqual(['demo', 'demo-2']);
+    } finally {
+      for (const root of roots) await fs.rm(path.dirname(root.path), { recursive: true, force: true });
+    }
+  });
+
+  it('tells the window the folders that are left after a newer demo fails', async () => {
+    await saveConfig({ ...defaultConfig(), roots: [] });
+    const delivered: any[] = [];
+    let pushes = 0;
+    currentWindow = {
+      setBackgroundColor: vi.fn(), setTitleBarOverlay: vi.fn(), isDestroyed: () => false,
+      webContents: { send: vi.fn((channel: string, state: any) => {
+        if (channel !== 'state:changed') return;
+        if (++pushes === 1) throw new Error('window went away');
+        delivered.push(state);
+      }) }
+    };
+    vi.mocked(dialog.showMessageBox).mockResolvedValue({ response: 1 } as never);
+    // The first demo's state is slow; the second demo's push fails, and with it that demo.
+    vi.mocked(safeStorage.isAsyncEncryptionAvailable).mockImplementationOnce(() => new Promise(resolve => setTimeout(() => resolve(true), 50)));
+    const demo = (): Promise<any> => handlers.get('roots:demo')!(null, undefined) as Promise<any>;
+    const replies = await Promise.all([demo(), demo()]);
+    const roots = getConfig().roots;
+    try {
+      expect(replies.filter(reply => reply.ok)).toHaveLength(1);
+      expect(roots.map(root => root.name)).toEqual(['demo']);
+      await vi.waitFor(() => expect(delivered.at(-1)?.config.roots.map((root: { name: string }) => root.name)).toEqual(['demo']));
+    } finally {
+      for (const root of roots) await fs.rm(path.dirname(root.path), { recursive: true, force: true });
+    }
+  });
+
+  it('contains a rollback whose state rebuild fails too, and keeps the original error', async () => {
+    const { tmpdir } = await import('node:os');
+    const updater = await import('../src/main/update.js');
+    await saveConfig({ ...defaultConfig(), roots: [] });
+    const demoFolders = async () => (await fs.readdir(tmpdir())).filter(name => name.startsWith('cos-demo-'));
+    const before = new Set(await demoFolders());
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => { unhandled.push(reason); };
+    process.on('unhandledRejection', onUnhandled);
+    // The window goes away once the root is approved, and the state rebuild for the rollback fails too.
+    let rebuild: ReturnType<typeof vi.spyOn> | undefined;
+    currentWindow = {
+      setBackgroundColor: vi.fn(), setTitleBarOverlay: vi.fn(), isDestroyed: () => false,
+      webContents: { send: vi.fn((channel: string) => {
+        if (channel !== 'state:changed') return;
+        rebuild = vi.spyOn(updater, 'updateStatus').mockImplementation(() => { throw new Error('update state unreadable'); });
+        throw new Error('window went away');
+      }) }
+    };
+    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({ response: 1 } as never);
+    try {
+      const reply = await handlers.get('roots:demo')!(null, undefined) as any;
+      expect(reply.ok).toBe(false);
+      expect(reply.error).toMatch(/window went away/);
+      expect(getConfig().roots).toEqual([]);
+      expect((await demoFolders()).filter(name => !before.has(name))).toEqual([]);
+      // Wait for the rollback's rebuild to fail, then one turn for any rejection to surface.
+      await vi.waitFor(() => expect(rebuild?.mock.calls.length).toBeGreaterThan(0));
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+      rebuild?.mockRestore();
+    }
+  });
+
   it('refuses a live rename into the reserved /skills namespace', async () => {
     const base = defaultConfig();
     await saveConfig({

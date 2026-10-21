@@ -233,6 +233,8 @@ const api = {
   addRoot: () => call<AppState>('roots:add'),
   /** A folder dropped on the window; only the preload can learn a dropped File's path. */
   addRootPath: (file: File) => call<AppState>('roots:addPath', { path: webUtils.getPathForFile(file) }),
+  /** Setup's Try a demo: makes a demo folder and shares it once approved; null when declined. */
+  createDemoFolder: () => call<{ folder: string; run: string } | null>('roots:demo'),
   removeRoot: (name: string) => call<AppState>('roots:remove', { name }),
   renameRoot: (name: string, newName: string) => call<AppState>('roots:rename', { name, newName }),
   setApiKey: (value: string, profileId?: string) => call<AppState>('secret:set', { value, ...(profileId ? { profileId } : {}) }),

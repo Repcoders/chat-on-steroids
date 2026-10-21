@@ -2790,5 +2790,12 @@
   "{0} sub-agents need attention": "{0} 個子代理需要處理",
   "A tool call from an untrusted chat was refused. To allow it, open this chat's ⋯ menu in the sidebar (or right-click its row) and choose Trust chat.": "來自未受信任聊天的工具呼叫已被拒絕。若要允許，請在側邊欄開啟此聊天的 ⋯ 選單（或在其列上按右鍵），然後選擇「信任聊天」。",
   "A tool call from a worker whose main chat is not currently allowed was refused. Open that main chat's ⋯ menu in the sidebar and choose Trust chat if it is untrusted, or Release chat if it is blocked.": "一個工作者的工具呼叫已被拒絕，因為它的主聊天目前未被允許。請在側邊欄開啟該主聊天的 ⋯ 選單，若未受信任則選擇「信任聊天」，若已被封鎖則選擇「解除阻止」。",
-  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "一個由應用程式建立的工作者的工具呼叫已被拒絕，因為啟動它的主聊天尚未獲得確認。請回到側邊欄中的該主聊天；其列出現後，開啟 ⋯ 選單並選擇「信任聊天」（若已封鎖則選擇「解除阻止」），待工作者在那裡連線或復原後再重試。"
+  "A tool call from an app-created worker was refused because the main chat that started it is not proven yet. Return to that main chat in the sidebar; once its row is there, open its ⋯ menu and choose Trust chat, or Release chat if it is blocked, then retry after the worker is attached or recovered there.": "一個由應用程式建立的工作者的工具呼叫已被拒絕，因為啟動它的主聊天尚未獲得確認。請回到側邊欄中的該主聊天；其列出現後，開啟 ⋯ 選單並選擇「信任聊天」（若已封鎖則選擇「解除阻止」），待工作者在那裡連線或復原後再重試。",
+  "New here? Try it on a demo folder: ChatGPT reads a file, edits it and runs a check.": "第一次使用？先在示範資料夾裡試試：ChatGPT 會讀取一個檔案、修改它並執行一項檢查。",
+  "Try a demo": "試用示範",
+  "This is a short demo in the folder {0}. Read demo.txt there, change the line “{1}” to “{2}”, then run {3} in that folder and tell me what it printed.": "這是在資料夾 {0} 中的簡短示範。請讀取其中的 demo.txt，把「{1}」這一行改成「{2}」，然後在該資料夾中執行 {3}，並告訴我它輸出了什麼。",
+  "Share a demo folder with ChatGPT?": "要與 ChatGPT 共用示範資料夾嗎？",
+  "Chat On Steroids made a new folder for a first try, with a text file and a check to run: {0}": "Chat On Steroids 為首次試用新建了一個資料夾，裡面有一個文字檔和一項要執行的檢查：{0}",
+  "ChatGPT can read, edit and run commands in it, like in any folder you share. You can stop sharing it in Workspace.": "ChatGPT 可以在其中讀取、編輯和執行指令，與你共用的任何資料夾一樣。你可以在「工作區」中停止共用它。",
+  "Share demo folder": "共用示範資料夾"
 }

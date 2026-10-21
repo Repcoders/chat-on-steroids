@@ -2988,6 +2988,48 @@ it('reports each path’s own sign-in, whatever the other browser says, and keep
   }
 }, 60_000);
 
+it('offers a demo on Ready once all is set, and puts its request in a new chat for the person to send', async () => {
+  const createDemoFolder = vi.fn(async () => ({ ok: true, data: { folder: '/demo', run: 'sh ./check.sh' } }));
+  const sendInput = vi.fn(async () => ({ ok: true, data: null }));
+  const mounted = await mountChat({ hasApiKey: true }, [], { createDemoFolder, sendInput });
+  const doc = mounted.window.document;
+  // Not before setup is done: a demo turn needs the tunnel, extension and plugin.
+  doc.querySelector<HTMLButtonElement>('[data-rail-step=ready]')!.click();
+  expect(doc.getElementById('readyDemo')!.hidden).toBe(true);
+  const connected = structuredClone(mounted.state);
+  connected.status.state = 'connected';
+  connected.status.lastRequestAt = Date.now();
+  connected.bridge = { ...connected.bridge, present: true, paired: true, externalExtension: { present: true, version: connected.update.current, lastSeenAt: Date.now(), signedIn: true } };
+  mounted.push(connected);
+  doc.getElementById('browserContinue')!.click();
+  doc.querySelector<HTMLButtonElement>('[data-rail-step=ready]')!.click();
+  expect(doc.getElementById('readyTitle')!.textContent).toBe('You’re all set!');
+  expect(doc.getElementById('readyDemo')!.hidden).toBe(false);
+  // Limited access cannot edit the file or run the check, so it is not offered.
+  const limited = structuredClone(connected);
+  limited.config.readOnly = true;
+  mounted.push(limited);
+  expect(doc.getElementById('readyDemo')!.hidden).toBe(true);
+  mounted.push(connected);
+  expect(doc.getElementById('readyDemo')!.hidden).toBe(false);
+
+  // Declining the folder question leaves Setup where it was.
+  createDemoFolder.mockResolvedValueOnce({ ok: true, data: null } as never);
+  doc.getElementById('readyDemoStart')!.click();
+  await settle();
+  expect(doc.querySelector('.panel.is-active')?.getAttribute('data-panel')).toBe('setup');
+  const input = doc.getElementById('chatInput') as HTMLTextAreaElement;
+  expect(input.value).toBe('');
+
+  doc.getElementById('readyDemoStart')!.click();
+  await settle();
+  expect(createDemoFolder).toHaveBeenCalledTimes(2);
+  expect(doc.querySelector('.panel.is-active')?.getAttribute('data-panel')).toBe('chat');
+  expect(input.value).toBe('This is a short demo in the folder /demo. Read demo.txt there, change the line “status: draft” to “status: done”, then run sh ./check.sh in that folder and tell me what it printed.');
+  // Nothing is sent by itself.
+  expect(sendInput).not.toHaveBeenCalled();
+});
+
 it('keeps folder access discoverable after setup and navigates without granting access', async () => {
   const addRoot = vi.fn();
   const mounted = await mountChat({ hasApiKey: true }, [], { addRoot });

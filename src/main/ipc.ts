@@ -37,6 +37,7 @@ import { inputArgs, listInputs, editQueuedInput, sendQueuedInputNow, reorderQueu
 import { draftOpeningMessage, onGoalChange, nativeGoalFailure } from './goal.js';
 import { cancelTaskRequest, runTaskRequest } from './task-request.js';
 import { randomUUID } from 'node:crypto';
+import { tmpdir } from 'node:os';
 import { retryGoalBrowserHelper } from './goal.js';
 import { requestBrowserPreferences } from './browser-preferences.js';
 import { sendDesktopInput, cancelDesktopInput, retryQueuedInputBrowser } from './session/start-input.js';
@@ -90,6 +91,7 @@ import type { WorkerWorktreeCleanupOffer } from '../shared/session.js';
 import { unifiedExecManager } from './codex/manager.js';
 import { inFlightToolCalls } from './mcp/call-context.js';
 import { RESERVED_ROOT_NAMES, uniqueRootName, validateNewRoot, SandboxError, resolvePath } from './sandbox.js';
+import { createDemoFolder, removeDemoFolder } from './demo-folder.js';
 import { addProject, addRemoteProject, expireArmedProjectCreates, getSessionProject, listProjects, localProjectPath, onProjectLinkChange, projectWorkspace, removeProject, retryProjectCreate, setProjectColor } from './projects.js';
 import { createProjectEntry, listProjectDirectory, previewProjectFile, projectFileTarget, renameProjectEntry, revalidateProjectFileTarget, saveProjectTextFile, serverFileSnapshot } from './project-files.js';
 import { ProjectFileWatchSet } from './project-file-watcher.js';
@@ -824,8 +826,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     return buildState();
   });
 
-  /** Approves one folder by path. The picker dialog and the drop zone both end here. */
-  const approveRoot = async (folderPath: string): Promise<AppState> => {
+  /** Approves one folder by path and gives back its root's name, as saved. */
+  const addApprovedRoot = async (folderPath: string): Promise<string> => {
     let addedName = '';
     await updateConfig(async (config) => {
       const real = await validateNewRoot(folderPath, config.roots);
@@ -834,6 +836,11 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
       return { ...config, roots: [...config.roots, { name, path: real }] };
     });
     logInfo(`approved folder /${addedName}`);
+    return addedName;
+  };
+  /** Approves one folder by path. The picker dialog and the drop zone both end here. */
+  const approveRoot = async (folderPath: string): Promise<AppState> => {
+    await addApprovedRoot(folderPath);
     return buildState();
   };
 
@@ -846,6 +853,56 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     });
     if (result.canceled || !result.filePaths[0]) return buildState();
     return approveRoot(result.filePaths[0]);
+  });
+
+  // Setup's Try a demo: a new folder made for it, shared only after the person agrees, like any
+  // folder. The chat then gets its shared path and the command that runs the folder's check.
+  handle('roots:demo', async () => {
+    const demo = await createDemoFolder(tmpdir());
+    const options: Electron.MessageBoxOptions = {
+      type: 'question',
+      title: mainText('Share a demo folder with ChatGPT?'),
+      message: mainText('Share a demo folder with ChatGPT?'),
+      detail: [
+        mainText('Chat On Steroids made a new folder for a first try, with a text file and a check to run: {0}').replace('{0}', () => demo.folder),
+        mainText('ChatGPT can read, edit and run commands in it, like in any folder you share. You can stop sharing it in Workspace.')
+      ].join('\n\n'),
+      buttons: [mainText('Cancel'), mainText('Share demo folder')],
+      // Sharing a folder is a permission: Enter and Escape both keep it unshared.
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true
+    };
+    // The root this handler added, so a failure after approving takes it back with the folder.
+    let added: string | null = null;
+    try {
+      const owner = getWindow();
+      const { response } = owner && !owner.isDestroyed() ? await dialog.showMessageBox(owner, options) : await dialog.showMessageBox(options);
+      if (response !== 1) { await removeDemoFolder(demo.parent); return null; }
+      // A folder already inside a shared one (a whole home folder) needs no second approval.
+      let shared = await resolvePath(getConfig().roots, demo.folder).catch(error => { if (error instanceof SandboxError) return null; throw error; });
+      if (!shared) {
+        added = await addApprovedRoot(demo.folder);
+        // Newest wins, as in pushState: an older state finishing late must not hide this root.
+        const generation = ++statePushGeneration;
+        const state = await buildState();
+        if (generation === statePushGeneration) push('state:changed', state);
+        shared = await resolvePath(getConfig().roots, demo.folder);
+      }
+      return { folder: shared.virtual, run: demo.run };
+    } catch (error) {
+      if (added !== null) {
+        const name = added;
+        await updateConfig(config => ({ ...config, roots: config.roots.filter(root => root.name !== name) })).catch(() => undefined);
+        await removeDemoFolder(demo.parent);
+        // The window may have this root, or an older demo's state may have yielded to this one.
+        pushState();
+      } else if (!(await resolvePath(getConfig().roots, demo.folder).then(() => true, () => false))) {
+        // Kept only while an existing shared folder holds it.
+        await removeDemoFolder(demo.parent);
+      }
+      throw error;
+    }
   });
 
   handle('projects:list', () => listProjects());
@@ -2034,10 +2091,11 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
   let statePushGeneration = 0;
   const pushState = (): void => {
     const generation = ++statePushGeneration;
+    // Nothing awaits this, so a failed rebuild (a rollback's, say) is logged here, not left unhandled.
     void buildState().then((state) => {
       if (generation !== statePushGeneration) return;
       push('state:changed', state);
-    });
+    }).catch(error => logWarn(`state push failed: ${error instanceof Error ? error.message : String(error)}`));
   };
   onStatusChange(pushState);
   onRecordingStorageFullChange(pushState);
