@@ -185,6 +185,40 @@ it('opens a view from Ctrl+Shift+digit as the browser really reports it', () => 
   expect(files).toHaveBeenCalledOnce();
 });
 
+it('opens Artifacts from its own entry and Ctrl+Shift+5, and says why it is off without a chat', () => {
+  const { docks } = setup();
+  let chat = false;
+  const artifacts = vi.fn();
+  docks.register('artifacts', 'Artifacts', 'i-code-block', artifacts, vi.fn(), () => chat);
+  const quick = document.querySelector<HTMLButtonElement>('#workDockRight .work-dock-quick[data-view=artifacts]')!;
+  expect(quick.textContent).toBe('ArtifactsCtrl+Shift+5');
+  expect(quick.disabled).toBe(true); expect(quick.title).toBe('Open a chat to see its artifacts');
+  chat = true; docks.sync();
+  expect(quick.disabled).toBe(false);
+  document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: '%', code: 'Digit5', ctrlKey: true, shiftKey: true }));
+  expect(artifacts).toHaveBeenCalledOnce();
+  expect(document.getElementById('workDockRight')!.hidden).toBe(false);
+  expect(document.querySelector('#workDockRight [role=tab]')?.textContent).toBe('Artifacts');
+});
+
+it('makes room for the chat an Artifacts link opens: restores an expanded panel, closes one that covers the chat', () => {
+  const { host, docks } = setup();
+  const chat = host.querySelector<HTMLElement>('.is-session')!;
+  let chatShown = true;
+  chat.getClientRects = () => (chatShown ? [{}] : []) as unknown as DOMRectList;
+  docks.register('artifacts', 'Artifacts', 'i-code-block', vi.fn(), vi.fn(), () => true);
+  docks.activate('artifacts');
+  document.getElementById('rightDockExpand')!.click();
+  expect(host.classList.contains('is-work-dock-expanded')).toBe(true);
+  docks.showChat();
+  expect(host.classList.contains('is-work-dock-expanded')).toBe(false);
+  expect(document.getElementById('workDockRight')!.hidden).toBe(false);
+  // A narrow window has no room for both, so the panel closes.
+  chatShown = false;
+  docks.showChat();
+  expect(document.getElementById('workDockRight')!.hidden).toBe(true);
+});
+
 it('resizes the bottom dock from its top edge with drag feedback', () => {
   setup();
   const app = document.querySelector<HTMLElement>('.app')!, bottom = document.getElementById('workDockBottom')!;

@@ -17,6 +17,7 @@ import type { PetLibraryState, PetOverlayControlState, PetRuntimeAsset } from '.
 import type { SkillSummary, ManagedSkill, GitHubSkillUpdateCheck, SkillLibrary, SkillsDraftScope } from '../shared/skills.js';
 import type { RunningToolActivity, SessionChange, SessionSearchReply, SessionSearchLocation, ToolEditReview } from '../shared/session.js';
 import type { TurnTrace } from '../shared/turn-trace.js';
+import type { SessionArtifactsReply } from '../shared/answer-artifacts.js';
 import type { RunningExecProcess } from '../shared/background-exec.js';
 import type { PluginSnapshot, PluginInstallRequest, PluginConfigPatch } from '../shared/plugins.js';
 /**
@@ -381,6 +382,7 @@ const api = {
   locateSearchMatch: (id: string, query: string) => call<SessionSearchLocation | null>('sessions:locate-match', { id, query }),
   locateMessage: (id: string, messageId: string) => call<SessionSearchLocation | null>('sessions:locate-message', { id, messageId }),
   findInChat: (id: string, query: string) => call<SessionSearchLocation[]>('sessions:find', { id, query }),
+  chatArtifacts: (id: string) => call<SessionArtifactsReply>('sessions:artifacts', { id }),
   /** The chat's own name in the app; null clears it and ChatGPT's title shows again. */
   renameSession: (id: string, title: string | null) => call<boolean>('sessions:rename', { id, title }),
   getHandoff: (id: string, handoffId?: string) => call<Handoff | null>('handoff:get', { id, handoffId }),

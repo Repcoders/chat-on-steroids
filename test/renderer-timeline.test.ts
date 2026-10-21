@@ -7058,3 +7058,25 @@ describe('prompt recall in the composer', () => {
     expect(composer(w).value).toBe('Second question');
   });
 });
+
+it('shows the chat itself when an artifact\'s answer is opened from its settings', async () => {
+  const replyId = '5c1e2a4b-7d3f-4e8a-9b6c-0f1d2e3a4b5c';
+  const { w } = await boot([
+    { kind: 'user_message', seq: 1, origin: 1, time: T0, source: 'extension', turnId: 'art-turn', messageId: 'art-ask', message: text('Write the parser') },
+    { kind: 'assistant_message', seq: 2, time: T0 + 1_000, source: 'extension', turnId: 'art-turn', messageId: replyId, message: text('Here it is.'), final: true, state: 'final' },
+    { seq: 3, time: T0 + 2_000, source: 'extension', kind: 'turn_end', turnId: 'art-turn', outcome: 'completed' }
+  ]);
+  const api = (w as any).api;
+  api.chatArtifacts = vi.fn(async () => ({ ok: true, data: { artifacts: [
+    { kind: 'code', language: 'ts', text: 'parse();', answer: 1, question: 'Write the parser', location: { seq: 2, kind: 'assistant_message', messageId: replyId, position: 2 } }
+  ] } }));
+  w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: '%', code: 'Digit5', ctrlKey: true, shiftKey: true, bubbles: true }));
+  await settle();
+  const chat = await import('../src/renderer/chat.js');
+  chat.openChatView('settings');
+  expect(w.document.getElementById('timelineContent')!.hidden).toBe(true);
+  w.document.querySelector<HTMLButtonElement>('.artifact-source')!.click();
+  await settle();
+  expect(w.document.getElementById('timelineContent')!.hidden).toBe(false);
+  expect(w.document.querySelector('.is-search-hit')).not.toBeNull();
+});

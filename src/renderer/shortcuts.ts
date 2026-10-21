@@ -3,7 +3,7 @@
  *
  * The app's primary shortcuts (sidebar, zoom, search) accept Ctrl or ⌘, so macOS shows ⌘ and
  * other systems show the keyboard's Ctrl key in the UI language ("Strg" in German). The workspace
- * panels' Ctrl+Shift+1–4 really are Ctrl everywhere and keep their own label.
+ * panels' Ctrl+Shift+1–5 really are Ctrl everywhere and keep their own label.
  */
 import { t } from './i18n.js';
 

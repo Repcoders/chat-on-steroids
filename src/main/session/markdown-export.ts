@@ -1,7 +1,9 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { app, clipboard, dialog, type BrowserWindow } from 'electron';
-import type { StoredText } from '../../shared/session.js';
+import type { SessionSearchLocation, StoredText } from '../../shared/session.js';
+import { answerArtifacts, type SessionArtifact, type SessionArtifactsReply } from '../../shared/answer-artifacts.js';
+import { positionOf } from '../../shared/chronology.js';
 import {
   answerMarkdown, completedTurnIds, markdownFileName, messageAnswerEntries, sessionMarkdown, transcriptEntries, turnAnswerEntries
 } from '../../shared/markdown-export.js';
@@ -64,4 +66,51 @@ export async function exportSessionMarkdown(request: MarkdownExportRequest, owne
   if (result.canceled || !result.filePath) return { done: 'cancelled' };
   await fs.writeFile(result.filePath, markdown, 'utf8');
   return { done: 'saved', name: path.basename(result.filePath) };
+}
+
+/** Most artifacts one chat lists, and the most text they carry together. */
+const MAX_CHAT_ARTIFACTS = 500;
+const MAX_ARTIFACT_CHARS = 2_000_000;
+const QUESTION_CHARS = 120;
+
+/**
+ * Artifacts: the code blocks, tables and display formulas of the chat's final answers, in spoken
+ * order, read from the whole recording with the full text of answers the log cut (the same text
+ * Copy answer gives). Each carries its answer's number, the question before it and where it is.
+ */
+export async function artifactsInSession(id: string): Promise<SessionArtifactsReply> {
+  const events = await readEvents(id, { kinds: ['user_message', 'assistant_message'] });
+  const bySeq = new Map(events.map(event => [event.seq, event]));
+  // A revised answer keeps the place where it first appeared.
+  const firstPosition = new Map<string, number>();
+  for (const event of events) {
+    if (event.kind !== 'assistant_message' || !event.messageId) continue;
+    const at = positionOf(event);
+    if (at < (firstPosition.get(event.messageId) ?? Number.POSITIVE_INFINITY)) firstPosition.set(event.messageId, at);
+  }
+  const artifacts: SessionArtifact[] = [];
+  let question = '', answer = 0, chars = 0;
+  // A turn's answers are one answer, as Copy answer joins them; one outside a turn stands alone.
+  const counted = new Set<string>();
+  for (const entry of transcriptEntries(events)) {
+    if (entry.role === 'user') {
+      question = entry.stored.text.replace(/\s+/g, ' ').trim().slice(0, QUESTION_CHARS);
+      continue;
+    }
+    if (entry.turnId === null || !counted.has(entry.turnId)) answer++;
+    if (entry.turnId !== null) counted.add(entry.turnId);
+    const event = bySeq.get(entry.seq);
+    if (event?.kind !== 'assistant_message') continue;
+    const found = answerArtifacts(await fullText(id, entry.stored, entry.html));
+    if (!found.length) continue;
+    const messageId = event.messageId ?? null;
+    const position = Math.min(positionOf(event), messageId === null ? Number.POSITIVE_INFINITY : firstPosition.get(messageId) ?? Number.POSITIVE_INFINITY);
+    const location: SessionSearchLocation = { seq: event.seq, kind: 'assistant_message', messageId, position };
+    for (const artifact of found) {
+      if (artifacts.length >= MAX_CHAT_ARTIFACTS || chars + artifact.text.length > MAX_ARTIFACT_CHARS) return { artifacts, limited: true };
+      chars += artifact.text.length;
+      artifacts.push({ ...artifact, answer, question, location });
+    }
+  }
+  return { artifacts };
 }

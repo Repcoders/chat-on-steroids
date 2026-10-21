@@ -32,6 +32,7 @@ import { renderRecoveryCountdowns } from './recovery.js';
 import type { RecoveryCountdown } from '../shared/recovery.js';
 import { communicationTitle, foldAgentCommunication, participatingWorkers, workerAvatar } from './agent-communication.js';
 import { structureTimeline, type RoundPart } from './timeline-rounds.js';
+import { createArtifactsDrawer } from './artifacts-drawer.js';
 import type { TurnTrace } from '../shared/turn-trace.js';
 import { initContextMeter, paintContextMeter } from './context-meter.js';
 import { installComposerDockMotion, installComposerHeightMotion } from './composer-motion.js';
@@ -325,6 +326,7 @@ function replaceComposerDraft(): void {
 }
 let pendingNewInput: { id: string; generation: number } | null = null;
 let agentPanel: ReturnType<typeof createAgentPanel> | null = null;
+let artifactsPanel: ReturnType<typeof createArtifactsDrawer> | null = null;
 let filePanel: ReturnType<typeof createFilePanel> | null = null;
 let reviewPanel: ReturnType<typeof createFilePanel> | null = null;
 const expandedWorkers = new Set<string>();
@@ -5532,6 +5534,8 @@ function paintDetail(followBottom = historyBefore === null): void {
   paintStateLine();
   paintBackgroundProcesses();
   const summary = sessions.find((s) => s.id === selectedId) ?? null;
+  // A new final answer or turn end may bring new artifacts; paging through history does not.
+  artifactsPanel?.update(selectedId, `${summary?.lastAssistantFinalAt ?? ''}:${summary?.lastTurnEndAt ?? ''}`);
   applyComposerSessionModel(selectedId ? `${selectedId}:${selectionGeneration}` : null, composerSessionSelection(summary) ?? null);
   const config = deps.state()?.config;
   if (config) paintContextMeter(summary, config, confirmedComposerModel());
@@ -8189,6 +8193,17 @@ export function initChat(next: Deps): void {
     filePanel?.mountAt(mount); void filePanel?.show();
   }, () => filePanel?.hide(), () => selectedLocalProject() !== null);
   docks.register('agents', 'Sub-agents', 'i-agents', () => agentPanel?.show(), () => agentPanel?.hide(), () => selectedId !== null);
+  artifactsPanel = createArtifactsDrawer({
+    load: async id => (await run(api.chatArtifacts(id))) ?? null,
+    copy: async text => Boolean(await run(api.writeClipboard(text))),
+    reveal: (id, location) => {
+      // The answer is in the timeline, which the chat's settings sheet hides.
+      docks.showChat(); if (!timelineShown()) showView('timeline');
+      void revealChatLocation(id, location);
+    },
+    onEscape: () => { docks.setOpen(false); docks.rightToggle.focus(); }
+  });
+  docks.register('artifacts', 'Artifacts', 'i-code-block', mount => artifactsPanel?.show(mount), () => artifactsPanel?.hide(), () => selectedId !== null);
   $('attachImages').addEventListener('click', async () => {
     const owner = composerDraftOwner();
     appendImages(owner, await run(api.chooseFiles()));
