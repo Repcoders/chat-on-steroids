@@ -4109,6 +4109,15 @@ unpinned groups and a drag never crosses between them. Only recorded chats are p
 workers or unattributed activity. Pinned rows carry a quiet pin mark at rest (it makes way for the
 row's "⋯" on hover, focus or while its menu is open), and Pin chat/Unpin chat is the first item of
 the chat's row menu, keeping keyboard focus on the rebuilt row's menu button.
+`renderer/sidebar-selection.ts` holds the chats picked for one action on several; it is never saved.
+Cmd-click on macOS (Ctrl-click elsewhere; a Mac's Ctrl-click is a right click and opens the menu) or
+Ctrl/Cmd+Space toggles a pinnable chat (`pickGesture`), Shift-click or Shift+Space adds the run from the
+last pick in sidebar order, and the first pick also takes the open chat. Picking opens nothing; a plain
+click or Escape lets the picks go, and rows hidden in a collapsed group drop out on the next paint. A bar
+above the list counts them, and its "⋯" and a picked row's menu offer Pin all/Unpin all, Mark all as read
+(`sidebar-completion`), Block all/Release all and Remove all…, each through the owner the single-chat
+item uses, one chat at a time; a failure stops the rest. Remove all asks with the count first, while a
+single row's Remove stays immediate.
 The worker drawer is a read-only split view of the selected worker's own recorded conversation;
 opening it never switches the prime composer. Its cards show the scoped worker id, task, observed
 current-conversation model and broker status when known, falling back to recorded session activity.
