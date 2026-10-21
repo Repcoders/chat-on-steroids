@@ -2156,26 +2156,29 @@ function paintEditNotice(): void {
 }
 
 /**
- * A send held because the draft holds what looks like a credential (`shared/secret-shapes.ts`).
- * It belongs to that exact draft and route: any edit, another chat, or turning Plan on or off drops it,
- * and the next send checks again.
+ * A send held because the draft, or the Goal or Loop objective going out with it, holds what looks like a
+ * credential (`shared/secret-shapes.ts`). It belongs to that exact draft, objective and route: any edit,
+ * another chat, or turning Plan on or off drops it, and the next send checks again.
  */
-type SecretHold = { key: string; text: string; found: string[]; plan: boolean; send: () => void };
+type SecretHold = { key: string; text: string; objective?: string; found: string[]; plan: boolean; send: () => void };
 let secretHold: SecretHold | null = null;
 let paintedSecretHold: SecretHold | null = null;
 /**
- * Checks the draft before `send` takes it to ChatGPT, as a message or as a Plan request. A match
- * holds it and is the answer; the hold's buttons run `send` again with the check already made.
+ * Checks the draft before `send` takes it to ChatGPT, as a message or as a Plan request, and with
+ * `withObjective` the Goal or Loop objective going along. A match holds it and is the answer; the hold's buttons run `send`
+ * again with the check already made.
  */
-function secretsHeld(key: string, checked: boolean, send: () => void): boolean {
-  const found = checked ? [] : findSecretShapes(authoredComposerText());
-  secretHold = found.length ? { key, text: authoredComposerText(), found, plan: taskPlans.has(key), send } : null;
+function secretsHeld(key: string, checked: boolean, send: () => void, withObjective = false): boolean {
+  const text = authoredComposerText(), objective = withObjective ? $<HTMLTextAreaElement>('sessionObjective').value : undefined;
+  const found = checked ? [] : [...new Set([...findSecretShapes(text), ...findSecretShapes(objective ?? '')])];
+  secretHold = found.length ? { key, text, objective, found, plan: taskPlans.has(key), send } : null;
   paintSecretNotice();
   return !!secretHold;
 }
 function paintSecretNotice(): void {
   const notice = $('secretDraft');
-  if (secretHold && (secretHold.key !== draftKey() || secretHold.text !== authoredComposerText() || secretHold.plan !== taskPlans.has(secretHold.key))) secretHold = null;
+  if (secretHold && (secretHold.key !== draftKey() || secretHold.text !== authoredComposerText() || secretHold.plan !== taskPlans.has(secretHold.key) ||
+      (secretHold.objective !== undefined && secretHold.objective !== $<HTMLTextAreaElement>('sessionObjective').value))) secretHold = null;
   const hold = secretHold;
   // The same hold keeps its buttons, so a repaint never takes the focus from one of them.
   if (hold && hold === paintedSecretHold) return;
@@ -2199,6 +2202,11 @@ function paintSecretNotice(): void {
       const input = $<HTMLTextAreaElement>('chatInput');
       input.value = redactSecretShapes(input.value);
       input.dispatchEvent(new Event('input', { bubbles: true }));
+      if (hold.objective !== undefined) {
+        const objective = $<HTMLTextAreaElement>('sessionObjective');
+        objective.value = redactSecretShapes(objective.value);
+        objective.dispatchEvent(new Event('input', { bubbles: true }));
+      }
       hold.send();
     }),
     action(() => t('Send anyway'), () => {
@@ -7737,7 +7745,17 @@ async function stopCurrentTurn(): Promise<void> {
   finally { if (selectedId === id && selectionGeneration === generation) { controlledStopPending = false; void refreshSessionControls(); } }
 }
 let composerDiscoveryGeneration = 0;
-async function sendComposer(delivery?: 'finish' | 'auto' | 'after-turn', plan?: string[], planObjective?: string, controlAction = false, secretsChecked = false): Promise<boolean | void> {
+/** How a composer send goes out: an edit goes now, and after-turn joins a turn that already queues at its finish. */
+function composerMode(delivery: 'finish' | 'auto' | 'after-turn' | undefined, editing: boolean): { chosenMode: string; mode: string } {
+  const chosenMode = editing ? 'auto' : delivery ?? $<HTMLSelectElement>('sendMode').value;
+  const mode = chosenMode === 'tool' ? 'auto' : chosenMode === 'after-turn' && controlledSessionId === selectedId && controlledSelection === selectionGeneration && controlledQueueAtFinish ? 'finish' : chosenMode;
+  return { chosenMode, mode };
+}
+/** The Goal or Loop objective a message send takes with it; one queued at the turn's finish goes without. */
+function sentObjective(mode: string): string | undefined {
+  return mode === 'finish' ? undefined : $<HTMLTextAreaElement>('sessionObjective').value.trim() || undefined;
+}
+async function sendComposer(delivery?: 'finish' | 'auto' | 'after-turn', plan?: string[], planObjective?: string, controlAction = false, secretsChecked = false, checkedObjective?: string): Promise<boolean | void> {
   const input = $<HTMLTextAreaElement>('chatInput');
   const key = draftKey();
   const projectId = selectedId ? sessions.find(row => row.id === selectedId)?.projectId ?? null : selectedProjectId;
@@ -7775,8 +7793,12 @@ async function sendComposer(delivery?: 'finish' | 'auto' | 'after-turn', plan?: 
     }
     return;
   }
-  // Only what the person typed is checked; a plan's request was checked before it went to the planner.
-  if (secretsHeld(key, !!plan || secretsChecked, () => void sendComposer(delivery, undefined, undefined, false, true))) return false;
+  // What the person typed is checked, with the objective when it goes out too; a plan's request was
+  // checked before it went to the planner.
+  const objectiveDraft = plan ? undefined : secretsChecked ? checkedObjective
+    : sentObjective(composerMode(delivery, !!selectedId && editingQuestion?.sessionId === selectedId).mode);
+  const confirmed = (objective?: string) => () => void sendComposer(delivery, undefined, undefined, false, true, objective);
+  if (secretsHeld(key, !!plan || secretsChecked, confirmed(objectiveDraft), objectiveDraft !== undefined)) return false;
   const discoveryGeneration = ++composerDiscoveryGeneration;
   const discoverySelection = selectionGeneration, discoverySession = selectedId, discoveryDraft = authoredComposerText();
   const modelSettings = composerSendModel() ?? await ensureComposerModel();
@@ -7793,8 +7815,7 @@ async function sendComposer(delivery?: 'finish' | 'auto' | 'after-turn', plan?: 
   if (editing && images.length) { toast(t('An edit changes only the text. Send files in a new message.')); return false; }
   if (editing && plan) { toast(t('An edit is sent as one message, not as a plan.')); return false; }
   const edit = editing ? { messageId: editing.messageId } : undefined;
-  const chosenMode = edit ? 'auto' : delivery ?? $<HTMLSelectElement>('sendMode').value;
-  const mode = chosenMode === 'tool' ? 'auto' : chosenMode === 'after-turn' && controlledSessionId === selectedId && controlledSelection === selectionGeneration && controlledQueueAtFinish ? 'finish' : chosenMode;
+  const { chosenMode, mode } = composerMode(delivery, !!edit);
   const dueAt = Date.now();
   const id = crypto.randomUUID();
   const authoredDraft = authoredComposerText();
@@ -7802,7 +7823,9 @@ async function sendComposer(delivery?: 'finish' | 'auto' | 'after-turn', plan?: 
     ...(chosenMode === 'tool' && !plan ? { delivery: 'tool' as const } : {}),
     ...(mode === 'auto' && !plan && selectedId && controlledSessionId === selectedId && controlledSelection === generation &&
       controlledCanInject && images.some(file => 'id' in file) && injectableAttachments(images) ? { attachmentDelivery: 'tool' as const } : {}) };
-  const objective = plan ? planObjective : mode === 'finish' ? undefined : $<HTMLTextAreaElement>('sessionObjective').value.trim() || undefined;
+  const objective = plan ? planObjective : sentObjective(mode);
+  // The objective may have changed while the model was confirmed, or now go out where it did not; it is checked again.
+  if (!plan && objective !== undefined && objective !== objectiveDraft && secretsHeld(key, false, confirmed(objective), true)) return false;
   const authoredSource = plan ? 'objective' as const : 'text' as const;
   // Branch in new chat (#482): the first message of a branch, or its retry before ChatGPT has it.
   const reserved = sessionId ? sessions.find(row => row.id === sessionId) : undefined;
@@ -8124,7 +8147,7 @@ export function initChat(next: Deps): void {
       if (id === selectedId && generation === selectionGeneration) void refreshSessionControls();
     }
   });
-  $('sessionObjective').addEventListener('input', () => { cancelGoalRequest(); goalIntentGeneration++; $('sessionObjective').dataset.edited = 'true'; delete $('sessionObjective').dataset.saved; paintTaskActions(); });
+  $('sessionObjective').addEventListener('input', () => { cancelGoalRequest(); goalIntentGeneration++; $('sessionObjective').dataset.edited = 'true'; delete $('sessionObjective').dataset.saved; paintTaskActions(); paintSecretNotice(); });
   $('sessionObjectiveMode').addEventListener('change', () => { cancelGoalRequest(); goalIntentGeneration++; $('sessionObjective').dataset.edited = 'true'; delete $('sessionObjective').dataset.saved; paintTaskActions(); });
   for (const buttonId of ['saveSessionObjective'] as const) {
     $(buttonId).addEventListener('click', async () => {

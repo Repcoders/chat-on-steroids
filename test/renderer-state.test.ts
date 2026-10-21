@@ -4108,6 +4108,46 @@ it.each(['redact', 'send anyway', 'edit'] as const)('holds a send whose draft lo
   expect(doc.activeElement).toBe(field);
 });
 
+it.each(['redact', 'send anyway', 'edit'] as const)('holds a send whose Goal objective looks like it has a token (%s)', async choice => {
+  const ok = (data: any) => ({ ok: true, data });
+  const sendInput = vi.fn(async (request: any) => ok({ ...request, sessionId: request.id, opening: true, state: 'queued', owner: null, createdAt: Date.now(), conversationId: null }));
+  const mounted = await mountChat({}, [], { sendInput,
+    getChatModels: async () => ok({ state: 'ready', requestedAt: 1, observedAt: Date.now(), models: [{ id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol', efforts: ['high'] }] }),
+    listInputs: async () => ok([]), runningTools: async () => ok([]), turnTraces: async () => ok({}), listPausedHelpers: async () => ok([])
+  });
+  const w = mounted.window, doc = w.document, field = doc.getElementById('chatInput') as HTMLTextAreaElement;
+  const objective = doc.getElementById('sessionObjective') as HTMLTextAreaElement;
+  const notice = doc.getElementById('secretDraft')!, token = `ghp_${'aB3'.repeat(12)}`;
+  (doc.getElementById('newChat') as HTMLButtonElement).click(); await settle();
+  (doc.querySelector('[data-mode="goal"]') as HTMLButtonElement).click();
+  objective.value = `Deploy with ${token}`;
+  objective.dispatchEvent(new w.Event('input', { bubbles: true }));
+  field.value = 'Start with the existing code';
+  field.dispatchEvent(new w.Event('input', { bubbles: true }));
+  doc.getElementById('composer')!.dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+  await settle();
+  // The objective goes into the opening message, so it is checked with the draft.
+  expect(sendInput).not.toHaveBeenCalled();
+  expect(notice.hidden).toBe(false);
+  expect(notice.textContent).toContain('Possible secret in this message: ghp_…');
+  expect(notice.textContent).not.toContain(token);
+  if (choice === 'edit') {
+    // Editing the objective drops the hold; the next send checks again.
+    objective.value = 'Deploy it'; objective.dispatchEvent(new w.Event('input', { bubbles: true }));
+    expect(notice.hidden).toBe(true);
+    doc.getElementById('composer')!.dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(sendInput).toHaveBeenCalledWith(expect.objectContaining({ text: 'Start with the existing code', objective: 'Deploy it' })));
+    return;
+  }
+  const [redact, anyway] = [...notice.querySelectorAll<HTMLButtonElement>('.secret-draft-action')];
+  (choice === 'redact' ? redact : anyway)!.click();
+  await vi.waitFor(() => expect(sendInput).toHaveBeenCalledTimes(1));
+  const sent = choice === 'redact' ? 'Deploy with [redacted]' : `Deploy with ${token}`;
+  expect(sendInput).toHaveBeenCalledWith(expect.objectContaining({ sessionId: null, text: 'Start with the existing code', objective: sent }));
+  expect(objective.value).toBe(sent);
+  expect(notice.hidden).toBe(true);
+});
+
 it.each([['menu', 'redact'], ['menu', 'send anyway'], ['typed /plan', 'redact'], ['menu', 'plan off']] as const)('holds a Plan request that looks like it has a token before it reaches the planner (%s, %s)', async (arm, choice) => {
   const ok = (data: any) => ({ ok: true, data });
   const sendInput = vi.fn(async (request: any) => ok({ ...request, state: 'queued', owner: null, createdAt: Date.now(), conversationId: null }));
