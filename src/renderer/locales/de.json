@@ -602,8 +602,6 @@
   "Summary": "Zusammenfassung",
   "Summary (still writing)": "Zusammenfassung (wird noch geschrieben)",
   "Bootstrap sent into the new chat — {0} characters at {1}": "Startnachricht an den neuen Chat gesendet – {0} Zeichen um {1}",
-  "{0} actions · {1}": "{0} Aktionen · {1}",
-  "{0} actions · {1}|one": "{0} Aktion · {1}",
   "Dismiss recovery notice": "Hinweis zur Wiederherstellung schließen",
   "{0} event{1}": "{0} Ereignis{1}",
   "showing a bounded page of {0}": "zeigt einen begrenzten Ausschnitt von {0}",

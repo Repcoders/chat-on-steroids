@@ -37,6 +37,7 @@ const ICONS: Readonly<Record<string, string>> = {
   'i-export': 'download-simple',
   'i-eye': 'eye',
   'i-file': 'file',
+  'i-file-plus': 'file-plus',
   'i-file-text': 'file-text',
   'i-folder': 'folder',
   'i-gear': 'gear-six',
@@ -81,6 +82,7 @@ const ICONS: Readonly<Record<string, string>> = {
   'i-zoom-reset': 'arrow-counter-clockwise',
   'i-trash': 'trash',
   'i-warning': 'warning',
+  'i-warning-circle': 'warning-circle',
   'i-x': 'x'
 };
 

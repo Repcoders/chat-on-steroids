@@ -626,7 +626,6 @@
   "Summary": "要約",
   "Summary (still writing)": "要約（作成中）",
   "Bootstrap sent into the new chat — {0} characters at {1}": "新しいチャットに再開用メッセージを送信しました · {0}文字、{1}",
-  "{0} actions · {1}": "{0}件の操作 · {1}",
   "Dismiss recovery notice": "復旧通知を閉じる",
   "{0} event{1}": "{0}件のイベント{1}",
   "showing a bounded page of {0}": "最大{0}件のページを表示中",

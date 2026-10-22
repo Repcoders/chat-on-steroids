@@ -40,7 +40,7 @@ app.whenReady().then(async()=>{
  await until(`!!document.querySelector('#sessionList [data-id="composer-preview"]')`);
  await js(`document.querySelector('#sessionList [data-id="composer-preview"]').click()`);
  await until(`document.querySelectorAll('#timeline .tool').length===3`);
- await js(`document.querySelector('.tool-group').open=true;const tool=document.querySelectorAll('#timeline details.tool')[2];tool.open=true;tool.dispatchEvent(new Event('toggle'))`);await pause(100);
+ await js(`const tool=document.querySelectorAll('#timeline details.tool')[2];tool.open=true;tool.dispatchEvent(new Event('toggle'))`);await pause(100);
  if(!before){
   await js(`document.querySelector('.edit-card').open=true`);
   await until(`document.querySelectorAll('.diff-line.is-added').length===1`);

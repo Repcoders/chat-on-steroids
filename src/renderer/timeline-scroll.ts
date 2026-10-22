@@ -14,8 +14,11 @@ export function preserveTimelineViewport(pane: HTMLElement, timeline: HTMLElemen
   const previousContentHeight = timeline.getBoundingClientRect().height - previousReserve;
   const previousScrollContent = pane.scrollHeight - previousReserve;
   const edge = pane.getBoundingClientRect().top;
+  // A work log is anchored by its lines, which keep their place when paging extends the log at its
+  // start; the log itself only when none of them shows (a log of one closed routine fold).
   const rows = () => [...timeline.querySelectorAll<HTMLElement>('[data-timeline-key]')]
-    .filter(row => !row.matches('.tool-group[open]'));
+    .filter(row => !row.matches('.tool-group[open]') && (!row.matches('.work-log')
+      || ![...row.querySelectorAll('[data-timeline-key]')].some(line => line.getClientRects().length > 0)));
   const anchors: Array<{ key: string | undefined; offset: number }> = [];
   if (!following) for (const row of rows()) {
     const rect = row.getBoundingClientRect();

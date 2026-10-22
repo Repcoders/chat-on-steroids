@@ -6,10 +6,10 @@ import { t } from './i18n.js';
 /** Sprite id per tool-call family. Deliberately reuses the existing icon set. */
 export const KIND_ICON: Record<ActivitySummary['kind'], string> = {
   edit: 'i-pencil',
-  create: 'i-plus',
+  create: 'i-file-plus',
   delete: 'i-trash',
   move: 'i-out',
-  read: 'i-eye',
+  read: 'i-file',
   search: 'i-search',
   browse: 'i-folder',
   run: 'i-terminal',

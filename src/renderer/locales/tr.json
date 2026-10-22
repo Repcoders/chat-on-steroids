@@ -615,8 +615,6 @@
   "Summary": "Özet",
   "Summary (still writing)": "Özet (yazılıyor)",
   "Bootstrap sent into the new chat — {0} characters at {1}": "Başlangıç içeriği yeni sohbete gönderildi — {0} karakter, {1}",
-  "{0} actions · {1}": "{0} eylem · {1}",
-  "{0} actions · {1}|one": "{0} eylem · {1}",
   "Dismiss recovery notice": "Kurtarma bildirimini kapat",
   "{0} event{1}": "{0} olay{1}",
   "showing a bounded page of {0}": "{0} olaylık sınırlı bir sayfa gösteriliyor",
