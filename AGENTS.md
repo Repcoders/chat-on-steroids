@@ -5160,7 +5160,11 @@ one icon button (≡) in the title bar opening the row menus' menu (`row-menu.ts
 each action with its icon and this keyboard's shortcut (not the sidebar toggle, which sits beside it), a
 pets label that says what it will do (Show/Hide pets), zoom steps that keep it open with Actual size's value updating
 (a zoom's resize repositions it instead of closing it), and Show browser (the CoS browser) only while the
-built-in browser is the ChatGPT browser. Appearance rows align controls at a shared minimum height and Setup uses a stable
+built-in browser is the ChatGPT browser. Its Work log (`work-log.ts`) is a read-only dialog over the sidebar's loaded
+`SessionSummary` rows: one row per chat for its last finished turn (`lastTurnEndAt`, or `lastAssistantFinalAt` on older
+metadata, with `lastTurnOutcome`), newest first under day headings, filterable by project and outcome, a click opening the
+chat. Sub-agents, helpers and chats with nothing to open stay out, as in the sidebar. It reads nothing of its own, so a
+chat's earlier turns and chats older than the loaded pages are not in it. Appearance rows align controls at a shared minimum height and Setup uses a stable
 responsive title/language grid across locales.
 The companion sends a bounded snapshot on the authenticated `/diagnostics` route, outside the
 authority-bearing `/status` response. One pending diagnostic page read is shared; current

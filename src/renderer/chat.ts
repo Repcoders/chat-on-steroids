@@ -108,11 +108,15 @@ import { APPROVAL_ANSWERED_TEXT, APPROVAL_PROGRESS_PREFIX, APPROVAL_WAITING_TEXT
 import { STRICT_REFUSAL_PROGRESS_PREFIX, UNPROVEN_WORKER_NOTICE, UNTRUSTED_NOTICE, UNTRUSTED_WORKER_NOTICE } from '../shared/trust-notices.js';
 import { closeRowMenu, onRowMenuChange, openRowMenu, rowMenuOpenFor, toggleRowMenu, type RowMenuItem, type RowMenuOptions } from './row-menu.js';
 import { createSearchPopup } from './search-popup.js';
+import { createWorkLog } from './work-log.js';
 import { primaryShortcut } from './shortcuts.js';
 import { initSshProjectDialog } from './ssh-project-dialog.js';
 
 const api = window.api;
 let chatSearch: ChatSearch | null = null;
+let workLog: ReturnType<typeof createWorkLog> | null = null;
+/** Brings the Chat screen up for the chat a Work log row opens, from whatever page it was opened on. */
+let workLogShowChat: () => void = () => {};
 let chatFind: ReturnType<typeof initChatFind> | null = null;
 
 
@@ -1510,6 +1514,7 @@ async function loadSessions(detail: 'reread' | 'changed' = 'reread'): Promise<vo
   }
   paintSessions();
   chatSearch?.refresh();
+  workLog?.update();
   const row = selectedId === null ? undefined : sessions.find(entry => entry.id === selectedId);
   if (detail === 'reread' || selectedId === null || detailFor !== selectedId || changed.all || changed.ids.has(selectedId) ||
       row?.updatedAt !== detailStamp?.updatedAt || row?.events !== detailStamp?.events) await loadDetail();
@@ -1534,6 +1539,7 @@ async function loadMoreSessions(): Promise<void> {
     trustedChats = new Set(page.trusted ?? []);
     for (const entry of page.pressure) pressure.set(entry.id, entry);
     paintSessions();
+    workLog?.update();
   } finally {
     sessionPageLoading = false;
   }
@@ -1574,6 +1580,7 @@ async function loadProjectHistory(id: string): Promise<void> {
       loadedOlderSessions = true;
       for (const entry of page.pressure) pressure.set(entry.id, entry);
       paintSessions();
+      workLog?.update();
       // A page of workers shows nothing; read on while the project is open and still looks empty.
     } while (state.cursor && projectViewed(id) && !projectShowsChat(id));
   } finally {
@@ -8332,6 +8339,12 @@ export function openChatSearch(): void {
   chatSearch?.open();
 }
 
+/** Opens the work log: each loaded chat's last finished turn by day (the View menu). */
+export function openWorkLog(showChat: () => void): void {
+  workLogShowChat = showChat;
+  workLog?.open();
+}
+
 /**
  * Switches the session card's body.
  *
@@ -8977,6 +8990,19 @@ export function initChat(next: Deps): void {
     find: async (id, query) => (await run(api.findInChat(id, query))) ?? null,
     reveal: revealChatLocation,
     row: rowForLocation
+  });
+  workLog = createWorkLog({
+    chats: () => sessions,
+    project: summary => {
+      const id = projectGroup(summary.projectId);
+      const project = id ? projects.find(entry => entry.id === id) : undefined;
+      return project ? { id: project.id, name: project.name } : null;
+    },
+    title: shownSessionTitle,
+    open: id => {
+      workLogShowChat();
+      if (id !== selectedId) { pendingNewInput = null; selectSession(id); }
+    }
   });
   chatSearch = initChatSearch({
     select: (id, match) => {

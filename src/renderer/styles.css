@@ -156,6 +156,21 @@
 .plugin-dialog-head .btn { color: var(--soft); }
 .plugin-dialog-body { padding: 24px; font-size: calc(13px * var(--text-scale, 1)); line-height: 1.6; }
 .plugin-dialog-body > p:first-child { margin-top: 0; }
+.work-log-note { color: var(--soft); }
+.work-log-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.work-log-filter { flex: 1 1 160px; padding: 6px 10px; color: var(--ink); background: var(--sunk); border: 1px solid var(--edge); border-radius: var(--r-sm); font: inherit; }
+.work-log-day + .work-log-day { margin-top: 18px; }
+.work-log-day-head { margin: 0 0 4px; color: var(--soft); font-size: calc(11px * var(--text-scale, 1)); font-weight: 600; }
+.work-log-list { margin: 0; padding: 0; list-style: none; }
+.work-log-row { display: flex; align-items: baseline; gap: 12px; width: 100%; padding: 7px 8px; margin-inline: -8px; box-sizing: content-box; color: var(--ink); background: none; border: 0; border-radius: var(--r-sm); font: inherit; text-align: start; cursor: pointer; }
+.work-log-row:hover { background: var(--hover); }
+.work-log-time { flex: 0 0 auto; min-width: 64px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.work-log-outcome { flex: 0 0 auto; min-width: 84px; color: var(--soft); }
+.work-log-row[data-outcome="completed"] .work-log-outcome { color: var(--green); }
+.work-log-row:is([data-outcome="failed"], [data-outcome="stalled"]) .work-log-outcome { color: var(--red); }
+.work-log-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; unicode-bidi: plaintext; }
+.work-log-project { flex: 0 1 auto; max-width: 35%; overflow: hidden; color: var(--soft); text-overflow: ellipsis; white-space: nowrap; }
+.work-log-empty { margin: 0; color: var(--soft); }
 .plugin-detail-hero, .plugin-card-head { display: flex; align-items: center; gap: 17px; margin-bottom: 20px; }
 .plugin-detail-hero .plugin-icon { width: 60px; height: 60px; border-radius: 16px; }
 .plugin-detail-hero p, .plugin-card-head p { margin: 0; color: var(--soft); line-height: 1.6; }
