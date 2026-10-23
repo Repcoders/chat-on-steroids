@@ -46,3 +46,16 @@ export interface ProjectGitDiff {
 export interface ProjectGitChanged {
   projectId: string;
 }
+
+/** A sidebar project row's Git state at a glance. Review's snapshot stays the detailed truth. */
+export interface ProjectGitSummary {
+  projectId: string;
+  state: 'ready' | 'not-repository' | 'unavailable';
+  /** The checked-out branch, or a short commit when HEAD is detached. */
+  branch?: string;
+  /** Changed paths inside the project, counted as Review lists them. */
+  changes: number;
+  truncated: boolean;
+  /** Present only while the branch tracks an upstream that exists locally; nothing is fetched. */
+  upstream?: { label: string; ahead: number; behind: number };
+}

@@ -13,7 +13,7 @@ import type { ProviderUsage } from '../shared/provider-usage.js';
 import type { InputArgs, InputEntry } from '../main/session/input.js';
 import type { LocalProject, ProjectColor } from '../shared/projects.js';
 import type { ProjectDirectoryListing, ProjectFileMutationResult, ProjectFilePreview, ProjectFileSaveResult, ProjectFilesChanged } from '../shared/project-files.js';
-import type { ProjectGitChanged, ProjectGitDiff, ProjectGitSnapshot } from '../shared/project-git.js';
+import type { ProjectGitChanged, ProjectGitDiff, ProjectGitSnapshot, ProjectGitSummary } from '../shared/project-git.js';
 import type { PetLibraryState, PetOverlayControlState, PetRuntimeAsset } from '../shared/pets.js';
 import type { SkillSummary, ManagedSkill, GitHubSkillUpdateCheck, SkillLibrary, SkillsDraftScope } from '../shared/skills.js';
 import type { RunningToolActivity, SessionChange, SessionSearchReply, SessionSearchLocation, SessionBookmark, ToolEditReview } from '../shared/session.js';
@@ -310,6 +310,7 @@ const api = {
   revealProjectFileEntry: (projectId: string, path = '') => call<boolean>('projectFiles:reveal', { projectId, path }),
   attachProjectFile: (projectId: string, path: string) => call<InputAttachment>('projectFiles:attach', { projectId, path }),
   getProjectGitSnapshot: (projectId: string, baseRef?: string) => call<ProjectGitSnapshot>('projectGit:snapshot', { projectId, ...(baseRef ? { baseRef } : {}) }),
+  getProjectGitSummaries: (projectIds: string[]) => call<ProjectGitSummary[]>('projectGit:summaries', { projectIds }),
   getProjectGitDiff: (projectId: string, path: string, baseRef?: string, expectedRevision?: string) => call<ProjectGitDiff>('projectGit:diff', {
     projectId, path, ...(baseRef ? { baseRef } : {}), ...(expectedRevision ? { expectedRevision } : {})
   }),

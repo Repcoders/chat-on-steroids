@@ -33,6 +33,7 @@ import { createSidebarOrder, SIDEBAR_PROJECT_SCOPE } from './sidebar-order.js';
 import { createSidebarPins, pinnedSortScope } from './sidebar-pins.js';
 import { createComposerDrafts } from './composer-drafts.js';
 import { createSidebarCompletionState } from './sidebar-completion.js';
+import { createProjectGitBadges } from './project-git-badges.js';
 import { toolResultText } from './tool-result.js';
 import { renderEditCards } from './tool-artifacts.js';
 import { chatErrorPresentation, duplicateChatErrors } from './chat-error.js';
@@ -410,6 +411,7 @@ let sidebarPins: ReturnType<typeof createSidebarPins> | undefined;
 const pinnable = (entry: SessionSummary): boolean => !!entry.conversationId && entry.origin?.kind !== 'worker';
 const pinnedChat = (entry: SessionSummary): boolean => pinnable(entry) && sidebarPins?.has(entry.id) === true;
 let sidebarCompletion: ReturnType<typeof createSidebarCompletionState> | undefined;
+let projectGitBadges: ReturnType<typeof createProjectGitBadges> | undefined;
 function draftKey(): string { return selectedId ?? (selectedProjectId ? `project:${selectedProjectId}` : 'new'); }
 let selectionGeneration = 0;
 // Async file import belongs to one visible composer draft, not just to a session key.
@@ -2284,6 +2286,8 @@ function paintSessions(): void {
       ui(badge, 'title', () => project.remote ? `${project.remote.host}${project.remote.port ? `:${project.remote.port}` : ''}` : '');
       heading.append(badge);
     }
+    const git = project && !project.remote ? projectGitBadges?.badge(id) : null;
+    if (git) heading.append(git);
     section.append(heading);
     // Native `toggle` is queued after activation. A concurrent activity repaint can replace
     // this node first and lose the click. Commit the summary's pointer/keyboard click to the
@@ -2293,7 +2297,7 @@ function paintSessions(): void {
       const open = !expandedProjects.has(id);
       if (open) expandedProjects.add(id); else expandedProjects.delete(id);
       section.open = open;
-      if (open) void loadProjectHistory(id);
+      if (open) { void loadProjectHistory(id); projectGitBadges?.refresh([id]); }
     });
     if (project) {
       // One button for the project's actions, as in ChatGPT; a right click on the row opens the same menu.
@@ -2341,6 +2345,8 @@ function paintSessions(): void {
     }
     projectSections.push(section);
   }
+  // Server projects have no Git read yet (Review says so); every other shown heading gets a badge.
+  projectGitBadges?.want(orderedProjects.map(({ id }) => projects.find(row => row.id === id)).filter(project => project && !project.remote).map(project => project!.id));
   const unattributed = unattributedActivity(diagnostics);
   if (unattributed) rows.push(unattributed);
   // A new node is not :hover until the pointer moves again: the row under it would lose its hover
@@ -8443,6 +8449,10 @@ function selectNewChat(projectId: string | null = null, branch: typeof newChatBr
 export function initChat(next: Deps): void {
   sidebarCompletion = createSidebarCompletionState();
   sidebarPins = createSidebarPins();
+  // A background read: a failure keeps the last badges quietly instead of raising a toast.
+  projectGitBadges = createProjectGitBadges(async ids => { const reply = await api.getProjectGitSummaries(ids); return reply.ok ? reply.data : []; }, paintSessions);
+  window.addEventListener('focus', () => projectGitBadges?.refresh());
+  api.onProjectGitChanged?.(change => projectGitBadges?.invalidate(change.projectId));
   sidebarOrder = createSidebarOrder($('sessionList'), () => [
     ...projectSortEntries(),
     ...chatGroups.groups.map(group => ({ id: group.id, scope: chatGroupsScope(group.projectId) })),

@@ -4686,6 +4686,15 @@ uncommitted and untracked changes. Its list, line counts and file preview must s
 comparison identity, and a changed ref/HEAD cannot publish an old diff as current.
 A non-repository, binary file, oversized diff or truncated change set is an
 explicit state rather than a reason to invent content or mutate the worktree.
+Each sidebar project heading also shows a read-only Git summary: branch (or short detached
+commit), the number of changed paths inside the project as Working tree counts them, and
+ahead/behind its upstream as last fetched. `getProjectGitSummaries` (`projectGit:summaries`)
+takes at most 32 LocalProject ids, runs one `git status --porcelain=v2 --branch` per project,
+three at a time, and never fetches. The renderer keeps one request in flight, reads a heading
+when it is first painted, again after 60 seconds, on window focus or expand after 5 seconds, and
+at once when the open project's Review watch reports a change; it repaints only when a summary
+changed. A non-repository, unreadable or server project shows no badge; one unreadable answer
+after a badge was shown keeps that badge, and a second in a row clears it.
 
 An exact successful `apply_patch` may also retain a bounded immutable before/after review asset
 beside the session record. That historical review belongs to the recorded tool call, not to HEAD or
