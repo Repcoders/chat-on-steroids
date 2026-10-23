@@ -494,3 +494,31 @@ it('shows when a limit runs out at its recent pace, labeled an estimate, with it
   expect(rows[1]!.querySelector('.usage-pace')).toBeNull();
   expect(rows[1]!.querySelector('svg.usage-trend')).toBeNull();
 });
+
+it('keeps the focus on a limit’s pace line when a refresh replaces the rows, and falls back to Refresh', async () => {
+  dom = new JSDOM(readFileSync(new URL('../src/renderer/index.html', import.meta.url), 'utf8'), { url: 'https://local.test/' });
+  vi.stubGlobal('window', dom.window); vi.stubGlobal('document', dom.window.document); vi.stubGlobal('localStorage', dom.window.localStorage);
+  const now = Date.now(), minute = 60000;
+  const slow = { model: 'gpt-6-pro', scope: 'model' as const, remaining: 40, remainingPercent: null, resetAt: null, windowSeconds: 10800, observedAt: now,
+    readings: [{ at: now - 60 * minute, value: 60, resetAt: null }, { at: now, value: 40, resetAt: null }] };
+  let data: UsageOverview = { contextTokenCap: 256_000, tokens: 0, models: [], days: [], projects: [], sessions: 1, messages: { through: now, days: [] }, limits: [slow] };
+  Object.assign(dom.window, { api: { getUsage: async () => ({ ok: true, data }), getChatModels: async () => ({ ok: true, data: { models: [] } }) } });
+  const { initLanguage } = await import('../src/renderer/i18n.js'); initLanguage();
+  const usage = await import('../src/renderer/usage.js'); usage.initUsage(); await usage.refreshUsage();
+  const pace = () => document.querySelector('#usageLimits .usage-pace') as HTMLElement;
+  const first = pace(); first.focus();
+  expect(document.activeElement).toBe(first);
+  await usage.refreshUsage();
+  expect(pace()).not.toBe(first);
+  expect(document.activeElement).toBe(pace());
+  // The same limit no longer has a pace line: Refresh takes the focus, not the page.
+  pace().focus();
+  data = { ...data, limits: [{ ...slow, readings: [{ at: now, value: 40, resetAt: null }] }] };
+  await usage.refreshUsage();
+  expect(document.querySelector('#usageLimits .usage-pace')).toBeNull();
+  expect(document.activeElement).toBe(document.getElementById('refreshUsage'));
+  // Focus elsewhere on the page is left alone.
+  const other = document.getElementById('refreshUsage') as HTMLElement; other.focus();
+  await usage.refreshUsage();
+  expect(document.activeElement).toBe(other);
+});

@@ -214,6 +214,23 @@ describe('passive usage limits and canonical token totals', () => {
     usage.observeUsage([model(55)], now);
     expect((await usage.usageOverview()).limits[0]?.readings).toEqual([{ at: now, value: 55, resetAt: null }]);
   });
+  it('starts without a pace estimate when there is no saved history or it is damaged, and logs the damaged one', async () => {
+    const model = (remaining: number) => limit({ model: 'gpt-example', scope: 'model', remaining, remainingPercent: null });
+    // Before this change no file exists: no history, no log line.
+    logger.logInfo.mockReset();
+    usage.observeUsage([model(50)]);
+    expect((await usage.usageOverview()).limits[0]?.readings).toEqual([{ at: now, value: 50, resetAt: null }]);
+    expect(logger.logInfo.mock.calls.filter(([message]) => String(message).includes('limit history'))).toEqual([]);
+    for (const damaged of [{ version: 1, limits: 'x' }, { version: 2, limits: [] }, { version: 1, limits: [['k', [[1, -5, null]]]] }, 'text']) {
+      vi.resetModules();
+      logger.logInfo.mockReset();
+      durable.readDurable.mockImplementation(async (name: string) => name === 'usage-history' ? damaged : null);
+      usage = await import('../src/main/session/usage.js');
+      usage.observeUsage([model(50)]);
+      expect((await usage.usageOverview()).limits[0]?.readings).toEqual([{ at: now, value: 50, resetAt: null }]);
+      expect(logger.logInfo.mock.calls.filter(([message]) => String(message).includes('limit history'))).toHaveLength(1);
+    }
+  });
   it('keeps a reset time that moved later, so the next reading does not look like a new window', async () => {
     const model = (remaining: number, resetAt: number) => limit({ model: 'gpt-example', scope: 'model', remaining, remainingPercent: null, resetAt });
     const start = now;

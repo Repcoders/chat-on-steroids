@@ -1,6 +1,6 @@
 import { currentLanguage, ui, t, tn } from './i18n.js';
 import { $, el, run, toast, trendLine } from './dom.js';
-import { DEFAULT_USAGE_FORMULA, usageDateKey as dateKey, usageEstimate, usageLimitForecast, usageMessageTotals, usageModelGroups, usageRate, usageWeekStart, type UsageFormula, type UsageLimit, type UsageOverview } from '../shared/usage.js';
+import { DEFAULT_USAGE_FORMULA, usageDateKey as dateKey, usageEstimate, usageLimitForecast, usageLimitKey, usageMessageTotals, usageModelGroups, usageRate, usageWeekStart, type UsageFormula, type UsageLimit, type UsageOverview } from '../shared/usage.js';
 import type { ProviderUsage } from '../shared/provider-usage.js';
 let snapshot: UsageOverview | null = null;
 let projectNames = new Map<string, string>();
@@ -75,6 +75,7 @@ export async function refreshUsage(fresh = false): Promise<void> {
   const status = $('usageStatus');
   ui(status, 'textContent', () => t("Updating usage in the background. After an update, this can take a few minutes. You can keep using the app."));
   status.setAttribute('role', 'status');
+  let restoreFocus: (() => void) | null = null;
   try {
     const names = readProjectNames();
     const value = await run(window.api.getUsage());
@@ -86,12 +87,17 @@ export async function refreshUsage(fresh = false): Promise<void> {
     for (const [label, number] of [['Processed tokens · est.', value.tokens], ['Peak daily tokens', Math.max(0, ...value.days.map((day) => day.tokens))], ['Conversations', value.sessions], ['Active days', value.days.filter((day) => day.tokens > 0).length]] as const) {
       const item = el('div'); item.dataset.usageMetric = label; usageHint(item, () => `${Math.round(number).toLocaleString(currentLanguage())} ${t(label).toLowerCase()}`); item.append(el('strong', '', () => count.format(number)), el('span', '', () => t(label))); summary.append(item);
     }
-    const limits = $('usageLimits'); limits.replaceChildren();
+    const limits = $('usageLimits');
+    // Someone on a pace line when the new rows replace the old ones goes to the same limit's new line,
+    // or to Refresh, never to the page.
+    const active = document.activeElement as HTMLElement | null;
+    const heldLimit = active && limits.contains(active) ? active.closest<HTMLElement>('.usage-limit')?.dataset.limitKey ?? '' : null;
+    limits.replaceChildren();
     // Chat model limits first, then feature quotas, then Codex's windows.
     const order = { model: 0, feature: 1, codex: 2 } as const;
     for (const entry of [...value.limits].sort((a, b) => order[a.scope] - order[b.scope])) {
       const stale = Date.now() - entry.observedAt > 10 * 60000 || (entry.resetAt !== null && entry.resetAt <= Date.now());
-      const row = el('div', 'usage-limit');
+      const row = el('div', 'usage-limit'); row.dataset.limitKey = usageLimitKey(entry);
       const featureLabel = featureLabels[entry.model];
       // Codex's windows are told apart by their window; the pool's own name comes first.
       const codexName = () => `${entry.model} · ${entry.windowSeconds === 604800 ? t("Weekly limit") : entry.windowSeconds ? t("{0}-hour limit", [Math.round(entry.windowSeconds / 3600)]) : t("Limit")}`;
@@ -109,6 +115,7 @@ export async function refreshUsage(fresh = false): Promise<void> {
     const totalCost = el('div'); totalCost.append(el('strong', '', '—'), el('span', '', () => t("Estimated equivalent · USD"))); totalCost.id = 'usageTotalCost'; usageHint(totalCost, ''); summary.prepend(totalCost);
     paintRates();
     paintCost();
+    if (heldLimit !== null) restoreFocus = () => ([...limits.querySelectorAll<HTMLElement>('.usage-pace')].find(line => line.closest<HTMLElement>('.usage-limit')?.dataset.limitKey === heldLimit) ?? $('refreshUsage')).focus();
     ui(status, 'textContent', () => '');
     // The rows wait for names, never the page. They keep the last names until a list answers.
     void names.then(found => {
@@ -118,7 +125,9 @@ export async function refreshUsage(fresh = false): Promise<void> {
     });
   } catch {
     if (generation === loadGeneration) ui(status, 'textContent', () => t("Usage could not be loaded. Try Refresh."));
-  } finally { if (generation === loadGeneration) $('refreshUsage').removeAttribute('disabled'); }
+  } finally {
+    if (generation === loadGeneration) { $('refreshUsage').removeAttribute('disabled'); restoreFocus?.(); }
+  }
 }
 /** "in 45 minutes", "in 3 hours": the app's language words the unit. */
 function fromNow(time: number): string {

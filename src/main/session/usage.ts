@@ -38,6 +38,7 @@ let historyLoad: Promise<void> | null = null;
 function loadHistory(): Promise<void> {
   return historyLoad ??= readDurable('usage-history').then((raw) => {
     const saved = historySchema.safeParse(raw);
+    if (!saved.success && raw !== null) logInfo('usage: the saved limit history is not in the expected format, so the pace estimate starts again');
     if (saved.success) for (const [key, rows] of saved.data.limits) history.set(key, rows.map(([at, value, resetAt]) => ({ at, value, resetAt })));
   });
 }
