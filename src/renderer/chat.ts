@@ -8834,7 +8834,10 @@ export function initChat(next: Deps): void {
     attached: () => new Set((imageDrafts.get(draftKey()) ?? []).flatMap(file => 'id' in file ? [file.id] : [])),
     choose: async file => {
       const owner = composerDraftOwner();
-      appendImages(owner, await run(api.reattachFiles([file.id])));
+      const added = appendImages(owner, await run(api.reattachFiles([file.id])));
+      // Focus follows the file into the composer, unless the person has already moved on to something else.
+      const at = document.activeElement;
+      if (added && (!at || at === document.body || at.closest('#attachmentMenu'))) $<HTMLTextAreaElement>('chatInput').focus();
     } });
   skillPicker = initSkills({ input: $<HTMLTextAreaElement>('chatInput'), host: $('skillPicker'),
     openButton: $('composerSkills'), addButton: $('composerAddSkill'),

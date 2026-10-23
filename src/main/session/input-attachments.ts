@@ -7,6 +7,7 @@ import { sessionsRoot } from './store.js';
 import type { InputAttachment } from '../../shared/input.js';
 import { injectableAttachments, MAX_INPUT_IMAGES } from '../../shared/input.js';
 import { normalizeInputImage } from './input-images.js';
+import { logWarn } from '../logger.js';
 
 export const MAX_ATTACHMENT_BYTES = 512 * 1024 * 1024;
 export const ATTACHMENT_CHUNK_BYTES = 512 * 1024;
@@ -39,12 +40,16 @@ export function listRecentAttachments(retained: Set<string>): Promise<InputAttac
     const dir = directory(), found: Array<{ attachment: InputAttachment; usedAt: number }> = [];
     for (const name of await fs.readdir(dir).catch(() => [] as string[])) {
       if (!/^[a-f0-9-]{36}$/.test(name)) continue;
+      const file = fileFor(name);
       try {
-        const file = fileFor(name), stat = await fs.stat(file);
+        const stat = await fs.stat(file);
         if (!retained.has(name) && Date.now() - stat.mtimeMs > STAGING_TTL_MS) continue;
-        const attachment = attachmentSchema.parse(JSON.parse(await fs.readFile(file + '.json', 'utf8')));
+        let attachment: InputAttachment;
+        try { attachment = attachmentSchema.parse(JSON.parse(await fs.readFile(file + '.json', 'utf8'))); }
+        catch { logWarn(`Recent files: left out staged file ${name}, its record is missing or unreadable`); continue; }
         if (attachment.id === name && attachment.size === stat.size) found.push({ attachment, usedAt: stat.mtimeMs });
-      } catch { /* A half-written or foreign entry is not offered; staging still owns its cleanup. */ }
+        else logWarn(`Recent files: left out staged file ${name}, its record does not match the stored bytes`);
+      } catch { logWarn(`Recent files: left out staged file ${name}, the original is gone`); }
     }
     return found.sort((a, b) => b.usedAt - a.usedAt).slice(0, MAX_RECENT_ATTACHMENTS).map(entry => entry.attachment);
   });
@@ -65,7 +70,10 @@ export function reuseInputAttachments(ids: string[], retained: Set<string>): Pro
         const stat = await fs.stat(file);
         if (attachment.id !== id || stat.size !== attachment.size || (!retained.has(id) && Date.now() - stat.mtimeMs > STAGING_TTL_MS)) throw new Error('changed');
         attachments.push(attachment);
-      } catch { throw new Error('Attachment is missing or changed; attach it again'); }
+      } catch {
+        logWarn(`Recent files: refused to attach staged file ${id} again, it expired, is gone or changed`);
+        throw new Error('Attachment is missing or changed; attach it again');
+      }
     }
     const now = new Date();
     for (const attachment of attachments) await fs.utimes(fileFor(attachment.id), now, now);

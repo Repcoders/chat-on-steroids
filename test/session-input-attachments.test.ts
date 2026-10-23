@@ -5,9 +5,10 @@ import sharp from 'sharp';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { makeTempDir, removeTempDir } from './helpers.js';
 import { initSessionStore } from '../src/main/session/store.js';
+import { getLog, resetLoggerForTests } from '../src/main/logger.js';
 import { stageInputAttachment, stageInputAttachments, validateInputAttachments, readInputAttachmentChunk, listRecentAttachments, reuseInputAttachments, ATTACHMENT_CHUNK_BYTES, MAX_ATTACHMENT_BYTES } from '../src/main/session/input-attachments.js';
 let directory: string;
-beforeEach(async () => { directory = await makeTempDir('cos-attachments-'); initSessionStore(directory); });
+beforeEach(async () => { directory = await makeTempDir('cos-attachments-'); initSessionStore(directory); resetLoggerForTests(); });
 afterEach(async () => { await removeTempDir(directory); });
 it('snapshots arbitrary file bytes across chunks without exposing the source path', async () => {
   const original = Buffer.alloc(ATTACHMENT_CHUNK_BYTES + 19, 173);
@@ -108,4 +109,30 @@ it('refuses to revive an expired original the list already showed, unless a pend
   for (const file of [shown, held]) await fs.utimes(path.join(directory, 'input-attachments', file.id), old, old);
   await expect(reuseInputAttachments([shown.id], new Set([held.id]))).rejects.toThrow('attach it again');
   expect(await reuseInputAttachments([held.id], new Set([held.id]))).toEqual([held]);
+});
+it('skips staged files with an old, damaged or mismatched record, one log line each, and still lists the rest', async () => {
+  const staged = (id: string) => path.join(directory, 'input-attachments', id);
+  const good = await stageInputAttachment({ text: 'still fine' }, new Set());
+  // A record written before previews existed has no preview field, and still lists.
+  const older = await stageInputAttachment({ text: 'saved by an older version' }, new Set());
+  const { preview: _preview, ...oldRecord } = older as typeof older & { preview?: string };
+  await fs.writeFile(staged(older.id) + '.json', JSON.stringify(oldRecord));
+  const damaged = await stageInputAttachment({ text: 'record cut off' }, new Set());
+  await fs.writeFile(staged(damaged.id) + '.json', '{"id":"');
+  const foreign = await stageInputAttachment({ text: 'record from a newer version' }, new Set());
+  await fs.writeFile(staged(foreign.id) + '.json', JSON.stringify({ id: foreign.id, name: 5 }));
+  const resized = await stageInputAttachment({ text: 'bytes changed' }, new Set());
+  await fs.appendFile(staged(resized.id), 'more');
+  const moved = await stageInputAttachment({ text: 'original deleted' }, new Set());
+  await fs.unlink(staged(moved.id));
+  const listed = await listRecentAttachments(new Set());
+  expect(listed.map(file => file.id).sort()).toEqual([good.id, older.id].sort());
+  const lines = getLog().filter(entry => entry.message.startsWith('Recent files:'));
+  expect(lines.map(entry => entry.level)).toEqual(['warn', 'warn', 'warn']);
+  for (const file of [damaged, foreign, resized]) expect(lines.filter(entry => entry.message.includes(file.id))).toHaveLength(1);
+  // Picking an original that has gone since the list was shown is refused and says so, and the menu keeps working.
+  await expect(reuseInputAttachments([moved.id], new Set())).rejects.toThrow('attach it again');
+  expect(getLog().filter(entry => entry.message.includes(`refused to attach staged file ${moved.id}`))).toHaveLength(1);
+  expect(await listRecentAttachments(new Set())).toHaveLength(2);
+  expect(JSON.stringify(getLog())).not.toContain(directory);
 });

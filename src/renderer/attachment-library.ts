@@ -1,7 +1,14 @@
 import type { InputAttachment } from '../shared/input.js';
 import { el, icon } from './dom.js';
-import { humanBytes } from './file-panel.js';
-import { t, ui } from './i18n.js';
+import { currentLanguage, t, ui } from './i18n.js';
+
+/** "1.5 MB" in the reader's own number format ("1,5 MB" in German). */
+function sizeLabel(bytes: number): string {
+  const number = (value: number, digits: number) => new Intl.NumberFormat(currentLanguage(), { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value);
+  if (bytes < 1024) return `${number(bytes, 0)} B`;
+  if (bytes < 1024 * 1024) return `${number(bytes / 1024, bytes < 10 * 1024 ? 1 : 0)} KB`;
+  return `${number(bytes / (1024 * 1024), bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+}
 
 type Reply<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -36,9 +43,10 @@ export function initAttachmentLibrary(options: AttachmentLibraryOptions): void {
     else thumb.append(icon('i-file-text'));
     const details = el('span', 'attachment-library-details');
     details.append(el('span', 'attachment-library-name', file.name),
-      el('span', 'attachment-library-meta', () => `${file.mimeType.startsWith('image/') ? t('Image') : t('File')} · ${humanBytes(file.size)}`));
+      el('span', 'attachment-library-meta', () => `${file.mimeType.startsWith('image/') ? t('Image') : t('File')} · ${sizeLabel(file.size)}`));
     button.append(thumb, details);
-    button.addEventListener('click', () => { collapse(); options.choose(file); });
+    // The row is about to be removed; focus goes to the menu button, and the caller moves it on once the file is in.
+    button.addEventListener('click', () => { collapse(); menu.querySelector('summary')?.focus(); options.choose(file); });
     return button;
   };
   const expand = async () => {
@@ -56,6 +64,8 @@ export function initAttachmentLibrary(options: AttachmentLibraryOptions): void {
     host.replaceChildren(...(files.length ? files.map(row) : [el('p', 'attachment-library-note', () => t('No files attached in the last 24 hours'))]));
   };
   toggle.setAttribute('aria-expanded', 'false');
+  // Escape closes the menu with focus inside the list; it lands on the menu button, not the page.
+  host.addEventListener('keydown', event => { if (event.key === 'Escape') menu.querySelector('summary')?.focus(); });
   toggle.addEventListener('click', () => { if (host.hidden) void expand(); else collapse(); });
   menu.addEventListener('toggle', () => { if (!menu.open) collapse(); });
 }
