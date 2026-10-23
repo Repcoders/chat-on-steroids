@@ -1311,10 +1311,10 @@ export function createFilePanel(options: FilePanelOptions) {
     actions.append(actionButton(() => t('Close preview'), 'i-x', historical ? leaveReview : closeGitDiff));
     head.append(title, actions);
     if (!value) {
-      // Not a rendered diff: the reply must still replace this, even when it has no viewer to mount.
-      renderedGitDiffRevision = null;
       replacePreview(head, el('p', 'file-preview-empty', () => t('Loading diff…')));
       preview.hidden = false;
+      // Nothing is shown for this revision yet: a binary, too large or conflicted result must still render.
+      renderedGitDiffRevision = null;
       return;
     }
     const language = el('span', 'file-editor-language', () => t('Detecting language…'));

@@ -8,6 +8,7 @@ import { randomBytes } from 'node:crypto';
 import sharp from 'sharp';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { defaultConfig, initConfigPath, saveConfig } from '../src/main/config.js';
+import { getLog } from '../src/main/logger.js';
 import { initDurableStore, resetDurableForTests } from '../src/main/durable.js';
 import { gitExecutable, ProjectGitWatchSet, readProjectGitDiff, readProjectGitSnapshot } from '../src/main/project-git.js';
 import { addProject } from '../src/main/projects.js';
@@ -130,6 +131,9 @@ it('shows a changed image or PDF as its base and current previews, not a binary 
   const broken = await readProjectGitDiff(id, 'broken.png');
   expect(broken).toMatchObject({ binary: true, note: 'Binary diff · preview unavailable' });
   expect(broken.media).toBeUndefined();
+  // Falling back to the note is a decision the app makes, so it says which file kind and why.
+  expect(getLog().map(entry => entry.message)).toContain(
+    'Review: no Before/After for a changed image; a side is not an image the preview can decode, so it keeps the binary or too-large note');
 });
 
 it('reports a clean repository and a non-repository without inventing changes', async () => {

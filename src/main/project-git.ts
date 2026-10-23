@@ -6,6 +6,7 @@ import type { Stats } from 'node:fs';
 import path from 'node:path';
 import type { ProjectGitChange, ProjectGitChanged, ProjectGitDiff, ProjectGitSnapshot, ProjectGitStatus } from '../shared/project-git.js';
 import { getConfig } from './config.js';
+import { logInfo } from './logger.js';
 import { rawPromises as fs } from './rawfs.js';
 import { boundedImageDataUrl, hasPdfHeader, projectFileTarget, projectPreviewKind } from './project-files.js';
 import { isContained } from './sandbox.js';
@@ -443,16 +444,17 @@ function sideText(side: DiffSide): { text: string | null; tooLarge: boolean } {
   return { text: side.bytes ? textFromBytes(side.bytes) : '', tooLarge: false };
 }
 
-/** Both sides in the form Files previews them, or null when a present side cannot be shown. */
-async function diffMedia(kind: 'image' | 'pdf', base: DiffSide, current: DiffSide): Promise<ProjectGitDiff['media'] | null> {
-  if (base.tooLarge || current.tooLarge) return null;
+/** Both sides in the form Files previews them, or why a present side cannot be shown. */
+async function diffMedia(kind: 'image' | 'pdf', base: DiffSide, current: DiffSide): Promise<{ media: NonNullable<ProjectGitDiff['media']> } | { reason: string }> {
+  if (base.tooLarge || current.tooLarge) return { reason: `a side is over ${MAX_MEDIA_SIDE_BYTES / 1024 / 1024} MiB` };
   const encode = async (bytes: Buffer | null): Promise<string | null | undefined> => {
     if (!bytes) return null;
     if (kind === 'image') return await boundedImageDataUrl(bytes) ?? undefined;
     return hasPdfHeader(bytes) ? bytes.toString('base64') : undefined;
   };
   const [before, after] = await Promise.all([encode(base.bytes), encode(current.bytes)]);
-  return before === undefined || after === undefined ? null : { kind, base: before, current: after };
+  if (before === undefined || after === undefined) return { reason: kind === 'image' ? 'a side is not an image the preview can decode' : 'a side has no PDF header' };
+  return { media: { kind, base: before, current: after } };
 }
 
 export async function readProjectGitDiff(projectId: string, relativePath: string, baseRef?: string, expectedRevision?: string): Promise<ProjectGitDiff> {
@@ -484,8 +486,9 @@ export async function readProjectGitDiff(projectId: string, relativePath: string
     projectId, status: change.status, path: change.path, previousPath: change.previousPath,
     additions: change.additions, deletions: change.deletions
   };
-  const media = mediaKind ? await diffMedia(mediaKind, baseSide, currentSide) : null;
-  if (media) return { ...identity, binary: true, tooLarge: false, baseText: null, currentText: null, media };
+  const shown = mediaKind ? await diffMedia(mediaKind, baseSide, currentSide) : null;
+  if (shown && 'media' in shown) return { ...identity, binary: true, tooLarge: false, baseText: null, currentText: null, media: shown.media };
+  if (shown) logInfo(`Review: no Before/After for a changed ${mediaKind}; ${shown.reason}, so it keeps the binary or too-large note`);
   const base = sideText(baseSide);
   const current = sideText(currentSide);
   const tooLarge = base.tooLarge || current.tooLarge;
