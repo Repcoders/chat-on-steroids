@@ -623,6 +623,37 @@ it('opens a terminal file link in Files at its line, and only for the project Fi
   expect(codeMount.jumps).toEqual([['main.ts', 42, 7], ['main.ts', 3, 1]]);
 });
 
+it('drops a terminal file link when the project changed and came back while Files was opening', async () => {
+  vi.mocked(window.api.previewProjectFile).mockImplementation((_projectId: string, path: string) =>
+    ok({ ...preview, path, name: path.split('/').at(-1)!, text: 'one\ntwo\n' }));
+  let release!: () => void;
+  const slow = new Promise<void>(resolve => { release = resolve; });
+  vi.mocked(window.api.listProjectFiles).mockImplementationOnce(async () => { await slow; return { ok: true as const, data: rootListing(projectA) }; });
+  const panel = createFilePanel({ host, mount: host });
+  panel.update(projectA);
+  const opened = panel.openFileAt(projectA.id, 'src/main.ts', 42, 7);
+  await tick();
+  // A -> B -> A: the id matches again, but the click belonged to the first visit.
+  panel.update(projectB); panel.update(projectA);
+  release();
+  await expect(opened).resolves.toBe(false);
+  await tick();
+  expect(window.api.previewProjectFile).not.toHaveBeenCalled();
+  expect(codeMount.jumps).toEqual([]);
+});
+
+it('opens a Markdown file from a terminal link but reports that the line was not shown', async () => {
+  vi.mocked(window.api.previewProjectFile).mockImplementation((_projectId: string, path: string) =>
+    ok({ ...preview, path, name: path.split('/').at(-1)!, text: '# hello\n' }));
+  const panel = createFilePanel({ host, mount: host });
+  panel.update(projectA);
+  await expect(panel.openFileAt(projectA.id, 'docs/README.md', 12, 1)).resolves.toBe(false);
+  await tick();
+  expect(window.api.previewProjectFile).toHaveBeenCalledWith(projectA.id, 'docs/README.md');
+  expect(host.querySelector('.file-preview-markdown h1')?.textContent).toBe('hello');
+  expect(codeMount.jumps).toEqual([]);
+});
+
 it('moves the editor to the line of a terminal link that arrived while the editor was still mounting', async () => {
   vi.mocked(window.api.previewProjectFile).mockImplementation((_projectId: string, path: string) =>
     ok({ ...preview, path, name: path.split('/').at(-1)!, text: 'one\ntwo\n' }));

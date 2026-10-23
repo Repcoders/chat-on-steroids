@@ -17,6 +17,10 @@ export interface TerminalFileLink {
 // longer path from matching.
 const LOCATION = /(?<![\w/\\.:@~$-])((?:[A-Za-z]:[\\/]|[\\/]|\.{1,2}[\\/])?(?:[\w.@+~$-]+[\\/])*[\w.@+~$-]*\.[A-Za-z]\w*)(?::(\d+)(?::(\d+))?|\((\d+)(?:, ?(\d+))?\))(?!\w)/g;
 
+// A path word right before the match, such as `src/my` in `src/my file.ts:2`. The match is then
+// the tail of a path with a space in it, and `file.ts` at the project root is a different file.
+const PATH_FRAGMENT_BEFORE = /(?:^|\s)(?:[A-Za-z]:)?[\w.@+~$\\/-]*[\\/][\w.@+~$-]+\s+$/;
+
 /**
  * The project-relative path for one printed path, or null when it is not inside `root`.
  * Relative paths resolve against `root`, the tab's starting cwd; `..` may not climb above it.
@@ -38,10 +42,11 @@ export function projectRelativePath(printed: string, root: string): string | nul
   return parts.length ? parts.join('/') : null;
 }
 
-/** Every file location in one line of output that resolves inside `root`. */
+/** Every file location in one line of output that resolves inside `root`. A path with a space in it is left unlinked. */
 export function terminalFileLinks(text: string, root: string): TerminalFileLink[] {
   const links: TerminalFileLink[] = [];
   for (const match of text.matchAll(LOCATION)) {
+    if (PATH_FRAGMENT_BEFORE.test(text.slice(0, match.index))) continue;
     const path = projectRelativePath(match[1]!, root);
     const line = Number(match[2] ?? match[4]), column = Number(match[3] ?? match[5] ?? 1);
     if (!path || !Number.isSafeInteger(line) || line < 1) continue;

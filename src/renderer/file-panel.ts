@@ -928,16 +928,20 @@ export function createFilePanel(options: FilePanelOptions) {
     surface.goTo(target.line, target.column);
   }
 
-  /** Opens a project file in Files with one line in view, as a terminal file link asks. */
+  /** Opens a project file in Files with one line in view, as a terminal file link asks. False when the line is not in view. */
   async function openFileAt(projectId: string, relative: string, line: number, column: number): Promise<boolean> {
     if (options.reviewOnly || project?.id !== projectId) return false;
     if (mode === 'review') leaveReview();
     showFiles();
+    // A rendered Markdown preview has no lines, so the file opens but the jump cannot happen.
+    const rendered = /\.(?:md|markdown)$/i.test(relative) && editingPath !== relative;
+    // The project id alone cannot tell a round trip A -> B -> A from no change at all.
+    const epoch = generation;
     if (pane.hidden) await show(false);
-    if (project?.id !== projectId || mode !== 'files') return false;
-    await selectFile({ name: baseName(relative), path: relative, kind: 'file', bytes: null }, { line, column });
+    if (project?.id !== projectId || mode !== 'files' || generation !== epoch) return false;
+    await selectFile({ name: baseName(relative), path: relative, kind: 'file', bytes: null }, rendered ? null : { line, column });
     revealLineTarget();
-    return previewPath === relative;
+    return previewPath === relative && !rendered;
   }
 
   async function mountPdfViewer(value: ProjectFilePreview & { pdfDataBase64: string }, host: HTMLElement, revision: string): Promise<void> {

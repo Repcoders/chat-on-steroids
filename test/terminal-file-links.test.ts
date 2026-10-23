@@ -22,6 +22,15 @@ it('leaves paths outside the project, URLs, times and versions unlinked', () => 
   expect(projectRelativePath('/home/you/project', '/home/you/project')).toBeNull();
 });
 
+it('leaves a path with a space in it unlinked instead of linking its tail', () => {
+  // `file.ts` at the project root is another file than `src/my file.ts`.
+  expect(found('src/my file.ts:2', '/home/you/project')).toEqual([]);
+  expect(found('error in ./src/my file.ts(2,3): bad', '/home/you/project')).toEqual([]);
+  expect(found('C:\\project\\my docs\\a file.ts:7', 'C:\\project')).toEqual([]);
+  // A word or a finished location before the match is not a path fragment.
+  expect(found('at src/a.ts:1 src/b.ts:2 and error: c.ts:3', '/home/you/project')).toEqual(['src/a.ts:1:1', 'src/b.ts:2:1', 'c.ts:3:1']);
+});
+
 const row = (text: string, wide = new Set<number>()) => {
   // Each wide character takes its cell and a zero-width continuation cell, as xterm stores it.
   const cells: Array<{ chars: string; width: number }> = [];
