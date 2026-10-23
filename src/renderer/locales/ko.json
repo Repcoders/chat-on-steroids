@@ -23,6 +23,7 @@
   "Previous source": "이전 출처",
   "Next source": "다음 출처",
   "Search chats": "채팅 검색",
+  "Search chats, commands and settings": "채팅, 명령, 설정 검색",
   "Ctrl": "Ctrl",
   "Showing the first {0} matches. Add a word to narrow them down.": "처음 {0}개 결과를 표시합니다. 단어를 추가해 범위를 좁히세요.",
   "Searching message text… {0} of {1} chats": "메시지 내용 검색 중… 채팅 {1}개 중 {0}개",

@@ -23,6 +23,7 @@
   "Previous source": "上一個來源",
   "Next source": "下一個來源",
   "Search chats": "搜尋聊天",
+  "Search chats, commands and settings": "搜尋聊天、指令和設定",
   "Ctrl": "Ctrl",
   "Showing the first {0} matches. Add a word to narrow them down.": "顯示前 {0} 個相符項目。加入一個詞以縮小範圍。",
   "Searching message text… {0} of {1} chats": "正在搜尋訊息內容…已完成 {0}/{1} 個聊天",
