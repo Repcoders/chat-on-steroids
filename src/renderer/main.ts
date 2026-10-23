@@ -349,6 +349,8 @@ $('sidebarPlugins').addEventListener('click', () => showTab('plugins'));
 $('sidebarPets').addEventListener('click', () => showTab('pets'));
 $('sidebarSkills').addEventListener('click', () => showTab('skills'));
 api.onPetOverlayOpenOwner(screen => showTab(screen));
+// The tray's New chat and Recent chats open in the chat screen, wherever the window was left.
+api.onOpenChat?.(() => showTab('chat'));
 $('addProject').addEventListener('click', () => showTab('chat'));
 let zoomFactor = 1;
 let zoomEdited = false;

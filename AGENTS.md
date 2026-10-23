@@ -234,7 +234,7 @@ Paths in this section are repository-relative. Most mechanisms have `main`, `sha
 
 | Area | Files and responsibility |
 | --- | --- |
-| App shell | `src/main/index.ts`, `window-lifecycle.ts`, `window-layout.ts`, `window-icon.ts`, `tray-image.ts`, `shutdown.ts`: bootstrap, activation, geometry, tray and bounded exit. |
+| App shell | `src/main/index.ts`, `window-lifecycle.ts`, `window-layout.ts`, `window-icon.ts`, `tray-image.ts`, `tray-recent-chats.ts`, `shutdown.ts`: bootstrap, activation, geometry, tray and bounded exit. |
 | Config/security | `src/main/config.ts`, `platform.ts`, `secrets.ts`, `sandbox.ts`, `redaction.ts`; `src/shared/types.ts`, `capabilities.ts`: permission and host projection, secrets, approved paths. |
 | Publication | `src/main/connection.ts`, `mcp/server.ts`, `mcp/surfaces.ts`, `tunnel/{index,health,locate}.ts`, `diagnostics.ts`: endpoint/tunnel generation and truthful status. |
 | Local control API | `src/main/control-api.ts`, `src/main/control-reads.ts`, `src/main/control-actions.ts`, `src/shared/control-api.ts`: opt-in loopback listener, per-launch token, allowlisted read-only projections of other owners, and (behind `controlApi.allowActions`) send and cancel through the outbox and Stop through `stopSessionTurn`. Owns no fact. The session list and event page it serves come from `session/read-model.ts`, the same functions the renderer's IPC handlers call. |
@@ -4456,6 +4456,14 @@ main process's native dialogs (file dialog titles and filter names, the worker c
 confirmation) work the same way: the allowlisted `shared/main-texts.ts` over `ui:mainTexts`, kept by
 `main/main-texts.ts`, which repaints the tray. The channel accepts at most `MAIN_TEXTS.length` keys;
 counts and paths are filled into `{0}` after translation, with a function replacement.
+The tray menu also holds New chat and, under Recent chats, the five newest chats the sidebar lists
+(`main/tray-recent-chats.ts`: no sub-agents, helpers or unattributed rows; titles on one clipped
+line with `&` doubled, since native menus read a single `&` as a mnemonic marker). They come from the
+same first page of 60 the sidebar loads, so a picked chat is always in the window's list. The menu is
+rebuilt from session changes only when those ids or titles change. Picking one goes through the
+window activation gate like Open, then sends `chat:open` (preload `onOpenChat`) with the session id,
+or `null` for New chat, unless quit has begun; the renderer switches to the chat screen and selects
+it, as a sidebar click does.
 The renderer also reports the language over `ui:language`; the main process keeps it as `ui.language`
 and hands it to the extension in the `/status` reply (`language`). The extension stores it as
 `appLanguage` and `i18n.js` then reads that catalog itself (content scripts get it from the service

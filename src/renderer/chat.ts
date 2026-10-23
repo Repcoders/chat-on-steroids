@@ -8764,6 +8764,11 @@ export function initChat(next: Deps): void {
     appendImages(owner, await run(api.dropFiles(files)));
   });
   api.onWriteSession?.(id => { selectSession(id); $<HTMLTextAreaElement>('chatInput').focus(); });
+  api.onOpenChat?.(id => {
+    if (id === null) { $('newChat').click(); return; }
+    if (id !== selectedId) { pendingNewInput = null; selectSession(id); }
+    $<HTMLTextAreaElement>('chatInput').focus();
+  });
   $('newChat').addEventListener('click', () => {
     selectNewChat();
   });

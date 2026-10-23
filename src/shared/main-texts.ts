@@ -10,6 +10,8 @@
  */
 export const MAIN_TEXTS = [
   'Open',
+  'New chat',
+  'Recent chats',
   'Show browser',
   'Hide browser',
   'Connect',

@@ -438,6 +438,12 @@ const api = {
     ipcRenderer.on('session:write', wrapped);
     return () => ipcRenderer.removeListener('session:write', wrapped);
   },
+  /** The tray's Recent chats (a session id) and New chat (`null`), sent once the window is shown. */
+  onOpenChat: (listener: (id: string | null) => void): (() => void) => {
+    const wrapped = (_event: unknown, id: string | null): void => listener(id);
+    ipcRenderer.on('chat:open', wrapped);
+    return () => ipcRenderer.removeListener('chat:open', wrapped);
+  },
   onTaskProgress: (listener: (progress: TaskProgress) => void): (() => void) => {
     const wrapped = (_event: unknown, progress: TaskProgress): void => listener(progress);
     ipcRenderer.on('task:progress', wrapped);

@@ -224,6 +224,7 @@ async function boot(events: SessionEvent[], selectExisting = true, pausedHelpers
   const live = { events: [...events], inputs: [] as InputEntry[], sent: [] as InputArgs[], automation: 'off', controlCalls: [] as Array<{ id: string; action: string }>, compacting: false, finishHeld: true };
   let sessionListener: (change?: unknown) => void = () => undefined;
   let writeSessionListener: (id: string) => void = () => undefined;
+  const openChatListeners = new Set<(id: string | null) => void>();
   let backgroundProcessListener: () => void = () => undefined;
   let backgroundProcesses: Array<{ processId: number; incarnation: number; command: string; startedAt: number; tty: boolean }> = [];
   let resolveBackgroundStop: (() => void) | null = null;
@@ -254,6 +255,7 @@ async function boot(events: SessionEvent[], selectExisting = true, pausedHelpers
         writeSessionListener = fn;
         return () => undefined;
       },
+      onOpenChat: (fn: (id: string | null) => void) => { openChatListeners.add(fn); return () => openChatListeners.delete(fn); },
       listSessions: () => {
         const sessions = options.sessions ?? [{ ...summary(live.events), ...options.summary, ...(options.origin ? { origin: options.origin } : {}), ...(projects[0] ? { projectId: projects[0].id } : {}) }];
         const known = new Set(sessions.map(row => row.id));
@@ -352,6 +354,7 @@ async function boot(events: SessionEvent[], selectExisting = true, pausedHelpers
     // changes every transcript it can show. Payload-less pushes are catalog/control only.
     notifySession: () => sessionListener({ allTranscripts: true }),
     writeSession: (id: string) => writeSessionListener(id),
+    openChat: (id: string | null) => { for (const listener of openChatListeners) listener(id); },
     progress: (value: any) => { for (const listener of taskProgressListeners) listener(value); },
     resolveBackgroundStop: () => { const resolve = resolveBackgroundStop; resolveBackgroundStop = null; resolve?.(); },
     async publishBackgroundProcesses(rows: Array<{ processId: number; incarnation: number; command: string; startedAt: number; tty: boolean }>) {
@@ -757,6 +760,32 @@ it.each(['failed', 'empty', 'new-chat'] as const)('retires retained rows after a
   expect(timeline.hasAttribute('inert')).toBe(false);
   expect(timeline.hasAttribute('aria-busy')).toBe(false);
   expect(welcome.hidden).toBe(outcome !== 'new-chat');
+});
+
+it('opens the chat picked in the tray, or a new chat, on the chat screen even from Settings', async () => {
+  const first: SessionSummary = { ...summary([]), id: 'tray-first', title: 'First chat', conversationId: 'chat-first', chatIds: ['chat-first'], updatedAt: T0 + 2 };
+  const second: SessionSummary = { ...summary([]), id: 'tray-second', title: 'Second chat', conversationId: 'chat-second', chatIds: ['chat-second'], updatedAt: T0 + 1 };
+  const app = await boot([], false, [], [], { sessions: [first, second] });
+  const { w } = app;
+  const screen = () => w.document.querySelector<HTMLElement>('.app')!.dataset.screen;
+  w.document.getElementById('workspaceSettings')!.click();
+  await settle();
+  expect(screen()).toBe('settings');
+
+  app.openChat(second.id);
+  await settle();
+  expect(screen()).toBe('chat');
+  expect(w.document.querySelector(`.sess.is-sel[data-id="${second.id}"]`)).not.toBeNull();
+  expect(w.document.getElementById('chatTitle')!.textContent).toBe('Second chat');
+  expect(w.document.activeElement).toBe(w.document.getElementById('chatInput'));
+
+  w.document.getElementById('workspaceSettings')!.click();
+  await settle();
+  app.openChat(null);
+  await settle();
+  expect(screen()).toBe('chat');
+  expect(w.document.querySelector('.sess.is-sel')).toBeNull();
+  expect(w.document.getElementById('timelineEmpty')!.hidden).toBe(false);
 });
 
 it('keeps the current transcript and handoff mounted when Write Directly focuses the same session', async () => {

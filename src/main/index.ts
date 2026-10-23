@@ -39,7 +39,7 @@ import { executableFingerprint, initKeychainNotice } from './keychain-notice.js'
 import { pluginManager } from './plugins/manager.js';
 import { sessionActivityExpiresAt, setBrowserOpener, setBrowserWorkArea, shutdownBridge, startBridge } from './bridge.js';
 import { setStuckNotifier } from './stuck-notice.js';
-import { flushSessions, getSession, initSessionStore, listSessions, readRecentEvents, setRecordingStorageLimit } from './session/store.js';
+import { flushSessions, getSession, initSessionStore, listSessionPage, listSessions, readRecentEvents, setRecordingStorageLimit } from './session/store.js';
 import { createTurnNotifier } from './turn-notifications.js';
 import { DEFAULT_RECORDING_STORAGE_GIB } from '../shared/session.js';
 import { initSkillsPath } from './skills.js';
@@ -122,6 +122,7 @@ import {
   shouldQuitOnWindowAllClosed
 } from './window-lifecycle.js';
 import { trayGuidArgsForPlatform, trayImageSpec } from './tray-image.js';
+import { openTrayChat, readTrayRecentChats, sameTrayRecentChats, trayChatItems, type TrayRecentChat } from './tray-recent-chats.js';
 import { browserWindowIconPath } from './window-icon.js';
 import { approvedChatGptImageRequest, RENDERER_CONTENT_SECURITY_POLICY } from './renderer-csp.js';
 import { editContextMenuTemplate } from './edit-context-menu.js';
@@ -137,6 +138,7 @@ const MAIN_TEXTS_STATE = 'main-texts';
 let window: BrowserWindow | null = null;
 let savedWindowBounds: unknown = null;
 let tray: Tray | null = null;
+let trayChats: TrayRecentChat[] = [];
 let quitting = false;
 let shutdownStarted = false;
 let shutdownComplete = false;
@@ -364,6 +366,24 @@ function trayIcon(running: boolean): Electron.NativeImage {
   return image;
 }
 
+/** Through the same activation gate as the tray's Open: nothing opens once quit has begun. */
+function openChatFromTray(sessionId: string | null): void {
+  openTrayChat({
+    allowed: () => !quitting && !windowActivation.isDisabled(),
+    show: windowActivation.request,
+    contents: () => window?.webContents ?? null
+  }, sessionId);
+}
+
+/** Session writes arrive many times a turn; the menu is rebuilt only when its chats change. */
+function refreshTrayChats(): void {
+  void readTrayRecentChats(listSessionPage).then(next => {
+    if (sameTrayRecentChats(next, trayChats)) return;
+    trayChats = next;
+    refreshTray();
+  }).catch((error: Error) => logWarn(`tray recent chats: ${error.message}`));
+}
+
 function refreshTray(): void {
   if (!tray) return;
   const state = getStatus().state;
@@ -381,6 +401,7 @@ function refreshTray(): void {
       { label, enabled: false },
       { type: 'separator' },
       { label: mainText('Open'), click: windowActivation.request },
+      ...trayChatItems(trayChats, mainText, openChatFromTray),
       // The CoS browser lives in the tray: its windows never sit in a taskbar or dock. Only once
       // it is selected and loaded; the default extension path shows exactly the menu it had.
       ...(cosBrowser && getConfig().ui.chatBrowser === 'cos' ? [{
@@ -682,6 +703,8 @@ void app.whenReady().then(async () => {
   // The built-in browser's own hooks live in its module, which loads only once it is selected.
   onCosBrowserLoaded(cosBrowser => { cosBrowser.onChange(refreshTray); refreshTray(); });
   onMainTextsChange(refreshTray);
+  refreshTrayChats();
+  onSessionChange(refreshTrayChats);
   onMainTextsChange(() => writeDurableSoon(MAIN_TEXTS_STATE, mainTextTranslations()));
 
   logInfo('app started');
