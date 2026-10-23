@@ -5148,7 +5148,8 @@ function answerMenu(glyph: string, label: string, choiceClass: string, items: re
   for (const [text, choose] of items) {
     const choice = el('button', choiceClass, () => t(text)) as HTMLButtonElement;
     choice.type = 'button';
-    choice.addEventListener('click', () => { menu.open = false; void choose(); });
+    // The choice hides with the menu, so focus goes back to the icon that opened it.
+    choice.addEventListener('click', () => { menu.open = false; trigger.focus(); void choose(); });
     choices.append(choice);
   }
   menu.append(trigger, choices);

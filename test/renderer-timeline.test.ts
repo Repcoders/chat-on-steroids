@@ -5793,6 +5793,7 @@ it('copies a completed answer as plain text, without code or formatted from its 
     menu.open = true;
     choices[index]!.click(); await settle();
     expect(menu.open).toBe(false);
+    expect(w.document.activeElement).toBe(trigger);
     expect(api.exportMarkdown).toHaveBeenLastCalledWith({ id: summary([]).id, scope: 'answer', turnId: 'done-turn', messageId: undefined, target: 'clipboard', format });
   }
 });
