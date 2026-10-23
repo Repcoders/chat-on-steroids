@@ -27,7 +27,9 @@ const SHOWN: Readonly<Record<string, (config: Config) => Shown>> = {
   playfulContinue: c => c.ui.playfulContinue === true,
   mentionCore: c => c.ui.mentionCore !== false,
   mentionPlugins: c => c.ui.mentionPlugins === true,
+  secretsShield: c => c.ui.secretsShield !== false,
   privacyScreenshots: c => c.ui.privacyScreenshots === true,
+  announceTurns: c => c.ui.announceTurns === true,
   developerMode: c => c.ui.developerMode === true,
   mcpPersistentUrls: c => c.mcp?.persistentUrls === true,
   controlApiEnabled: c => c.controlApi?.enabled === true,
@@ -35,6 +37,8 @@ const SHOWN: Readonly<Record<string, (config: Config) => Shown>> = {
   localAppUsage: c => c.ui.localAppUsage !== false,
   autoContinue: c => c.ui.autoContinue !== false,
   rotateTurnMinutes: c => String(c.ui.rotateTurnMinutes ?? 30),
+  rotateStopFallback: c => c.ui.rotateStopFallback === true,
+  finishHoldOnStop: c => c.ui.finishHoldOnStop === true,
   planBackend: c => c.ui.planBackend ?? 'chatgpt',
   autoSelectSkills: c => c.ui.autoSelectSkills === true,
   finishTool: c => c.ui.finishTool === true,
@@ -95,6 +99,12 @@ export function paintSettingDefaults(config: Config, defaults: Config, root: Par
     if (!differs && !ownReset(row)) continue;
     // A control the page has switched off (no API, a port fixed by the environment) keeps its mark
     // but offers no reset: its save would be refused or ignored.
-    resetButton(row, control, shown(defaults)).hidden = !differs || control.disabled;
+    const button = resetButton(row, control, shown(defaults));
+    const hide = !differs || control.disabled;
+    // The repaint after a reset hides the button that was just used: keep the keyboard on its row.
+    if (hide && !button.hidden && document.activeElement === button) {
+      if (control.disabled) { row.tabIndex = -1; row.focus(); } else control.focus();
+    }
+    button.hidden = hide;
   }
 }

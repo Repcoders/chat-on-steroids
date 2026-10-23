@@ -94,3 +94,28 @@ it('never offers paths, tunnel IDs or the language, and no reset on a control th
   expect(view.row('browserBridgePort').classList.contains('is-changed')).toBe(true);
   expect(view.offered('browserBridgePort')).toBe(false);
 });
+
+it('marks the privacy, accessibility and Stop settings added since, each against its own default', () => {
+  const view = page();
+  // Hide secrets starts On; the other three start Off.
+  const config = withUi({ secretsShield: false, announceTurns: true, finishHoldOnStop: true, rotateStopFallback: true });
+  paintSettingDefaults(config, fresh(), view.doc);
+  expect(changedSettings(config, fresh())).toEqual(['secretsShield', 'announceTurns', 'rotateStopFallback', 'finishHoldOnStop']);
+  for (const id of ['secretsShield', 'announceTurns', 'rotateStopFallback', 'finishHoldOnStop']) expect(view.offered(id)).toBe(true);
+  view.reset('secretsShield')!.click();
+  expect(view.control<HTMLInputElement>('secretsShield').checked).toBe(true);
+  view.reset('announceTurns')!.click();
+  expect(view.control<HTMLInputElement>('announceTurns').checked).toBe(false);
+});
+
+it('keeps the keyboard on the row when the reset it was on goes away', () => {
+  const view = page();
+  const config = withUi({ followOutput: false });
+  paintSettingDefaults(config, fresh(), view.doc);
+  const button = view.reset('followOutput')!;
+  button.focus();
+  expect(view.doc.activeElement).toBe(button);
+  paintSettingDefaults(fresh(), fresh(), view.doc);
+  expect(button.hidden).toBe(true);
+  expect(view.doc.activeElement).toBe(view.control('followOutput'));
+});
