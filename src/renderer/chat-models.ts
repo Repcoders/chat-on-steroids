@@ -2,7 +2,7 @@ import { ui, uiText, t } from './i18n.js';
 import type { ChatModelCatalog } from '../shared/chat-models.js';
 import { chatModelDisplayLabel, DEFAULT_HELPER_CHAT_MODEL, resolveChatModel } from '../shared/chat-models.js';
 import type { Config } from '../shared/types.js';
-import type { ProjectChatDefaults } from '../shared/projects.js';
+import type { ProjectChatDefaults, ProjectChatDefaultsSkip } from '../shared/projects.js';
 import type { ReasoningEffort } from '../shared/session.js';
 import { $, el, icon, run } from './dom.js';
 
@@ -17,7 +17,26 @@ let composerContext: { scope: string | null; observation: ObservedSelection | nu
 let ordinaryDefaults: { model: string; reasoningEffort: string } = { model: '', reasoningEffort: '' };
 /** The selected new chat's project pair, which replaces the Settings default while it is shown. */
 let projectDefaults: ProjectChatDefaults | null = null;
-const newChatDefaults = (): { model: string; reasoningEffort: string } => projectDefaults ?? ordinaryDefaults;
+/** Why the selected project's pair cannot start a new chat on this account, or null when it can (or nothing is known yet). */
+function projectDefaultsSkip(pair: ProjectChatDefaults): ProjectChatDefaultsSkip | null {
+  // No list yet (still reading, or not asked): nothing says the pair is wrong, so Send waits for it as for any exact model.
+  if (!catalog.models.length) return catalog.state === 'unavailable' ? 'no-picker' : null;
+  const offered = observedModel(pair.model);
+  if (!offered) return 'model-gone';
+  return offered.efforts.includes(pair.reasoningEffort) ? null : 'effort-gone';
+}
+/** The skip already logged, so repaints say it once per pair and reason. */
+let loggedSkip = '';
+/** The pair a new chat starts with: its project's own, unless this account cannot take it; then the Settings default. */
+const newChatDefaults = (): { model: string; reasoningEffort: string } => {
+  const skip = projectDefaults ? projectDefaultsSkip(projectDefaults) : null;
+  const key = projectDefaults && skip ? `${projectDefaults.model}|${projectDefaults.reasoningEffort}|${skip}` : '';
+  if (key !== loggedSkip) {
+    loggedSkip = key;
+    if (skip) void window.api.noteProjectChatDefaultsSkipped(skip).catch(() => undefined);
+  }
+  return projectDefaults && !skip ? projectDefaults : ordinaryDefaults;
+};
 /**
  * Automatic: send with whatever model ChatGPT already has selected, switching nothing.
  *

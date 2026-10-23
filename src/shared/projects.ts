@@ -13,6 +13,8 @@ export interface LocalProject {
   createdAt: number;
   /** Removed sidebar group; existing conversations and queued work retain their folder. */
   ungrouped?: boolean;
+  /** The secrets shield is off for this project's chats (on everywhere else, unless off in Settings). */
+  secretsShieldOff?: boolean;
   /**
    * The native ChatGPT Project this CoS project's new chats open in. Only projects created after
    * this existed have one; it grants no filesystem permission.
@@ -24,6 +26,10 @@ export interface LocalProject {
    */
   chatDefaults?: ProjectChatDefaults;
 }
+
+/** Why a new chat did not start on its project's own pair (the Settings default is used instead). */
+export const PROJECT_CHAT_DEFAULTS_SKIPS = ['no-picker', 'model-gone', 'effort-gone'] as const;
+export type ProjectChatDefaultsSkip = typeof PROJECT_CHAT_DEFAULTS_SKIPS[number];
 
 /** A project's own new-chat model and effort; both are always set together. */
 export interface ProjectChatDefaults {
