@@ -38,7 +38,13 @@ export const MAX_RECENT_ATTACHMENTS = 24;
 export function listRecentAttachments(retained: Set<string>): Promise<InputAttachment[]> {
   const next = staging.then(async () => {
     const dir = directory(), found: Array<{ attachment: InputAttachment; usedAt: number }> = [];
-    for (const name of await fs.readdir(dir).catch(() => [] as string[])) {
+    // No staging folder yet means nothing was ever staged; any other failure is not an empty list.
+    const names = await fs.readdir(dir).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') return [] as string[];
+      logWarn(`Recent files: could not read the staging folder (${error.code ?? 'unknown error'})`);
+      throw new Error(`Recent files could not be read (${error.code ?? 'unknown error'})`);
+    });
+    for (const name of names) {
       if (!/^[a-f0-9-]{36}$/.test(name)) continue;
       const file = fileFor(name);
       try {

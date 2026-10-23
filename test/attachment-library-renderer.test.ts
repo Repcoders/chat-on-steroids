@@ -51,7 +51,7 @@ it('shows the image preview, the empty state and a load failure', async () => {
   const { toggle, host } = await mount(async () => reply);
   toggle.click();
   await vi.waitFor(() => expect(host.querySelector('.attachment-library-thumb img')?.getAttribute('src')).toBe(png.preview), { timeout: 5000 });
-  expect(host.textContent).toContain('Image · 47 KB');
+  expect(host.textContent).toContain('Image · 47 kB');
   toggle.click(); reply = { ok: true, data: [] }; toggle.click();
   await vi.waitFor(() => expect(host.textContent).toBe('No files attached in the last 24 hours'), { timeout: 5000 });
   toggle.click(); reply = { ok: false, error: 'Session storage is not ready' }; toggle.click();
@@ -77,6 +77,49 @@ it('writes sizes in the number format of the app language', async () => {
   setLanguage('de');
   toggle.click();
   await vi.waitFor(() => expect(host.textContent).toContain('1,5 MB'), { timeout: 5000 });
+});
+
+it('writes the unit names of the app language', async () => {
+  const tiny: InputAttachment = { ...pdf, id: '0f3c9a7e-5b21-4d8a-9c6e-000000000003', size: 512 };
+  const { toggle, host } = await mount(async () => ({ ok: true as const, data: [tiny] }));
+  const { setLanguage } = await import('../src/renderer/i18n.js');
+  setLanguage('de');
+  toggle.click();
+  await vi.waitFor(() => expect(host.textContent).toContain('512 Byte'), { timeout: 5000 });
+});
+
+it('keeps a picked file out of the list until its attach settles, so a slow reply cannot attach it twice', async () => {
+  let settle!: () => void;
+  const attach = new Promise<void>(resolve => { settle = resolve; });
+  const { choose, toggle, host } = await mount(async () => ({ ok: true as const, data: [png, pdf] }));
+  choose.mockReturnValueOnce(attach);
+  toggle.click();
+  await vi.waitFor(() => expect(host.querySelectorAll('.attachment-library-item')).toHaveLength(2), { timeout: 5000 });
+  host.querySelector<HTMLButtonElement>(`[data-attachment-id="${pdf.id}"]`)!.click();
+  // Reopened before the first reply: the file in flight is not offered, the other one still is.
+  toggle.click();
+  await vi.waitFor(() => expect(host.querySelectorAll('.attachment-library-item')).toHaveLength(1), { timeout: 5000 });
+  expect(host.querySelector(`[data-attachment-id="${pdf.id}"]`)).toBeNull();
+  expect(choose).toHaveBeenCalledTimes(1);
+  settle(); await attach;
+  // Once settled it is offered again (the real draft hides it by listing it as attached).
+  toggle.click(); toggle.click();
+  await vi.waitFor(() => expect(host.querySelectorAll('.attachment-library-item')).toHaveLength(2), { timeout: 5000 });
+});
+
+it('limits the list to the room above the menu when it opens there, and to the room it has beside it', async () => {
+  const { toggle, host } = await mount(async () => ({ ok: true as const, data: [pdf] }));
+  const rect = (values: Partial<DOMRect>) => () => ({ top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0, x: 0, y: 0, toJSON() {}, ...values }) as DOMRect;
+  host.parentElement!.getBoundingClientRect = rect({ top: 150, bottom: 400 });
+  host.getBoundingClientRect = rect({ right: 5000 });
+  toggle.click();
+  expect(host.classList.contains('is-above')).toBe(true);
+  expect(host.style.maxHeight).toBe('136px');
+  toggle.click();
+  host.getBoundingClientRect = rect({ right: 300 });
+  toggle.click();
+  expect(host.classList.contains('is-above')).toBe(false);
+  expect(host.style.maxHeight).toBe('320px');
 });
 
 it('puts Recent files in the composer + menu, keeping the menu open for the list', () => {

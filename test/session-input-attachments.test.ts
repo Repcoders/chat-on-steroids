@@ -136,3 +136,17 @@ it('skips staged files with an old, damaged or mismatched record, one log line e
   expect(await listRecentAttachments(new Set())).toHaveLength(2);
   expect(JSON.stringify(getLog())).not.toContain(directory);
 });
+it('reports an unreadable staging folder as a failure, not as an empty list', async () => {
+  expect(await listRecentAttachments(new Set())).toEqual([]);
+  const denied = Object.assign(new Error(`EACCES: permission denied, scandir '${directory}'`), { code: 'EACCES' });
+  const read = vi.spyOn(fs, 'readdir').mockRejectedValueOnce(denied);
+  await expect(listRecentAttachments(new Set())).rejects.toThrow('Recent files could not be read (EACCES)');
+  const lines = getLog().filter(entry => entry.message.startsWith('Recent files:'));
+  expect(lines).toHaveLength(1);
+  expect(lines[0]).toMatchObject({ level: 'warn' });
+  expect(JSON.stringify(getLog())).not.toContain(directory);
+  read.mockRestore();
+  // The failure does not wedge the staging lock.
+  const next = await stageInputAttachment({ text: 'after' }, new Set());
+  expect(await listRecentAttachments(new Set())).toEqual([next]);
+});
