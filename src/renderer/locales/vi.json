@@ -2995,5 +2995,6 @@
   "Copy as": "Sao chép dưới dạng",
   "Plain text": "Văn bản thuần",
   "Plain text without code blocks": "Văn bản thuần không có khối mã",
-  "Formatted text": "Văn bản có định dạng"
+  "Formatted text": "Văn bản có định dạng",
+  "Only a copy can be plain text or formatted text": "Chỉ bản sao mới có thể là văn bản thuần hoặc văn bản có định dạng"
 }

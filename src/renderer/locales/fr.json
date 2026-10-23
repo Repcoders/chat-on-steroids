@@ -3091,5 +3091,6 @@
   "Copy as": "Copier en tant que",
   "Plain text": "Texte brut",
   "Plain text without code blocks": "Texte brut sans blocs de code",
-  "Formatted text": "Texte mis en forme"
+  "Formatted text": "Texte mis en forme",
+  "Only a copy can be plain text or formatted text": "Seule une copie peut être en texte brut ou en texte mis en forme"
 }

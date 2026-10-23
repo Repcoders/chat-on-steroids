@@ -3043,5 +3043,6 @@
   "Copy as": "Farklı kopyala",
   "Plain text": "Düz metin",
   "Plain text without code blocks": "Kod blokları olmadan düz metin",
-  "Formatted text": "Biçimlendirilmiş metin"
+  "Formatted text": "Biçimlendirilmiş metin",
+  "Only a copy can be plain text or formatted text": "Yalnızca bir kopya düz metin veya biçimli metin olabilir"
 }

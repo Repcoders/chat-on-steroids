@@ -2995,5 +2995,6 @@
   "Copy as": "形式を選んでコピー",
   "Plain text": "プレーンテキスト",
   "Plain text without code blocks": "コードブロックなしのプレーンテキスト",
-  "Formatted text": "書式付きテキスト"
+  "Formatted text": "書式付きテキスト",
+  "Only a copy can be plain text or formatted text": "プレーンテキストまたは書式付きテキストにできるのはコピーだけです"
 }

@@ -3139,5 +3139,6 @@
   "Copy as": "Копировать как",
   "Plain text": "Обычный текст",
   "Plain text without code blocks": "Обычный текст без блоков кода",
-  "Formatted text": "Форматированный текст"
+  "Formatted text": "Форматированный текст",
+  "Only a copy can be plain text or formatted text": "Простым или форматированным текстом может быть только копия"
 }

@@ -2995,5 +2995,6 @@
   "Copy as": "複製為",
   "Plain text": "純文字",
   "Plain text without code blocks": "不含程式碼區塊的純文字",
-  "Formatted text": "格式化文字"
+  "Formatted text": "格式化文字",
+  "Only a copy can be plain text or formatted text": "只有複製才能使用純文字或格式化文字"
 }
