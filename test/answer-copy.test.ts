@@ -26,6 +26,19 @@ it('keeps a nested list in one piece and an image as its description', () => {
   expect(markdownVisibleText('![chart](https://example.com/c.png)')).toBe('\n');
 });
 
+it('keeps a code example byte for byte while it tidies the spacing between blocks', () => {
+  const code = 'a  \n\n\nb\n  c ';
+  const markdown = `Before\n\n\n\n\`\`\`py\n${code}\n\`\`\`\n\n\n\nAfter  `;
+  expect(answerPlainText(markdown)).toBe(`Before\n\n${code}\n\nAfter`);
+  expect(answerPlainText(`\`\`\`\n${code}\n\`\`\``)).toBe(code);
+  expect(answerPlainText(markdown, { codeBlocks: false })).toBe('Before\n\nAfter');
+});
+
+it('writes an image description without the markers around its words', () => {
+  expect(answerPlainText('![**sales** up, _fast_](chart.png)')).toBe('sales up, fast');
+  expect(answerHtml('![**sales** up, _fast_](chart.png)')).toBe('<p>sales up, fast</p>');
+});
+
 it('pastes markup in an answer as its words, and links only to web and mail addresses', () => {
   const html = answerHtml('Hi <script>alert(1)</script> ![chart](https://example.com/c.png)\n[web](https://example.com/a?b=1&c=2) [file](file:///C:/x) [js](javascript:alert(1))');
   expect(html).toBe('<p>Hi &lt;script&gt;alert(1)&lt;/script&gt; chart<br><a href="https://example.com/a?b=1&amp;c=2">web</a> file js</p>');

@@ -1158,9 +1158,10 @@ shows a notice instead of scrolling. Long row menus scroll inside the window (`r
 Copy as: `sessions:exportMarkdown` takes an optional `format` for a clipboard copy (`markdown` when
 left out, `text`, `text-no-code`, `html`); a file is always Markdown, and a file asked for in another
 format is refused. `shared/answer-copy.ts` builds the plain text with `markdownVisibleText(…, { layout:
-true })` (bullets, numbers, task boxes, tab-separated table cells; `codeBlocks: false` for
+true, tidy: true })` (bullets, numbers, task boxes, tab-separated table cells; `tidy` collapses
+blank lines between blocks and leaves a code block as written; `codeBlocks: false` for
 `text-no-code`) and the HTML with `marked`, which escapes raw markup, draws an image as its
-description and links only http(s) and mailto addresses. Both drop a writing block's `:::` fence and
+parsed description (`tokensVisibleText`) and links only http(s) and mailto addresses. Both drop a writing block's `:::` fence and
 keep its words. `html` writes the plain text beside the HTML, for apps that paste no HTML.
 
 Edit & resubmit (#365): ChatGPT keeps an edited question as a new version beside the old one, under

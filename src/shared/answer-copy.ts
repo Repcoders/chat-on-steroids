@@ -1,5 +1,5 @@
 import { Marked } from 'marked';
-import { markdownVisibleText } from './markdown-text.js';
+import { markdownVisibleText, tokensVisibleText } from './markdown-text.js';
 
 /* Copy as: an answer's Markdown turned into what another app pastes best. Plain text reads as the
    timeline draws it (bullets, numbers and table columns kept, no Markdown markers); formatted
@@ -32,8 +32,7 @@ function unwrapWritingBlocks(markdown: string): string {
 
 /** The answer as plain text; `codeBlocks: false` leaves fenced code out. */
 export function answerPlainText(markdown: string, options: { codeBlocks?: boolean } = {}): string {
-  return markdownVisibleText(unwrapWritingBlocks(markdown), { codeBlocks: options.codeBlocks, layout: true })
-    .replace(/[ \t]+$/gm, '').replace(/\n{3,}/g, '\n\n').trim();
+  return markdownVisibleText(unwrapWritingBlocks(markdown), { codeBlocks: options.codeBlocks, layout: true, tidy: true });
 }
 
 const ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -53,7 +52,7 @@ function safeHref(href: string): string | null {
 // as the words it is, never as markup, and an image keeps its description, not its address.
 const formatted = new Marked({ gfm: true, breaks: true, renderer: {
   html({ text }) { return escapeHtml(text); },
-  image({ text }) { return escapeHtml(text); },
+  image({ text, tokens }) { return escapeHtml(tokens?.length ? tokensVisibleText(tokens, { layout: true }) : text); },
   // A box drawn as a character: Word would paste a form field for a disabled checkbox input.
   checkbox({ checked }) { return checked ? '☑ ' : '☐ '; },
   link({ href, title, tokens }) {

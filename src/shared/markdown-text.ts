@@ -17,21 +17,39 @@ const BLOCKS = new Set(['paragraph', 'heading', 'blockquote', 'code', 'list_item
  * HTML tags. Find in chat matches what the person reads ("File: /src" in "**File:** `/src`").
  * `layout` also keeps what a list and a table draw around the words, for text a person pastes:
  * each item's bullet or number (indented by depth), task boxes, tabs between table cells and
- * image descriptions.
+ * image descriptions. `tidy` (with `layout`) also trims line ends and collapses runs of blank
+ * lines between blocks, leaving what a code block holds exactly as written.
  */
-export function markdownVisibleText(markdown: string, options: { codeBlocks?: boolean; layout?: boolean } = {}): string {
+export function markdownVisibleText(markdown: string, options: { codeBlocks?: boolean; layout?: boolean; tidy?: boolean } = {}): string {
   let tokens: Token[];
   try { tokens = new Lexer({ gfm: true }).lex(markdown); } catch { return markdown; }
+  return tokensVisibleText(tokens, options);
+}
+
+/** The words of already-lexed tokens, as `markdownVisibleText` reads them. */
+export function tokensVisibleText(tokens: readonly Token[], options: { codeBlocks?: boolean; layout?: boolean; tidy?: boolean } = {}): string {
+  // Text between code blocks, and each code block's own text, which tidying must not touch.
+  const runs: { text: string; code: boolean }[] = [];
   const parts: string[] = [];
+  const flush = (): void => { if (parts.length) runs.push({ text: parts.join(''), code: false }); parts.length = 0; };
   let depth = 0;
   const walk = (list: readonly Token[]): void => { for (const token of list) visit(token); };
   const visit = (token: Token): void => {
     switch (token.type) {
       case 'html': break;
       // A pasted copy keeps an image's description; Find reads only the words drawn.
-      case 'image': if (options.layout) parts.push(decodeEntities((token as Tokens.Image).text)); break;
+      // Its words come from the parsed description, which has no emphasis markers left in it.
+      case 'image': {
+        if (!options.layout) break;
+        const image = token as Tokens.Image;
+        if (image.tokens?.length) walk(image.tokens); else parts.push(decodeEntities(image.text));
+        break;
+      }
       case 'br': parts.push('\n'); break;
-      case 'code': if (options.codeBlocks !== false) parts.push((token as Tokens.Code).text); break;
+      case 'code':
+        if (options.codeBlocks === false) break;
+        if (options.tidy && options.layout) { flush(); runs.push({ text: (token as Tokens.Code).text, code: true }); } else parts.push((token as Tokens.Code).text);
+        break;
       case 'codespan': parts.push((token as Tokens.Codespan).text); break;
       case 'checkbox': if (options.layout) parts.push((token as Tokens.Checkbox).checked ? '[x] ' : '[ ] '); break;
       case 'list': {
@@ -69,5 +87,11 @@ export function markdownVisibleText(markdown: string, options: { codeBlocks?: bo
     if (BLOCKS.has(token.type) && !(options.layout && token.type === 'list_item' && parts.at(-1)?.endsWith('\n'))) parts.push('\n');
   };
   walk(tokens);
-  return parts.join('');
+  flush();
+  if (!(options.tidy && options.layout)) return runs.map(run => run.text).join('');
+  const tidy = (text: string): string => text.replace(/[ \t]+$/gm, '').replace(/\n{3,}/g, '\n\n');
+  const out = runs.map(run => run.code ? run.text : tidy(run.text));
+  if (!runs[0]?.code) out[0] = out[0]?.trimStart() ?? '';
+  if (!runs.at(-1)?.code) out[out.length - 1] = out.at(-1)?.trimEnd() ?? '';
+  return out.join('');
 }
