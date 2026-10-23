@@ -16,6 +16,7 @@ import {
   lookupWorkerWorkspace,
   resetWorkerWorktreeRegistryForTests,
   restoreManagedWorktrees,
+  reviewOfferedWorkerWorktree,
   validateWorkerWorkspaceLease
 } from '../src/main/worktrees/index.js';
 
@@ -773,6 +774,56 @@ describe('automatic worker Git worktrees', () => {
     expect(git(repo, ['rev-parse', lease.branchRef])).toBe(commitOid);
     expect(git(repo, ['rev-parse', 'HEAD'])).toBe(lease.baseOid);
     expect(await fs.readFile(path.join(repo, 'file.txt'), 'utf8')).toBe('base\n');
+  });
+
+  it('shows an offered checkout\'s uncommitted changes and branch-only commits without reading ignored files', async () => {
+    await write(path.join(repo, '.gitignore'), 'private-secret.txt\n');
+    await write(path.join(repo, 'old.txt'), 'old\n');
+    await commit(repo, 'ignore worker local files');
+    const lease = await allocate();
+    await write(path.join(lease.worktreePath, 'file.txt'), 'worker committed change\n');
+    await fs.rm(path.join(lease.worktreePath, 'old.txt'));
+    await commit(lease.worktreePath, 'worker produced changes');
+    await write(path.join(lease.worktreePath, 'file.txt'), 'worker committed change\nuncommitted line\n');
+    await write(path.join(lease.worktreePath, 'notes.txt'), 'new draft\n');
+    await write(path.join(lease.worktreePath, 'private-secret.txt'), 'PRIVATE IGNORED BYTES\n');
+    const offer = { runId: RUN_ID, agentId: 'worker-1', createdAt: lease.createdAt, reason: 'completed' };
+    resetWorkerWorktreeRegistryForTests();
+
+    const review = await reviewOfferedWorkerWorktree(roots, offer);
+    expect(review).toMatchObject({ runId: RUN_ID, agentId: 'worker-1', ignoredFiles: true, truncated: false });
+    expect(review.files).toEqual([
+      { path: 'file.txt', scope: 'uncommitted', status: 'modified', baseText: 'worker committed change\n',
+        currentText: 'worker committed change\nuncommitted line\n', binary: false, tooLarge: false },
+      { path: 'notes.txt', scope: 'uncommitted', status: 'added', baseText: null, currentText: 'new draft\n', binary: false, tooLarge: false },
+      { path: 'file.txt', scope: 'committed', status: 'modified', baseText: 'base\n', currentText: 'worker committed change\n', binary: false, tooLarge: false },
+      { path: 'old.txt', scope: 'committed', status: 'deleted', baseText: 'old\n', currentText: null, binary: false, tooLarge: false }
+    ]);
+    expect(JSON.stringify(review)).not.toContain('PRIVATE IGNORED BYTES');
+    expect(JSON.stringify(review)).not.toContain('private-secret');
+    expect(JSON.stringify(review)).not.toContain(lease.worktreePath);
+    // Read-only: no live lease is granted and nothing in the checkout changes.
+    expect(lookupWorkerWorkspace(ACCEPTED[0])).toBeNull();
+    expect(await fs.readFile(path.join(lease.worktreePath, 'notes.txt'), 'utf8')).toBe('new draft\n');
+    await expect(reviewOfferedWorkerWorktree(roots, { ...offer, createdAt: lease.createdAt - 1 }))
+      .rejects.toMatchObject({ code: 'WORKTREE_NOT_OWNED' });
+  });
+
+  it('lists a submodule pointer a worker committed as its commit ids instead of failing the whole review', async () => {
+    const lease = await allocate();
+    // A gitlink names a commit this repository does not have, so it has no blob to read.
+    const pointer = 'c'.repeat(40);
+    git(lease.worktreePath, ['update-index', '--add', '--cacheinfo', `160000,${pointer},vendor/lib`]);
+    await write(path.join(lease.worktreePath, 'file.txt'), 'worker edit\n');
+    git(lease.worktreePath, ['add', 'file.txt']);
+    git(lease.worktreePath, ['commit', '-m', 'worker adds a submodule pointer']);
+    resetWorkerWorktreeRegistryForTests();
+
+    const review = await reviewOfferedWorkerWorktree(roots, { runId: RUN_ID, agentId: 'worker-1', createdAt: lease.createdAt, reason: 'completed' });
+    expect(review.files.filter(file => file.scope === 'committed')).toEqual([
+      { path: 'file.txt', scope: 'committed', status: 'modified', baseText: 'base\n', currentText: 'worker edit\n', binary: false, tooLarge: false },
+      { path: 'vendor/lib', scope: 'committed', status: 'added', baseText: null, currentText: `Subproject commit ${pointer}\n`, binary: false, tooLarge: false }
+    ]);
   });
 
   it('refuses forged and obsolete broker offers without touching the real worker checkout', async () => {

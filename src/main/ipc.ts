@@ -87,9 +87,9 @@ import { runDiagnostics } from './diagnostics.js';
 import { collectReportFacts, readRecentLog, renderDiagnosticsReport, saveDiagnosticsReport, systemFacts, memoryFacts } from './diagnostics-report.js';
 import { listSessions, readTurnTraces } from './session/store.js';
 import { formatLogAsJson, formatLogForClipboard, getLog, logInfo, logWarn, onLog } from './logger.js';
-import { managedWorktreeCleanupOffers, acknowledgeManagedWorktreeCleanupOffer } from './agents.js';
-import { listOfferedWorkerWorktrees, disposeOfferedWorkerWorktree, WorkerWorktreeError } from './worktrees/index.js';
-import type { WorkerWorktreeCleanupOffer } from '../shared/session.js';
+import { managedWorktreeCleanupOffers, acknowledgeManagedWorktreeCleanupOffer, managedWorkerRecoveryIdentities } from './agents.js';
+import { listOfferedWorkerWorktrees, disposeOfferedWorkerWorktree, reviewOfferedWorkerWorktree, WorkerWorktreeError } from './worktrees/index.js';
+import type { WorkerWorktreeCleanupOffer, WorkerWorktreeReview } from '../shared/session.js';
 import { unifiedExecManager } from './codex/manager.js';
 import { inFlightToolCalls } from './mcp/call-context.js';
 import { RESERVED_ROOT_NAMES, uniqueRootName, validateNewRoot, SandboxError, resolvePath } from './sandbox.js';
@@ -1912,6 +1912,25 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
       // Native paths from Git failures belong to local logs, never the browser/AI surface.
       logInfo(`worktree cleanup inspection failed: ${error instanceof Error ? error.message : String(error)}`);
       throw new Error('Could not review retained worker worktrees. Check the local app logs.');
+    }
+  });
+  // Show changes reads the exact offered checkout, never a renderer-supplied path. A worker
+  // that is still working has no cleanup offer, so its files are not read mid-edit.
+  handle('swarm:worktreeCleanupReview', async (payload): Promise<WorkerWorktreeReview> => {
+    const { runId, agentId } = worktreeCleanupId.parse(payload);
+    if (!(await persistAgentAuthorityNow())) throw new Error('Could not review retained worker worktrees. Check the local app logs.');
+    const offer = managedWorktreeCleanupOffers().find(entry => entry.runId === runId && entry.agentId === agentId);
+    if (!offer) {
+      throw new Error(managedWorkerRecoveryIdentities().some(entry =>
+        entry.runId.toLowerCase() === runId.toLowerCase() && entry.agentId === agentId)
+        ? 'This worker is still working. Its changes can be shown once it finishes.'
+        : 'This worker cleanup offer is no longer available. Refresh the list.');
+    }
+    try {
+      return await reviewOfferedWorkerWorktree(getConfig().roots, offer);
+    } catch (error) {
+      logInfo(`worktree cleanup review failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error('Could not read the changes in this worker checkout. Check the local app logs.');
     }
   });
   handle('swarm:worktreeCleanupRemove', async (payload) => {

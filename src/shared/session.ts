@@ -1144,13 +1144,38 @@ export interface WorkerWorktreeCleanupOffer {
   dirty: boolean;
   ignoredFiles: boolean;
   uniqueCommits: boolean;
-  /** Count only: ignored/untracked native filenames stay within the main process. */
+  /** Count only: filenames reach the renderer only through an explicit WorkerWorktreeReview. */
   changeCount: number;
 }
 
 export interface WorkerWorktreeCleanupResult {
   removed: boolean;
   branchPreserved: boolean;
+}
+
+/** One changed file of a retained worker checkout, relative to that checkout. */
+export interface WorkerWorktreeReviewFile {
+  path: string;
+  /** `uncommitted` goes with the checkout; `committed` stays on the worker's Git branch. */
+  scope: 'uncommitted' | 'committed';
+  status: 'added' | 'deleted' | 'modified';
+  /** Null when the file does not exist on that side, is binary or is too large. */
+  baseText: string | null;
+  currentText: string | null;
+  binary: boolean;
+  tooLarge: boolean;
+}
+
+/**
+ * Read-only changes behind a cleanup offer, read on an explicit Show changes. Tracked and
+ * untracked files are named; ignored files are only flagged, never named or read.
+ */
+export interface WorkerWorktreeReview {
+  runId: string;
+  agentId: string;
+  files: WorkerWorktreeReviewFile[];
+  ignoredFiles: boolean;
+  truncated: boolean;
 }
 
 // ---------------------------------------------------------------- helpers

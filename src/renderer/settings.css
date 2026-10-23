@@ -290,7 +290,14 @@
 .worktree-checkout-facts .worktree-risk { border-color: var(--red-line); background: var(--red-wash); color: var(--red); }
 .worktree-checkout-facts .worktree-commits { background: var(--sunk); color: var(--soft); }
 .worktree-clean-state { color: var(--soft); font-size: calc(12px * var(--text-scale, 1)); line-height: 1.45; }
-.worktree-checkout-row .worktree-remove-button { margin-left: auto; align-self: center; min-height: 36px; padding: 8px 12px; }
+.worktree-checkout-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; align-self: center; }
+.worktree-checkout-row .worktree-remove-button, .worktree-checkout-row .worktree-diff-button { min-height: 36px; padding: 8px 12px; }
+/* The review joins the row's flow below its actions: the Settings page stays the only scroller. */
+.worktree-checkout-review { flex: 1 0 100%; display: grid; gap: 8px; min-width: 0; }
+.worktree-review-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin-top: 4px; }
+.worktree-review-head b { color: var(--ink); font-size: calc(12px * var(--text-scale, 1)); font-weight: 650; }
+.worktree-review-head span { color: var(--soft); font-size: calc(12px * var(--text-scale, 1)); }
+.worktree-checkout-review .unified-diff { max-height: none; }
 .worktree-cleanup-empty .setting-text { padding: 4px 0; }
 .worktree-cleanup-empty .setting-text em { margin-top: 4px; }
 .automation-content :is(button, input, select, textarea):focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }

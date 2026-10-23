@@ -2561,6 +2561,37 @@ describe('native worker checkout cleanup confirmation', () => {
       expect(refused).toEqual({ ok: false, error: 'The checkout changed while you were reviewing it. No files were removed.' });
     });
   });
+
+  it('shows changes only for the exact offered checkout and refuses a worker that is still working', async () => {
+    const agents = await import('../src/main/agents.js');
+    const worktrees = await import('../src/main/worktrees/index.js');
+    const review = { runId: offer.runId, agentId: offer.agentId, files: [], ignoredFiles: false, truncated: false };
+    const read = vi.spyOn(worktrees, 'reviewOfferedWorkerWorktree').mockResolvedValue(review);
+    const offers = vi.spyOn(agents, 'managedWorktreeCleanupOffers').mockReturnValue([offer]);
+    const running = vi.spyOn(agents, 'managedWorkerRecoveryIdentities').mockReturnValue([]);
+    try {
+      expect(await invoke('swarm:worktreeCleanupReview', { runId: offer.runId, agentId: offer.agentId }))
+        .toEqual({ ok: true, data: review });
+      expect(read).toHaveBeenCalledWith(expect.any(Array), offer);
+      expect((await invoke('swarm:worktreeCleanupReview', { runId: offer.runId, agentId: offer.agentId, path: '/elsewhere' })).ok)
+        .toBe(false);
+
+      read.mockClear();
+      offers.mockReturnValue([]);
+      running.mockReturnValue([{ runId: offer.runId, agentId: offer.agentId }]);
+      expect(await invoke('swarm:worktreeCleanupReview', { runId: offer.runId, agentId: offer.agentId })).toEqual({
+        ok: false, error: 'This worker is still working. Its changes can be shown once it finishes.'
+      });
+      running.mockReturnValue([]);
+      expect((await invoke('swarm:worktreeCleanupReview', { runId: offer.runId, agentId: offer.agentId })).error)
+        .toBe('This worker cleanup offer is no longer available. Refresh the list.');
+      expect(read).not.toHaveBeenCalled();
+    } finally {
+      running.mockRestore();
+      offers.mockRestore();
+      read.mockRestore();
+    }
+  });
 });
 
 it('projects reloaded unreadable ledger health through state:get and recovers only through explicit reset', async () => {

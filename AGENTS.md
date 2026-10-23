@@ -1004,6 +1004,12 @@ list with task-first names, plain status, secondary virtual paths, explicit data
 and a real removal button. Never place physical paths in this UI, nest a second scroll pane, or
 suggest that branch commits are deleted. The main-process confirmation must identify the data
 that could be lost, default to Keep, and be shown before any destructive action.
+Show changes (`swarm:worktreeCleanupReview`) takes only the offer's `runId`/`agentId`, never a
+path, and reads that marker-proven checkout read-only: uncommitted tracked and untracked files
+against HEAD first, then the commits only on the worker branch (base → HEAD), as bounded
+per-file text in the edit-card diff below the row. Ignored files are flagged, never named or
+read; symlinks and files that leave the checkout are not read. A worker that is still working
+has no offer, so its request is refused instead of reading files mid-edit.
 Missing, corrupt or conflicting marker/identity evidence must fail closed rather than silently
 resolve an isolated worker to the prime's project; reviewing changes and integrating branches
 remain explicit steps.

@@ -110,6 +110,7 @@ import { closeRowMenu, onRowMenuChange, openRowMenu, rowMenuOpenFor, toggleRowMe
 import { createSearchPopup } from './search-popup.js';
 import { primaryShortcut } from './shortcuts.js';
 import { initSshProjectDialog } from './ssh-project-dialog.js';
+import { toggleWorktreeReview } from './worktree-review.js';
 
 const api = window.api;
 let chatSearch: ChatSearch | null = null;
@@ -7078,7 +7079,17 @@ export function paintWorktreeCleanupOffers(offers: WorkerWorktreeCleanupOffer[],
     remove.dataset.worktreeRemove = 'true';
     remove.dataset.runId = offer.runId;
     remove.dataset.agentId = offer.agentId;
-    row.append(copy, remove);
+    // Read-only: the main process names the files behind this exact offer.
+    const show = el('button', 'btn worktree-diff-button', () => t('Show changes'));
+    show.setAttribute('type', 'button');
+    show.setAttribute('aria-expanded', 'false');
+    ui(show, 'aria-label', () => `${t('Show changes')} — ${name()}`);
+    show.dataset.worktreeDiff = 'true';
+    show.dataset.runId = offer.runId;
+    show.dataset.agentId = offer.agentId;
+    const actions = el('div', 'worktree-checkout-actions');
+    actions.append(show, remove);
+    row.append(copy, actions);
     return row;
   });
   panel.replaceChildren(...rows);
@@ -9120,6 +9131,11 @@ export function initChat(next: Deps): void {
     const target = event.target as HTMLElement;
     if (target.closest<HTMLElement>('[data-worktree-review]')) {
       await showWorktreeCleanupOffers();
+      return;
+    }
+    const worktreeDiff = target.closest<HTMLButtonElement>('[data-worktree-diff]');
+    if (worktreeDiff) {
+      await toggleWorktreeReview(worktreeDiff, (runId, agentId) => run(api.reviewWorktreeCleanupOffer(runId, agentId)));
       return;
     }
     const worktreeRemove = target.closest<HTMLElement>('[data-worktree-remove]');
