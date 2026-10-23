@@ -623,6 +623,23 @@ it('opens a terminal file link in Files at its line, and only for the project Fi
   expect(codeMount.jumps).toEqual([['main.ts', 42, 7], ['main.ts', 3, 1]]);
 });
 
+it('moves the editor to the line of a terminal link that arrived while the editor was still mounting', async () => {
+  vi.mocked(window.api.previewProjectFile).mockImplementation((_projectId: string, path: string) =>
+    ok({ ...preview, path, name: path.split('/').at(-1)!, text: 'one\ntwo\n' }));
+  const panel = createFilePanel({ host, mount: host });
+  panel.update(projectA);
+  await panel.openFileAt(projectA.id, 'src/main.ts', 1, 1); await tick();
+  codeMount.jumps.length = 0;
+  let release!: () => void;
+  codeMount.wait = new Promise<void>(resolve => { release = resolve; });
+  [...host.querySelectorAll<HTMLButtonElement>('.file-preview-actions button')].find(button => button.title === 'Edit')!.click();
+  await tick();
+  await panel.openFileAt(projectA.id, 'src/main.ts', 2, 3);
+  expect(codeMount.jumps).toEqual([]);
+  codeMount.wait = null; release(); await tick(); await tick();
+  expect(codeMount.jumps).toEqual([['main.ts', 2, 3]]);
+});
+
 it('leaves the Changes view for Files when a terminal file link opens a file', async () => {
   vi.mocked(window.api.previewProjectFile).mockImplementation((_projectId: string, path: string) =>
     ok({ ...preview, path, name: path.split('/').at(-1)!, text: 'one\ntwo\n' }));

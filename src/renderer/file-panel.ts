@@ -892,6 +892,7 @@ export function createFilePanel(options: FilePanelOptions) {
     codeEditor = created;
     languageLabel.textContent = created.language;
     updateEditorDirtyState();
+    revealLineTarget();
     created.focus();
   }
 
