@@ -45,3 +45,11 @@ it('pastes markup in an answer as its words, and links only to web and mail addr
   // A task box is a character, not a form field in the pasted document.
   expect(answerHtml('- [x] done\n- [ ] todo')).toBe('<ul>\n<li>☑ done</li>\n<li>☐ todo</li>\n</ul>');
 });
+
+it('keeps the words of a block of raw HTML in a plain-text copy, as the timeline draws them', () => {
+  const markdown = 'Before\n\n<div>\n<p>Important <b>decision</b></p>\n<script>alert(1)</script>\n<p>Second &amp; last</p>\n</div>\n\nAfter <i>inline</i> words';
+  expect(answerPlainText(markdown)).toBe('Before\n\nImportant decision\n\nSecond & last\n\nAfter inline words');
+  expect(answerPlainText('<style>p { color: red }</style>\n\nOnly this')).toBe('Only this');
+  // Find reads the same words as before: a block of markup adds none.
+  expect(markdownVisibleText('Before\n\n<p>Important decision</p>\n\nAfter')).toBe('Before\n\n\nAfter\n');
+});

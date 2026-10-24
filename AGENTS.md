@@ -1162,7 +1162,7 @@ true, tidy: true })` (bullets, numbers, task boxes, tab-separated table cells; `
 blank lines between blocks and leaves a code block as written; `codeBlocks: false` for
 `text-no-code`) and the HTML with `marked`, which escapes raw markup, draws an image as its
 parsed description (`tokensVisibleText`) and links only http(s) and mailto addresses. Both drop a writing block's `:::` fence and
-keep its words. `formatted` writes the plain text beside the HTML, for apps that paste no HTML.
+keep its words. The plain text also keeps the words of a block of raw HTML (`plainTextOfHtml`, as the timeline draws it, scripts and styles dropped); Find does not. `formatted` writes the plain text beside the HTML, for apps that paste no HTML.
 
 Edit & resubmit (#365): ChatGPT keeps an edited question as a new version beside the old one, under
 the same parent, and continues from the new one. The page reports each question's place in that tree

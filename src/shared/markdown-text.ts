@@ -1,4 +1,5 @@
 import { Lexer, type Token, type Tokens } from 'marked';
+import { plainTextOfHtml } from './content-reference.js';
 
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 function decodeEntities(text: string): string {
@@ -36,7 +37,14 @@ export function tokensVisibleText(tokens: readonly Token[], options: { codeBlock
   const walk = (list: readonly Token[]): void => { for (const token of list) visit(token); };
   const visit = (token: Token): void => {
     switch (token.type) {
-      case 'html': break;
+      // The timeline draws a block of raw HTML as its words (scripts and styles dropped), so a pasted
+      // copy keeps them; Find keeps skipping markup, and an inline tag has no words of its own.
+      case 'html': {
+        if (!options.layout || !(token as Tokens.HTML).block) break;
+        const words = plainTextOfHtml((token as Tokens.HTML).text);
+        if (words) parts.push(words, '\n');
+        break;
+      }
       // A pasted copy keeps an image's description; Find reads only the words drawn.
       // Its words come from the parsed description, which has no emphasis markers left in it.
       case 'image': {
