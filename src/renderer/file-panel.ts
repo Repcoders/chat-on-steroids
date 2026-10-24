@@ -27,6 +27,8 @@ interface FilePanelOptions {
   onAttach?: (attachment: InputAttachment) => void;
   /** Capture the current composer owner before staging starts, including its draft epoch. */
   captureAttachment?: () => (attachment: InputAttachment) => boolean;
+  /** Puts a request in the composer for the person to read and send; never sends it. */
+  onAskChat?: (request: string) => void;
 }
 
 interface Selection {
@@ -304,6 +306,7 @@ export function createFilePanel(options: FilePanelOptions) {
   let gitDiffPath: string | null = null;
   let gitDiffValue: ProjectGitDiff | null = null;
   let renderedGitDiffRevision: string | null = null;
+  let conflictThreeWay = true;
   let gitReconcileTimer: number | null = null;
   const retainedDrafts = new Map<string, { preview: ProjectFilePreview & { text: string; revision: string }; text: string }>();
   let expanded = new Set<string>(['']);
@@ -1276,6 +1279,18 @@ export function createFilePanel(options: FilePanelOptions) {
     return sides;
   }
 
+  async function mountConflictPanes(value: ProjectGitDiff, panes: Array<[HTMLElement, string]>, language: HTMLElement, revision: string): Promise<void> {
+    const token = ++diffMountToken;
+    const module = await import('./file-code-editor.js');
+    const current = (): boolean => token === diffMountToken && mode === 'changes' && gitDiffPath === value.path && revision === renderedGitDiffRevision;
+    if (!current()) return;
+    const editors = await Promise.all(panes.map(([parent, text]) =>
+      module.createProjectCodeEditor({ parent, filename: value.path, text, readOnly: true })));
+    if (!current() || !editors.length) { for (const editor of editors) editor.destroy(); return; }
+    diffViewer = { view: editors[0]!.view, language: editors[0]!.language, destroy: () => { for (const editor of editors) editor.destroy(); } };
+    language.textContent = editors[0]!.language;
+  }
+
   function renderGitDiff(): void {
     const historical = mode === 'review';
     const path = historical ? reviewValue?.path ?? t('Review edit') : gitDiffPath;
@@ -1288,7 +1303,7 @@ export function createFilePanel(options: FilePanelOptions) {
     const value = historical ? reviewValue : gitDiffValue;
     const revision = historical
       ? `review\0${reviewSource?.callId ?? ''}\0${reviewSource?.cursor ?? 0}`
-      : `${gitSnapshot?.revision ?? ''}\0${gitDiffPath}`;
+      : `${gitSnapshot?.revision ?? ''}\0${gitDiffPath}\0${conflictThreeWay}`;
     if (renderedGitDiffRevision === revision && (diffViewer || (value && 'binary' in value && (value.binary || value.tooLarge)))) {
       preview.hidden = false;
       return;
@@ -1307,6 +1322,23 @@ export function createFilePanel(options: FilePanelOptions) {
       const next = actionButton(() => t('Next edited file'), 'i-arrow-right', () => void selectReview(reviewSource!.cursor + 1));
       next.disabled = reviewSource.cursor === reviewSource.indices.length - 1;
       actions.append(previous, el('span', 'file-review-counter', `${reviewSource.cursor + 1}/${reviewSource.indices.length}`), next);
+    }
+    const conflicted = !historical && value && 'status' in value && value.status === 'C' ? value : null;
+    if (conflicted?.conflict) {
+      const threeWay = actionButton(() => t('Three-way view'), 'i-git-branch', () => {
+        conflictThreeWay = !conflictThreeWay; render();
+        // The header is rebuilt: focus stays on the toggle.
+        preview.querySelector<HTMLButtonElement>('.file-conflict-toggle')?.focus();
+      });
+      threeWay.classList.add('file-conflict-toggle');
+      threeWay.setAttribute('aria-pressed', String(conflictThreeWay));
+      actions.append(threeWay);
+    }
+    if (conflicted && options.onAskChat) {
+      const ask = options.onAskChat;
+      actions.append(actionButton(() => t('Ask chat to resolve'), 'i-chat', () => ask(t(
+        'Help me resolve the merge conflict in {0}. Read the common base, ours and theirs with git show :1:./{0}, :2:./{0} and :3:./{0}, then write a version that keeps what both sides meant and tell me what you chose. Do not stage or commit it.',
+        [conflicted.path]))));
     }
     actions.append(actionButton(() => t('Close preview'), 'i-x', historical ? leaveReview : closeGitDiff));
     head.append(title, actions);
@@ -1332,6 +1364,32 @@ export function createFilePanel(options: FilePanelOptions) {
       const sides = mediaDiff(value as ProjectGitDiff & { media: NonNullable<ProjectGitDiff['media']> }, revision);
       replacePreview(head, meta, sides);
       preview.hidden = false;
+      return;
+    }
+    if (conflicted?.conflict && conflictThreeWay) {
+      const sides: Array<[() => string, string | null]> = [
+        [() => t('Ours (HEAD)'), conflicted.conflict.ours], [() => t('Common base'), conflicted.conflict.base],
+        [() => t('Theirs (incoming)'), conflicted.conflict.theirs]
+      ];
+      // The view is a size container: three columns when the panel is wide, three rows when not.
+      const panesHost = el('div', 'file-conflict-view');
+      const grid = el('div', 'file-conflict-panes');
+      panesHost.append(grid);
+      const panes: Array<[HTMLElement, string]> = [];
+      for (const [label, text] of sides) {
+        const body = el('div', 'file-code-editor-host file-conflict-pane-body');
+        if (text === null) body.append(el('p', 'file-preview-empty', () => t('Not in this version')));
+        else panes.push([body, text]);
+        const pane = el('section', 'file-conflict-pane');
+        ui(pane, 'aria-label', label);
+        pane.append(el('div', 'file-conflict-pane-label', label), body);
+        grid.append(pane);
+      }
+      preview.classList.remove('is-editing', 'has-pdf-viewer', 'has-diff-viewer', 'has-media-diff');
+      preview.classList.add('has-code-viewer');
+      replacePreview(head, meta, panesHost);
+      preview.hidden = false;
+      void mountConflictPanes(conflicted, panes, language, revision);
       return;
     }
     if (('binary' in value && (value.binary || value.tooLarge)) || value.baseText === null || value.currentText === null) {
