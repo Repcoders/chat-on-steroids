@@ -228,6 +228,9 @@ const api = {
     } catch { return { ok: false, error: 'Could not read the attachment' }; }
   },
   attachText: (text: string) => call<InputAttachment>('sessions:attachText', { text }),
+  /** Files still in staging (the last 24 hours, or held by a pending message), most recently used first. */
+  recentAttachments: () => call<InputAttachment[]>('sessions:recentAttachments'),
+  reattachFiles: (ids: string[]) => call<InputAttachment[]>('sessions:reattach', { ids }),
   getUsage: () => call<UsageOverview>('usage:get'),
   /** Codex's and Claude Code's usage from their logs here; `fresh` skips the 30-second cache. */
   getProviderUsage: (fresh = false) => call<ProviderUsage>('usage:providers', { fresh }),
@@ -265,7 +268,7 @@ const api = {
   writeClipboard: (text: string) => call<boolean>('clipboard:write', { text }),
   // A code block's Save: main asks where, in a native dialog, and `name` is only its suggestion.
   saveCode: (request: { text: string; name: string }) => call<{ done: 'saved'; name: string } | { done: 'cancelled' }>('code:save', request),
-  exportMarkdown: (request: { id: string; scope: 'answer' | 'latest' | 'session'; turnId?: string; messageId?: string; target: 'clipboard' | 'file' }) =>
+  exportMarkdown: (request: { id: string; scope: 'answer' | 'latest' | 'session'; turnId?: string; messageId?: string; target: 'clipboard' | 'file'; format?: 'markdown' | 'html' }) =>
     call<{ done: 'copied' } | { done: 'saved'; name: string } | { done: 'cancelled' }>('sessions:exportMarkdown', request),
   // `external`: the system's own browser even for a page the CoS browser would open.
   openLink: (url: string, options: { external?: boolean } = {}) => call<boolean>('link:open', { url, ...(options.external ? { external: true } : {}) }),
