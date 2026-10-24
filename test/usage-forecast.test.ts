@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { usageLimitForecast, usageLimitSegment } from '../src/shared/usage.js';
 
 const minute = 60000;
@@ -7,6 +7,10 @@ const at = (minutes: number, value: number, resetMinutes: number | null = null) 
   ({ at: start + minutes * minute, value, resetAt: resetMinutes === null ? null : start + resetMinutes * minute });
 
 describe('limit pace estimate', () => {
+  // The clock sits at the first reading, so the estimates below do not depend on today's date.
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(start); });
+  afterEach(() => { vi.useRealTimers(); });
+
   it('starts a limit\'s trend again when it goes up, after a reset or a refill', () => {
     expect(usageLimitSegment([at(0, 50), at(10, 40), at(20, 90), at(30, 90), at(40, 80)])).toEqual([at(20, 90), at(30, 90), at(40, 80)]);
     expect(usageLimitSegment([])).toEqual([]);
@@ -24,6 +28,17 @@ describe('limit pace estimate', () => {
     const readings = [at(0, 90), at(60, 60), at(90, 50), at(120, 40)];
     expect(usageLimitForecast(readings, null)).toEqual({ runsOutAt: at(240, 0).at, beforeReset: true });
     expect(usageLimitForecast(readings, at(200, 0).at)).toEqual({ runsOutAt: at(240, 0).at, beforeReset: false });
+  });
+
+  it('gives no estimate once the run-out time has passed', () => {
+    // 30 → 20 over twenty minutes runs out at minute 60, but the newest reading is from minute 20.
+    const readings = [at(0, 30), at(20, 20)];
+    vi.setSystemTime(at(59, 0).at);
+    expect(usageLimitForecast(readings, null)?.runsOutAt).toBe(at(60, 0).at);
+    vi.setSystemTime(at(60, 0).at);
+    expect(usageLimitForecast(readings, null)).toBeNull();
+    vi.setSystemTime(at(75, 0).at);
+    expect(usageLimitForecast(readings, null)).toBeNull();
   });
 
   it('measures a young window from its start', () => {

@@ -78,7 +78,8 @@ const PACE_MS = 60 * 60000;
 const PACE_MIN_MS = 10 * 60000;
 /**
  * A planning estimate: when this limit runs out if it keeps falling at its pace over about the last
- * hour of the current window. Null while there is too little history or nothing is being used.
+ * hour of the current window. Null while there is too little history, nothing is being used, or the
+ * run-out time has already passed (the newest reading can be minutes old).
  */
 export function usageLimitForecast(readings: readonly UsageLimitReading[], resetAt: number | null): { runsOutAt: number; beforeReset: boolean } | null {
   const segment = usageLimitSegment(readings);
@@ -93,6 +94,7 @@ export function usageLimitForecast(readings: readonly UsageLimitReading[], reset
   const span = last.at - first.at, used = first.value - last.value;
   if (span < PACE_MIN_MS || used <= 0) return null;
   const runsOutAt = last.at + last.value / (used / span);
+  if (runsOutAt <= Date.now()) return null;
   return { runsOutAt, beforeReset: resetAt === null || runsOutAt < resetAt };
 }
 
