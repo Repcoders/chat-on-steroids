@@ -81,7 +81,8 @@ export function initAttachmentLibrary(options: AttachmentLibraryOptions): void {
     const popover = host.parentElement?.getBoundingClientRect();
     const room = popover ? (above ? popover.top - 6 : popover.bottom) - 8 : Infinity;
     host.style.maxHeight = Number.isFinite(room) ? `${Math.max(0, Math.min(320, window.innerHeight * 0.6, room))}px` : '';
-    const reply = await options.list();
+    // The main process answers failures as { ok: false }, but the invoke itself can still reject (no handler, a closing window).
+    const reply = await options.list().catch((): Reply<InputAttachment[]> => ({ ok: false, error: 'Recent files could not be loaded' }));
     if (mine !== generation) return;
     if (!reply.ok) { host.replaceChildren(el('p', 'attachment-library-note', () => t('Recent files could not be loaded'))); return; }
     const attached = options.attached();

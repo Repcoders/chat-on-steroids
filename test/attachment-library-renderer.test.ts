@@ -58,6 +58,22 @@ it('shows the image preview, the empty state and a load failure', async () => {
   await vi.waitFor(() => expect(host.textContent).toBe('Recent files could not be loaded'), { timeout: 5000 });
 });
 
+it('shows the load failure note when the list call itself rejects, and ignores a rejection that arrives after the list closed', async () => {
+  const rejects: Array<(error: Error) => void> = [];
+  const { toggle, host } = await mount(() => new Promise((_resolve, reject) => { rejects.push(reject); }));
+  toggle.click();
+  expect(host.textContent).toBe('Loading…');
+  rejects[0]!(new Error('No handler registered for sessions:recentAttachments'));
+  await vi.waitFor(() => expect(host.textContent).toBe('Recent files could not be loaded'), { timeout: 5000 });
+  // Closed before the rejection arrives: the stale reply leaves the hidden list alone.
+  toggle.click(); toggle.click(); toggle.click();
+  expect(rejects).toHaveLength(2);
+  rejects[1]!(new Error('late'));
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(host.hidden).toBe(true);
+  expect(host.textContent).toBe('');
+});
+
 it('moves focus to the menu button when a row is picked or Escape is pressed, never to the page', async () => {
   const { w, toggle, host } = await mount(async () => ({ ok: true as const, data: [pdf] }));
   const plus = w.document.getElementById('plus')!;
