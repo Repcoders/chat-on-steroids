@@ -4,8 +4,11 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
+import { randomBytes } from 'node:crypto';
+import sharp from 'sharp';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { defaultConfig, initConfigPath, saveConfig } from '../src/main/config.js';
+import { getLog } from '../src/main/logger.js';
 import { initDurableStore, resetDurableForTests } from '../src/main/durable.js';
 import { gitExecutable, ProjectGitWatchSet, readProjectGitDiff, readProjectGitSnapshot } from '../src/main/project-git.js';
 import { addProject } from '../src/main/projects.js';
@@ -92,6 +95,84 @@ it('reconciles modified, untracked, deleted, renamed, binary and large changes f
   await git(root, 'add', 'added.ts');
   const afterAdd = await readProjectGitSnapshot(id);
   expect(afterAdd.changes.find(change => change.path === 'added.ts')).toMatchObject({ status: 'A', additions: 1 });
+});
+
+it('shows a changed image or PDF as its base and current previews, not a binary placeholder', async () => {
+  const { root, id } = await committedProject();
+  const square = (red: number) => sharp({ create: { width: 8, height: 8, channels: 3, background: { r: red, g: 0, b: 0 } } }).png().toBuffer();
+  // Random pixels keep this PNG above the 512 KiB text budget.
+  const noise = () => sharp(randomBytes(600 * 600 * 3), { raw: { width: 600, height: 600, channels: 3 } }).png().toBuffer();
+  const pdf = (text: string) => Buffer.from(`%PDF-1.4\n${text}\n%%EOF\n`, 'latin1');
+  await fs.writeFile(path.join(root, 'logo.png'), await square(255));
+  await fs.writeFile(path.join(root, 'photo.png'), await noise());
+  await fs.writeFile(path.join(root, 'paper.pdf'), pdf('first'));
+  await fs.writeFile(path.join(root, 'broken.png'), Buffer.from([0, 1, 2, 3]));
+  await git(root, 'add', '.'); await git(root, 'commit', '-m', 'media');
+  await fs.writeFile(path.join(root, 'logo.png'), await square(10));
+  const photo = await noise();
+  expect(photo.length).toBeGreaterThan(512 * 1024);
+  await fs.writeFile(path.join(root, 'photo.png'), photo);
+  await fs.writeFile(path.join(root, 'paper.pdf'), pdf('second'));
+  await fs.writeFile(path.join(root, 'broken.png'), Buffer.from([0, 9, 8, 7]));
+  await fs.writeFile(path.join(root, 'new.png'), await square(99));
+
+  const logo = await readProjectGitDiff(id, 'logo.png');
+  expect(logo).toMatchObject({ binary: true, tooLarge: false, baseText: null, currentText: null, media: { kind: 'image' } });
+  expect(logo.note).toBeUndefined();
+  expect(logo.media!.base).toMatch(/^data:image\/png;base64,/);
+  expect(logo.media!.current).toMatch(/^data:image\/png;base64,/);
+  expect(logo.media!.base).not.toBe(logo.media!.current);
+  const large = await readProjectGitDiff(id, 'photo.png');
+  expect(large).toMatchObject({ tooLarge: false, media: { kind: 'image' } });
+  const paper = await readProjectGitDiff(id, 'paper.pdf');
+  expect(paper.media).toEqual({ kind: 'pdf', base: pdf('first').toString('base64'), current: pdf('second').toString('base64') });
+  const added = await readProjectGitDiff(id, 'new.png');
+  expect(added.media).toMatchObject({ kind: 'image', base: null, current: expect.stringMatching(/^data:image\/png;base64,/) });
+  const broken = await readProjectGitDiff(id, 'broken.png');
+  expect(broken).toMatchObject({ binary: true, note: 'Binary diff · preview unavailable' });
+  expect(broken.media).toBeUndefined();
+  // Falling back to the note is a decision the app makes, so it says which file kind and why.
+  expect(getLog().map(entry => entry.message)).toContain(
+    'Review: no Before/After for a changed image; a side is not an image the preview can decode, so it falls back to the normal diff');
+});
+
+it('logs why a rename between an image, a PDF and a text file has no Before/After', async () => {
+  const { root, id } = await committedProject();
+  const square = await sharp({ create: { width: 8, height: 8, channels: 3, background: { r: 255, g: 0, b: 0 } } }).png().toBuffer();
+  await fs.writeFile(path.join(root, 'logo.png'), square);
+  await fs.writeFile(path.join(root, 'notes.txt'), 'plain notes\n');
+  await git(root, 'add', '.'); await git(root, 'commit', '-m', 'media');
+  await git(root, 'mv', 'logo.png', 'logo.pdf');
+  await git(root, 'mv', 'notes.txt', 'notes.png');
+
+  expect((await readProjectGitDiff(id, 'logo.pdf')).media).toBeUndefined();
+  expect((await readProjectGitDiff(id, 'notes.png')).media).toBeUndefined();
+  const messages = getLog().map(entry => entry.message);
+  expect(messages).toContain('Review: no Before/After for a file renamed from image to pdf; the two sides are different kinds, so it falls back to the normal diff');
+  expect(messages).toContain('Review: no Before/After for a file renamed from a non-media file to image; the two sides are different kinds, so it falls back to the normal diff');
+});
+
+it('keeps the too-large note when a changed image or PDF side is over 5 MiB', async () => {
+  const { root, id } = await committedProject();
+  const square = await sharp({ create: { width: 8, height: 8, channels: 3, background: { r: 255, g: 0, b: 0 } } }).png().toBuffer();
+  const pdf = (padding: number) => Buffer.concat([Buffer.from('%PDF-1.4\n', 'latin1'), Buffer.alloc(padding, 0x20), Buffer.from('\n%%EOF\n', 'latin1')]);
+  await fs.writeFile(path.join(root, 'huge.png'), square);
+  await fs.writeFile(path.join(root, 'huge.pdf'), pdf(16));
+  await git(root, 'add', '.'); await git(root, 'commit', '-m', 'small media');
+  // Random pixels do not compress, so the PNG stays above the 5 MiB per-side cutoff.
+  const oversized = await sharp(randomBytes(1500 * 1500 * 3), { raw: { width: 1500, height: 1500, channels: 3 } }).png().toBuffer();
+  expect(oversized.length).toBeGreaterThan(5 * 1024 * 1024);
+  await fs.writeFile(path.join(root, 'huge.png'), oversized);
+  await fs.writeFile(path.join(root, 'huge.pdf'), pdf(5 * 1024 * 1024));
+
+  const image = await readProjectGitDiff(id, 'huge.png');
+  expect(image).toMatchObject({ tooLarge: true, baseText: null, currentText: null, note: 'This diff is too large to display.' });
+  expect(image.media).toBeUndefined();
+  const document = await readProjectGitDiff(id, 'huge.pdf');
+  expect(document).toMatchObject({ tooLarge: true, note: 'This diff is too large to display.' });
+  expect(document.media).toBeUndefined();
+  expect(getLog().map(entry => entry.message)).toContain(
+    'Review: no Before/After for a changed image; a side is over 5 MiB, so it falls back to the normal diff');
 });
 
 it('reports a clean repository and a non-repository without inventing changes', async () => {
@@ -317,6 +398,55 @@ it('shows merge conflicts as conflicts, with a readable diff for every kind of c
   expect(await readProjectGitDiff(id, 'ours-deletes.txt', undefined, snapshot.revision)).toMatchObject({ baseText: '', currentText: 'side change\n' });
   // Changed on main, deleted on side: HEAD has it, the working tree keeps ours.
   expect(await readProjectGitDiff(id, 'theirs-deletes.txt', undefined, snapshot.revision)).toMatchObject({ baseText: 'main change\n', currentText: 'main change\n' });
+});
+
+it('reads the base, ours and theirs versions of a conflicted file, also from a project inside the repository', async () => {
+  // Review showed only HEAD against the marker-filled file; the three versions Git keeps were not readable.
+  const root = path.join(approved, 'stages');
+  const app = path.join(root, 'app');
+  await fs.mkdir(app, { recursive: true });
+  await git(root, 'init', '-b', 'main');
+  await git(root, 'config', 'user.email', 'test@example.com');
+  await git(root, 'config', 'user.name', 'CoS Test');
+  await git(root, 'config', 'core.autocrlf', 'false');
+  await fs.writeFile(path.join(app, 'both.txt'), 'base\n');
+  await fs.writeFile(path.join(app, 'ours-deletes.txt'), 'base\n');
+  await fs.writeFile(path.join(app, 'binary.bin'), Buffer.from([0, 1]));
+  await git(root, 'add', '.'); await git(root, 'commit', '-m', 'base');
+  await git(root, 'checkout', '-b', 'side');
+  await fs.writeFile(path.join(app, 'both.txt'), 'side\n');
+  await fs.writeFile(path.join(app, 'added.txt'), 'side added\n');
+  await fs.writeFile(path.join(app, 'ours-deletes.txt'), 'side change\n');
+  await fs.writeFile(path.join(app, 'binary.bin'), Buffer.from([0, 2]));
+  await git(root, 'add', '-A'); await git(root, 'commit', '-m', 'side');
+  await git(root, 'checkout', 'main');
+  await fs.writeFile(path.join(app, 'both.txt'), 'main\n');
+  await fs.writeFile(path.join(app, 'added.txt'), 'main added\n');
+  await fs.rm(path.join(app, 'ours-deletes.txt'));
+  await fs.writeFile(path.join(app, 'binary.bin'), Buffer.from([0, 3]));
+  await git(root, 'add', '-A'); await git(root, 'commit', '-m', 'main');
+  await expect(git(root, 'merge', 'side')).rejects.toThrow();
+  const { id } = await addProject(app);
+  const snapshot = await readProjectGitSnapshot(id);
+
+  expect((await readProjectGitDiff(id, 'both.txt', undefined, snapshot.revision)).conflict)
+    .toEqual({ base: 'base\n', ours: 'main\n', theirs: 'side\n' });
+  // Added on both sides: there is no common base.
+  expect((await readProjectGitDiff(id, 'added.txt', undefined, snapshot.revision)).conflict)
+    .toEqual({ base: null, ours: 'main added\n', theirs: 'side added\n' });
+  // Deleted on ours: no stage 2.
+  expect((await readProjectGitDiff(id, 'ours-deletes.txt', undefined, snapshot.revision)).conflict)
+    .toEqual({ base: 'base\n', ours: null, theirs: 'side change\n' });
+  // A binary conflict keeps only the existing note, never invented text.
+  expect((await readProjectGitDiff(id, 'binary.bin', undefined, snapshot.revision)).conflict).toBeUndefined();
+  expect(getLog().map(entry => entry.message)).toContain('review: no three-way view for binary.bin: base is binary');
+  // A side the index lists but whose object is gone is not "not in this version": the marker diff stays.
+  const { stdout: theirsOid } = await exec('git', ['rev-parse', ':3:app/both.txt'], { cwd: root });
+  await fs.rm(path.join(root, '.git', 'objects', theirsOid.trim().slice(0, 2), theirsOid.trim().slice(2)), { force: true });
+  const damaged = await readProjectGitDiff(id, 'both.txt', undefined, (await readProjectGitSnapshot(id)).revision);
+  expect(damaged.conflict).toBeUndefined();
+  expect(damaged).toMatchObject({ baseText: 'main\n', currentText: expect.stringContaining('<<<<<<<') });
+  expect(getLog().map(entry => entry.message)).toContain('review: no three-way view for both.txt: theirs could not be read');
 });
 
 it('shows a file renamed differently on both sides as conflicts, even with no working file left', async () => {

@@ -385,6 +385,85 @@ it('lets Review leave a comparison whose branch disappeared', async () => {
   expect(host.textContent).toContain('Working tree is clean');
 });
 
+it('shows a conflicted file as ours, base and theirs, and asks chat to resolve it without sending', async () => {
+  // Review showed a conflict only as HEAD against the marker-filled file (2.1.41).
+  (window.api.getProjectGitSnapshot as any).mockImplementation(() => ok({
+    ...cleanGit(), revision: 'merging',
+    changes: [{ status: 'C', path: 'src/both.ts', additions: null, deletions: null, binary: false }]
+  }));
+  (window.api.getProjectGitDiff as any).mockImplementation(() => ok({
+    projectId: projectA.id, status: 'C', path: 'src/both.ts', additions: null, deletions: null,
+    binary: false, tooLarge: false, baseText: 'ours', currentText: '<<<<<<< HEAD',
+    conflict: { base: null, ours: 'export const side = "main";', theirs: 'export const side = "feature";' }
+  } satisfies ProjectGitDiff));
+  const asked: string[] = [];
+  const panel = createFilePanel({ host, reviewOnly: true, onAskChat: request => asked.push(request) });
+  panel.update(projectA); await panel.show(); await tick();
+  host.querySelector<HTMLButtonElement>('.file-change-row[data-path="src/both.ts"]')!.click(); await tick(); await tick();
+
+  const panes = [...host.querySelectorAll<HTMLElement>('.file-conflict-pane')];
+  expect(panes.map(pane => pane.querySelector('.file-conflict-pane-label')?.textContent)).toEqual(['Ours (HEAD)', 'Common base', 'Theirs (incoming)']);
+  expect(panes.map(pane => pane.querySelector<HTMLTextAreaElement>('.test-code-input')?.value ?? pane.textContent))
+    .toEqual(['export const side = "main";', 'Common baseNot in this version', 'export const side = "feature";']);
+  expect(host.querySelector('.test-diff-viewer')).toBeNull();
+
+  const toggleView = host.querySelector<HTMLButtonElement>('.file-conflict-toggle')!;
+  expect(toggleView.getAttribute('aria-pressed')).toBe('true');
+  toggleView.focus(); toggleView.click(); await tick();
+  expect(host.querySelector('.file-conflict-pane')).toBeNull();
+  expect(host.querySelector('.test-diff-viewer')?.textContent).toContain('<<<<<<< HEAD');
+  // The header is rebuilt; a keyboard user stays on the toggle.
+  expect(document.activeElement).toBe(host.querySelector('.file-conflict-toggle'));
+  expect(document.activeElement?.getAttribute('aria-pressed')).toBe('false');
+  host.querySelector<HTMLButtonElement>('.file-conflict-toggle')!.click(); await tick();
+  expect(host.querySelectorAll('.file-conflict-pane')).toHaveLength(3);
+
+  [...host.querySelectorAll<HTMLButtonElement>('.file-preview-actions button')].find(button => button.title === 'Ask chat to resolve')!.click();
+  expect(asked).toHaveLength(1);
+  expect(asked[0]).toContain('src/both.ts');
+  expect(asked[0]).toContain('git show :1:./src/both.ts, :2:./src/both.ts and :3:./src/both.ts');
+});
+
+it('shows a binary note, or conflict panes over a too large file, instead of staying on Loading diff', async () => {
+  // The loading view recorded the revision, so a binary or too large result returned before rendering.
+  (window.api.getProjectGitSnapshot as any).mockImplementation(() => ok({
+    ...cleanGit(), revision: 'dirty', changes: [
+      { status: 'M', path: 'a.bin', additions: null, deletions: null, binary: true },
+      { status: 'C', path: 'big.txt', additions: null, deletions: null, binary: false }
+    ]
+  }));
+  (window.api.getProjectGitDiff as any).mockImplementation((_id: string, file: string) => ok(file === 'a.bin' ? {
+    projectId: projectA.id, status: 'M', path: 'a.bin', additions: null, deletions: null,
+    binary: true, tooLarge: false, baseText: null, currentText: null, note: 'Binary diff · preview unavailable'
+  } : {
+    projectId: projectA.id, status: 'C', path: 'big.txt', additions: null, deletions: null, binary: false, tooLarge: true,
+    baseText: null, currentText: null, note: 'This diff is too large to display.', conflict: { base: 'base', ours: 'ours', theirs: 'theirs' }
+  } satisfies ProjectGitDiff));
+  const panel = createFilePanel({ host, reviewOnly: true });
+  panel.update(projectA); await panel.show(); await tick();
+  host.querySelector<HTMLButtonElement>('.file-change-row[data-path="a.bin"]')!.click(); await tick(); await tick();
+  expect(host.querySelector('.file-preview')?.textContent).toContain('Binary diff · preview unavailable');
+  host.querySelector<HTMLButtonElement>('.file-preview-actions button[title="Close preview"]')!.click(); await tick();
+  host.querySelector<HTMLButtonElement>('.file-change-row[data-path="big.txt"]')!.click(); await tick(); await tick();
+  expect(host.querySelectorAll('.file-conflict-pane')).toHaveLength(3);
+  expect(host.querySelector('.file-preview')?.textContent).not.toContain('Loading diff');
+});
+
+it('offers neither conflict action on an ordinary diff', async () => {
+  (window.api.getProjectGitSnapshot as any).mockImplementation(() => ok({
+    ...cleanGit(), revision: 'dirty', changes: [{ status: 'M', path: 'README.md', additions: 1, deletions: 1, binary: false }]
+  }));
+  (window.api.getProjectGitDiff as any).mockImplementation(() => ok({
+    projectId: projectA.id, status: 'M', path: 'README.md', additions: 1, deletions: 1,
+    binary: false, tooLarge: false, baseText: 'before', currentText: 'after'
+  } satisfies ProjectGitDiff));
+  const panel = createFilePanel({ host, reviewOnly: true, onAskChat: () => undefined });
+  panel.update(projectA); await panel.show(); await tick();
+  host.querySelector<HTMLButtonElement>('.file-change-row[data-path="README.md"]')!.click(); await tick(); await tick();
+  expect(host.querySelector('.test-diff-viewer')).not.toBeNull();
+  expect([...host.querySelectorAll<HTMLButtonElement>('.file-preview-actions button')].map(button => button.title)).toEqual(['Close preview']);
+});
+
 it('marks every ancestor folder, including paths of deleted and renamed files, then clears them from Git truth', async () => {
   let snapshot: ProjectGitSnapshot = {
     ...cleanGit(), revision: 'nested-dirty', changes: [
@@ -634,6 +713,50 @@ it('uses the file name as the title and its relative path as metadata in file an
   host.querySelector<HTMLButtonElement>('.file-change-row[data-path="src/main.ts"]')!.click(); await tick(); await tick();
   expect(host.querySelector('.file-preview-title > strong')?.textContent).toBe('main.ts');
   expect(host.querySelector('.file-preview-meta')?.textContent).toContain('src/main.ts');
+});
+
+it('shows a changed image or PDF in Review as Before and After instead of a binary placeholder', async () => {
+  (window.api.getProjectGitSnapshot as any).mockImplementation(() => ok({
+    projectId: projectA.id, state: 'ready', truncated: false, revision: 'media',
+    changes: [
+      { status: 'M', path: 'logo.png', additions: null, deletions: null, binary: true },
+      { status: 'U', path: 'paper.pdf', additions: null, deletions: null, binary: true },
+      { status: 'M', path: 'blob.bin', additions: null, deletions: null, binary: true }
+    ]
+  } satisfies ProjectGitSnapshot));
+  const pdfBytes = Buffer.from('%PDF-1.4\n%%EOF').toString('base64');
+  (window.api.getProjectGitDiff as any).mockImplementation((_id: string, file: string) => ok(file === 'blob.bin'
+    ? { projectId: projectA.id, status: 'M', path: 'blob.bin', additions: null, deletions: null, binary: true, tooLarge: false,
+        baseText: null, currentText: null, note: 'Binary diff · preview unavailable' }
+    : file === 'logo.png'
+    ? { projectId: projectA.id, status: 'M', path: 'logo.png', additions: null, deletions: null, binary: true, tooLarge: false,
+        baseText: null, currentText: null, media: { kind: 'image', base: 'data:image/png;base64,QkFTRQ==', current: 'data:image/png;base64,Q1VSUg==' } }
+    : { projectId: projectA.id, status: 'U', path: 'paper.pdf', additions: null, deletions: null, binary: true, tooLarge: false,
+        baseText: null, currentText: null, media: { kind: 'pdf', base: null, current: pdfBytes } } satisfies ProjectGitDiff));
+
+  const panel = createFilePanel({ host, toggle });
+  panel.update(projectA); toggle.click(); await tick();
+  host.querySelector<HTMLButtonElement>('.file-panel-changes-toggle')!.click(); await tick(); await tick();
+  host.querySelector<HTMLButtonElement>('.file-change-row[data-path="logo.png"]')!.click(); await tick(); await tick();
+  const labels = () => [...host.querySelectorAll('.file-diff-media-label')].map(label => label.textContent);
+  expect(labels()).toEqual(['Before', 'After']);
+  expect([...host.querySelectorAll<HTMLImageElement>('.file-diff-media .file-preview-image')].map(image => image.src))
+    .toEqual(['data:image/png;base64,QkFTRQ==', 'data:image/png;base64,Q1VSUg==']);
+  expect(host.textContent).not.toContain('preview unavailable');
+
+  host.querySelector<HTMLButtonElement>('.file-change-row[data-path="paper.pdf"]')!.click(); await tick(); await tick();
+  expect(labels()).toEqual(['Before', 'After']);
+  expect(host.querySelector('.file-diff-media-side')?.textContent).toContain('Not in this version');
+  expect(createPdfViewer).toHaveBeenCalledTimes(1);
+  expect(createPdfViewer).toHaveBeenCalledWith(expect.objectContaining({ filename: 'paper.pdf', dataBase64: pdfBytes }));
+  const viewer = await createPdfViewer.mock.results[0]!.value as { destroy: ReturnType<typeof vi.fn> };
+  host.querySelector<HTMLButtonElement>('.file-change-row[data-path="logo.png"]')!.click(); await tick(); await tick();
+  expect(viewer.destroy).toHaveBeenCalled();
+  expect(host.querySelector('.file-pdf-viewer-host')).toBeNull();
+  // A binary file without a preview still replaces "Loading diff…" with its note.
+  host.querySelector<HTMLButtonElement>('.file-change-row[data-path="blob.bin"]')!.click(); await tick(); await tick();
+  expect(host.querySelector('.file-diff-media')).toBeNull();
+  expect(host.querySelector('.file-preview')?.textContent).toContain('Binary diff · preview unavailable');
 });
 
 it('lets the user close only the file preview without closing Files or changing the selection', async () => {

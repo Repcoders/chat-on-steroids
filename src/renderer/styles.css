@@ -443,6 +443,11 @@ code {
     color-mix(in srgb, #1a1b1c 20%, var(--page)) 32%, var(--page) 78%);
 }
 :root[data-theme='dark'] .app[data-screen='chat'] .card.is-session { background: transparent; }
+/* The composer's soft edge would be 1.2:1 on a high-contrast page; it takes the 3:1 control edge. */
+:root[data-high-contrast='true'] .card.is-session,
+:root[data-high-contrast='true'] .card.is-session:has(> .composer:focus-within, > .composer-dock:focus-within) { --composer-edge: var(--edge); }
+/* High contrast keeps the page one plain color: no wash behind the chat. */
+:root[data-high-contrast='true'] .app[data-screen='chat'] { background: var(--page); }
 .app-topbar { position: relative; z-index: 130; grid-column: 1 / -1; grid-row: 1; display: flex; align-items: center; gap: 6px; height: env(titlebar-area-height, 28px); padding: 0 10px; padding-left: max(10px, calc(env(titlebar-area-x, 0px) + 4px)); padding-right: max(10px, calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw))); background: var(--page); -webkit-app-region: drag; }
 
 .app-topbar > .btn { -webkit-app-region: no-drag; height: 100%; padding: 0 5px; }
@@ -513,6 +518,8 @@ code {
 }
 /* Sidebar surfaces share the chosen tint, including the detached connection popover. */
 .sidebar, .app-topbar, .connection-popover { background: var(--sidebar-color, var(--sunk)); color: var(--ink); }
+/* High contrast draws the sidebar on the page color, so a 3:1 line keeps the two apart. */
+:root[data-high-contrast='true'] .sidebar { border-right-color: var(--line); }
 :root[data-translucent-sidebar='true'] :is(.sidebar, .app-topbar, .appearance-preview-sidebar, .connection-popover) {
   background: linear-gradient(155deg, color-mix(in srgb, var(--sidebar-color) 72%, transparent), color-mix(in srgb, var(--sidebar-color) 94%, transparent));
   backdrop-filter: blur(22px) saturate(125%);
@@ -4420,7 +4427,7 @@ select option::checkmark { order: 1; margin-inline-start: auto; color: var(--ink
 .file-panel-body.is-diff-open .file-preview { flex: 1; height: auto !important; min-height: 0; }
 .file-panel-body.is-diff-open .file-preview-resize { display: none; }
 .file-review-counter { min-width: 28px; color: var(--soft); font-size: calc(10px * var(--text-scale, 1)); text-align: center; font-variant-numeric: tabular-nums; }
-.file-preview-toggle-tree[aria-pressed='true'] { background: var(--hover); }
+.file-preview-toggle-tree[aria-pressed='true'], .file-conflict-toggle[aria-pressed='true'] { background: var(--hover); }
 .file-panel .file-preview[hidden] { display: none; }
 .file-preview-resize { position: sticky; z-index: 3; top: 0; display: block; width: 100%; height: 3px; margin-bottom: -3px; cursor: row-resize; touch-action: none; background: transparent; }
 .file-preview-resize:hover, .file-preview-resize:focus-visible, .file-panel.is-resizing-file-preview .file-preview-resize { background: linear-gradient(var(--accent-edge), var(--accent-edge)) center / 100% 1px no-repeat; outline: none; }
@@ -4445,6 +4452,15 @@ select option::checkmark { order: 1; margin-inline-start: auto; color: var(--ink
 .file-preview.is-editing .file-preview-head, .file-preview.is-editing .file-preview-meta { flex: 0 0 auto; }
 .file-code-editor-host { min-width: 0; min-height: 0; flex: 1; overflow: hidden; background: var(--sunk); }
 .file-code-editor-host .cm-editor { height: 100%; }
+.file-conflict-view { min-width: 0; min-height: 0; flex: 1; display: flex; container-type: inline-size; }
+.file-conflict-panes { min-width: 0; min-height: 0; flex: 1; display: grid; grid-template-rows: repeat(3, minmax(0, 1fr)); }
+.file-conflict-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.file-conflict-pane + .file-conflict-pane { border-top: 1px solid var(--line); }
+.file-conflict-pane-label { flex: 0 0 auto; padding: 5px 14px; border-bottom: 1px solid var(--line); background: var(--sunk); color: var(--soft); font-size: calc(10px * var(--text-scale, 1)); font-weight: 600; }
+@container (min-width: 720px) {
+  .file-conflict-panes { grid-template-rows: none; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .file-conflict-pane + .file-conflict-pane { border-top: 0; border-inline-start: 1px solid var(--line); }
+}
 /* The merge extension's light gradient otherwise wins over CoS's live appearance tokens. */
 .file-diff-viewer-host .cm-collapsedLines { color: var(--soft) !important; background: var(--hover) !important; border-block: 1px solid var(--line); }
 .file-diff-viewer-host .cm-collapsedLines::before, .file-diff-viewer-host .cm-collapsedLines::after { content: none; }
@@ -4471,6 +4487,17 @@ select option::checkmark { order: 1; margin-inline-start: auto; color: var(--ink
 .file-preview-image { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; border-radius: 4px; box-shadow: 0 0 0 1px var(--line); }
 .file-pdf-viewer-host { min-width: 0; min-height: 0; flex: 1; overflow: hidden; background: var(--sunk); }
 .file-pdf-viewer { width: 100%; height: 100%; min-height: 0; display: flex; flex-direction: column; }
+.file-preview.has-media-diff { display: flex; flex-direction: column; overflow: hidden; }
+.file-preview.has-media-diff .file-preview-resize { flex: 0 0 3px; }
+.file-preview.has-media-diff .file-preview-head, .file-preview.has-media-diff .file-preview-meta { flex: 0 0 auto; }
+.file-diff-media { min-height: 0; flex: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); grid-auto-rows: minmax(0, 1fr); }
+.file-diff-media-side { min-width: 0; min-height: 0; display: flex; flex-direction: column; box-shadow: -1px 0 0 var(--line); }
+.file-diff-media-label { flex: 0 0 auto; margin: 0; padding: 6px 14px; border-bottom: 1px solid var(--line); color: var(--soft); font-size: calc(9.5px * var(--text-scale, 1)); font-weight: 600; }
+.file-diff-media-side .file-preview-image-wrap { flex: 1; height: auto; }
+/* Half a panel is narrower than the Files viewer: its PDF controls pack together instead of clipping. */
+.file-diff-media .file-pdf-toolbar { gap: 0; padding-inline: 2px; justify-content: center; }
+.file-diff-media .file-pdf-toolbar-spacer { display: none; }
+.file-diff-media .file-pdf-page { min-width: 34px; }
 .file-pdf-toolbar { flex: 0 0 auto; min-height: 34px; display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-bottom: 1px solid var(--line); background: var(--page); }
 .file-pdf-control { min-width: 26px; height: 26px; padding: 0 7px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--soft); font: inherit; font-size: calc(11px * var(--text-scale, 1)); cursor: pointer; }
 .file-pdf-control:hover:not(:disabled), .file-pdf-control.is-active { background: var(--hover); color: var(--ink); }

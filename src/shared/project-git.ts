@@ -39,7 +39,16 @@ export interface ProjectGitDiff {
   tooLarge: boolean;
   baseText: string | null;
   currentText: string | null;
+  /** Before and after of a changed image or PDF, in the Files preview forms: a bounded PNG data
+   * URL for an image, base64 bytes for a PDF. A side is null when the file does not exist there. */
+  media?: { kind: 'image' | 'pdf'; base: string | null; current: string | null };
   note?: string;
+  /**
+   * Only for a working-tree `C` path: Git's index stages 1 (common base), 2 (ours, HEAD) and
+   * 3 (theirs). Null is a side without that file (added or deleted there). Absent when a side
+   * is binary, too large or unreadable.
+   */
+  conflict?: { base: string | null; ours: string | null; theirs: string | null };
 }
 
 /** Git metadata changed. This is only an invalidation signal; main rereads Git before publishing. */
