@@ -150,15 +150,21 @@ it('reports an unreadable staging folder as a failure, not as an empty list', as
   const next = await stageInputAttachment({ text: 'after' }, new Set());
   expect(await listRecentAttachments(new Set())).toEqual([next]);
 });
-it('skips a malformed staging name instead of failing the whole list', async () => {
+it('skips a malformed staging name or an unreadable original instead of failing the whole list, saying why', async () => {
   const valid = await stageInputAttachment({ text: 'kept' }, new Set());
+  const unreadable = await stageInputAttachment({ text: 'locked' }, new Set());
   // Passes the name filter (36 hex or hyphen characters) but is not a UUID.
   const malformed = 'a'.repeat(36);
   await fs.writeFile(path.join(directory, 'input-attachments', malformed), 'stray');
-  expect(await listRecentAttachments(new Set())).toEqual([valid]);
-  const lines = getLog().filter(entry => entry.message.startsWith('Recent files:'));
-  expect(lines).toHaveLength(1);
-  expect(lines[0]).toMatchObject({ level: 'warn' });
-  expect(lines[0]!.message).toContain(malformed);
+  const realStat = fs.stat.bind(fs);
+  const stat = vi.spyOn(fs, 'stat').mockImplementation(async (target, ...rest) => {
+    if (String(target).endsWith(unreadable.id)) throw Object.assign(new Error(`EACCES: permission denied, stat '${String(target)}'`), { code: 'EACCES' });
+    return realStat(target, ...rest);
+  });
+  try { expect(await listRecentAttachments(new Set())).toEqual([valid]); } finally { stat.mockRestore(); }
+  const lines = getLog().filter(entry => entry.message.startsWith('Recent files:')).map(entry => entry.message);
+  expect(lines).toHaveLength(2);
+  expect(lines).toContain(`Recent files: left out staged entry ${malformed}, its name is not a valid id`);
+  expect(lines).toContain(`Recent files: left out staged file ${unreadable.id}, the original could not be read (EACCES)`);
   expect(JSON.stringify(getLog())).not.toContain(directory);
 });

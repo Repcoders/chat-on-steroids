@@ -46,8 +46,9 @@ export function listRecentAttachments(retained: Set<string>): Promise<InputAttac
     });
     for (const name of names) {
       if (!/^[a-f0-9-]{36}$/.test(name)) continue;
+      if (!z.string().uuid().safeParse(name).success) { logWarn(`Recent files: left out staged entry ${name}, its name is not a valid id`); continue; }
+      const file = fileFor(name);
       try {
-        const file = fileFor(name);
         const stat = await fs.stat(file);
         if (!retained.has(name) && Date.now() - stat.mtimeMs > STAGING_TTL_MS) continue;
         let attachment: InputAttachment;
@@ -55,7 +56,7 @@ export function listRecentAttachments(retained: Set<string>): Promise<InputAttac
         catch { logWarn(`Recent files: left out staged file ${name}, its record is missing or unreadable`); continue; }
         if (attachment.id === name && attachment.size === stat.size) found.push({ attachment, usedAt: stat.mtimeMs });
         else logWarn(`Recent files: left out staged file ${name}, its record does not match the stored bytes`);
-      } catch { logWarn(`Recent files: left out staged file ${name}, the original is gone`); }
+      } catch (error) { logWarn(`Recent files: left out staged file ${name}, the original could not be read (${(error as NodeJS.ErrnoException).code ?? 'unknown error'})`); }
     }
     return found.sort((a, b) => b.usedAt - a.usedAt).slice(0, MAX_RECENT_ATTACHMENTS).map(entry => entry.attachment);
   });
