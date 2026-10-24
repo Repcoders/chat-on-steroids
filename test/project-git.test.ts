@@ -133,7 +133,7 @@ it('shows a changed image or PDF as its base and current previews, not a binary 
   expect(broken.media).toBeUndefined();
   // Falling back to the note is a decision the app makes, so it says which file kind and why.
   expect(getLog().map(entry => entry.message)).toContain(
-    'Review: no Before/After for a changed image; a side is not an image the preview can decode, so it keeps the binary or too-large note');
+    'Review: no Before/After for a changed image; a side is not an image the preview can decode, so it falls back to the normal diff');
 });
 
 it('keeps the too-large note when a changed image or PDF side is over 5 MiB', async () => {
@@ -156,7 +156,7 @@ it('keeps the too-large note when a changed image or PDF side is over 5 MiB', as
   expect(document).toMatchObject({ tooLarge: true, note: 'This diff is too large to display.' });
   expect(document.media).toBeUndefined();
   expect(getLog().map(entry => entry.message)).toContain(
-    'Review: no Before/After for a changed image; a side is over 5 MiB, so it keeps the binary or too-large note');
+    'Review: no Before/After for a changed image; a side is over 5 MiB, so it falls back to the normal diff');
 });
 
 it('reports a clean repository and a non-repository without inventing changes', async () => {

@@ -488,7 +488,7 @@ export async function readProjectGitDiff(projectId: string, relativePath: string
   };
   const shown = mediaKind ? await diffMedia(mediaKind, baseSide, currentSide) : null;
   if (shown && 'media' in shown) return { ...identity, binary: true, tooLarge: false, baseText: null, currentText: null, media: shown.media };
-  if (shown) logInfo(`Review: no Before/After for a changed ${mediaKind}; ${shown.reason}, so it keeps the binary or too-large note`);
+  if (shown) logInfo(`Review: no Before/After for a changed ${mediaKind}; ${shown.reason}, so it falls back to the normal diff`);
   const base = sideText(baseSide);
   const current = sideText(currentSide);
   const tooLarge = base.tooLarge || current.tooLarge;
