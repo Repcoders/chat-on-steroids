@@ -150,3 +150,15 @@ it('reports an unreadable staging folder as a failure, not as an empty list', as
   const next = await stageInputAttachment({ text: 'after' }, new Set());
   expect(await listRecentAttachments(new Set())).toEqual([next]);
 });
+it('skips a malformed staging name instead of failing the whole list', async () => {
+  const valid = await stageInputAttachment({ text: 'kept' }, new Set());
+  // Passes the name filter (36 hex or hyphen characters) but is not a UUID.
+  const malformed = 'a'.repeat(36);
+  await fs.writeFile(path.join(directory, 'input-attachments', malformed), 'stray');
+  expect(await listRecentAttachments(new Set())).toEqual([valid]);
+  const lines = getLog().filter(entry => entry.message.startsWith('Recent files:'));
+  expect(lines).toHaveLength(1);
+  expect(lines[0]).toMatchObject({ level: 'warn' });
+  expect(lines[0]!.message).toContain(malformed);
+  expect(JSON.stringify(getLog())).not.toContain(directory);
+});

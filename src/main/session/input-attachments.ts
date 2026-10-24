@@ -46,8 +46,8 @@ export function listRecentAttachments(retained: Set<string>): Promise<InputAttac
     });
     for (const name of names) {
       if (!/^[a-f0-9-]{36}$/.test(name)) continue;
-      const file = fileFor(name);
       try {
+        const file = fileFor(name);
         const stat = await fs.stat(file);
         if (!retained.has(name) && Date.now() - stat.mtimeMs > STAGING_TTL_MS) continue;
         let attachment: InputAttachment;
