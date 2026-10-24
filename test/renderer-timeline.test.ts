@@ -5754,7 +5754,7 @@ it('uses a playful work word when it is turned on in Settings', async () => {
   expect(w.document.getElementById('chatState')!.textContent).toMatch(PLAYFUL_WORDS);
 });
 
-it('offers copy and Markdown export under the answer of a completed turn only', async () => {
+it('offers copy and Markdown or HTML export under the answer of a completed turn only', async () => {
   const ask: SessionEvent = { kind: 'user_message', seq: 1, origin: 1, time: T0, source: 'extension', turnId: 'done-turn', messageId: 'ask', message: text('Write hello.txt') };
   const reply: SessionEvent = { kind: 'assistant_message', seq: 2, time: T0 + 1_000, source: 'extension', turnId: 'done-turn', messageId: 'reply', message: text('Created **hello.txt**.'), final: true, state: 'final' };
   const { w, append } = await boot([ask, reply]);
@@ -5774,9 +5774,17 @@ it('offers copy and Markdown export under the answer of a completed turn only', 
 
   api.exportMarkdown = vi.fn(async () => ({ ok: true, data: { done: 'saved', name: 'chat.md' } }));
   const choices = [...actions!.querySelectorAll<HTMLButtonElement>('.answer-export-choice')];
-  expect(choices.map(choice => choice.textContent)).toEqual(['This answer', 'Whole session']);
+  expect(choices.map(choice => choice.textContent)).toEqual(['This answer', 'Whole session', 'Whole session as HTML']);
+  // Choosing closes the menu and takes the choice off the screen; focus goes back to the Export button, not the page.
+  const exportMenu = choices[1]!.closest('details')!;
+  exportMenu.open = true;
+  choices[1]!.focus();
   choices[1]!.click(); await settle();
+  expect(exportMenu.open).toBe(false);
+  expect(w.document.activeElement).toBe(exportMenu.querySelector('summary'));
   expect(api.exportMarkdown).toHaveBeenCalledWith({ id: summary([]).id, scope: 'session', turnId: undefined, target: 'file' });
+  choices[2]!.click(); await settle();
+  expect(api.exportMarkdown).toHaveBeenLastCalledWith({ id: summary([]).id, scope: 'session', turnId: undefined, target: 'file', format: 'html' });
 });
 
 it('copies a completed answer as plain text, without code or formatted from its Copy as menu', async () => {
@@ -5789,7 +5797,7 @@ it('copies a completed answer as plain text, without code or formatted from its 
   const menu = trigger!.parentElement as HTMLDetailsElement;
   const choices = [...menu.querySelectorAll<HTMLButtonElement>('.answer-copy-choice')];
   expect(choices.map(choice => choice.textContent)).toEqual(['Plain text', 'Plain text without code blocks', 'Formatted text']);
-  for (const [index, format] of (['text', 'text-no-code', 'html'] as const).entries()) {
+  for (const [index, format] of (['text', 'text-no-code', 'formatted'] as const).entries()) {
     menu.open = true;
     choices[index]!.click(); await settle();
     expect(menu.open).toBe(false);

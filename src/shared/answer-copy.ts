@@ -5,7 +5,7 @@ import { markdownVisibleText, tokensVisibleText } from './markdown-text.js';
    timeline draws it (bullets, numbers and table columns kept, no Markdown markers); formatted
    text is HTML for Word, Outlook and mail, with the plain text beside it for apps without HTML. */
 
-export type CopyFormat = 'markdown' | 'text' | 'text-no-code' | 'html';
+export type CopyFormat = 'markdown' | 'text' | 'text-no-code' | 'formatted';
 
 // A ChatGPT writing block, read as the timeline reads it (chat.ts writingBlock): a block ChatGPT
 // never closed runs to the end of the answer. The lexer finds it only where a block can start, so

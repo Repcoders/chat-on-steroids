@@ -5163,18 +5163,19 @@ function answerMenu(glyph: string, label: string, choiceClass: string, items: re
 }
 
 /**
- * Copy and Markdown export under the answer of a turn the page reported as completed. Main
- * builds the text from the log, reading back answers that were cut there, so a long answer
- * copies and exports whole; the timeline only decides where the actions appear.
+ * Copy and export (Markdown, or the whole session as an HTML page) under the answer of a turn the
+ * page reported as completed. Main builds the text from the log, reading back answers that were
+ * cut there, so a long answer copies and exports whole; the timeline only decides where the
+ * actions appear.
  */
 function answerActions(turnId: string | null, messageId?: string, answer?: { text: string; time: number }): HTMLElement {
   const bar = el('div', 'answer-actions');
   const sessionId = selectedId;
   // A turn's answer is named by its turn; one recorded outside any turn by its message.
-  const exportTo = async (scope: 'answer' | 'session', target: 'clipboard' | 'file', format?: 'text' | 'text-no-code' | 'html') => {
+  const exportTo = async (scope: 'answer' | 'session', target: 'clipboard' | 'file', format: 'markdown' | 'text' | 'text-no-code' | 'formatted' | 'html' = 'markdown') => {
     if (!sessionId || selectedId !== sessionId) return null;
     return run(api.exportMarkdown({ id: sessionId, scope, turnId: scope === 'answer' && turnId ? turnId : undefined,
-      messageId: scope === 'answer' && !turnId ? messageId : undefined, target, ...(format ? { format } : {}) }));
+      messageId: scope === 'answer' && !turnId ? messageId : undefined, target, ...(format !== 'markdown' ? { format } : {}) }));
   };
   const copy = el('button', 'answer-action') as HTMLButtonElement;
   copy.type = 'button';
@@ -5191,15 +5192,15 @@ function answerActions(turnId: string | null, messageId?: string, answer?: { tex
   });
   // Copy as: the same answer as plain text, without its code, or formatted for Word and mail.
   const copyAs = answerMenu('i-file-text', 'Copy as', 'answer-copy-choice', ([
-    ['text', 'Plain text'], ['text-no-code', 'Plain text without code blocks'], ['html', 'Formatted text']
+    ['text', 'Plain text'], ['text-no-code', 'Plain text without code blocks'], ['formatted', 'Formatted text']
   ] as const).map(([format, label]) => [label, async () => {
     const result = await exportTo('answer', 'clipboard', format);
     if (result?.done === 'copied') toast(t('Copied'));
   }]));
-  const exportMenu = answerMenu('i-export', 'Export as Markdown', 'answer-export-choice', ([
-    ['answer', 'This answer'], ['session', 'Whole session']
-  ] as const).map(([scope, label]) => [label, async () => {
-    const result = await exportTo(scope, 'file');
+  const exportMenu = answerMenu('i-export', 'Export', 'answer-export-choice', ([
+    ['answer', 'markdown', 'This answer'], ['session', 'markdown', 'Whole session'], ['session', 'html', 'Whole session as HTML']
+  ] as const).map(([scope, format, label]) => [label, async () => {
+    const result = await exportTo(scope, 'file', format);
     if (result?.done === 'saved') toast(t('Saved {0}', [result.name]));
   }]));
   bar.append(copy, copyAs, exportMenu);

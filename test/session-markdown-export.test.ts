@@ -9,10 +9,10 @@ const electron = vi.hoisted(() => ({
   ClipboardItem: class { constructor(readonly items: Record<string, string>) {} }
 }));
 const store = vi.hoisted(() => ({ getSession: vi.fn(), readEvents: vi.fn(), readOverflowText: vi.fn() }));
-const files = vi.hoisted(() => ({ writeFile: vi.fn(async () => undefined) }));
+const files = vi.hoisted(() => ({ replaceFile: vi.fn(async () => undefined) }));
 vi.mock('electron', () => electron);
 vi.mock('../src/main/session/store.js', () => store);
-vi.mock('node:fs', () => ({ promises: files }));
+vi.mock('../src/main/replace-file.js', () => files);
 
 const { exportSessionMarkdown } = await import('../src/main/session/markdown-export.js');
 
@@ -40,14 +40,16 @@ it('saves the session transcript where the person chooses, named after the chat'
   electron.dialog.showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/downloads/Explain it.md' });
   await expect(exportSessionMarkdown({ id: 'session-1', scope: 'session', target: 'file' }, null)).resolves.toEqual({ done: 'saved', name: 'Explain it.md' });
   expect(electron.dialog.showSaveDialog.mock.calls[0]![0]).toMatchObject({ defaultPath: expect.stringContaining('Explain it.md') });
-  expect(files.writeFile).toHaveBeenCalledWith('/downloads/Explain it.md',
-    '# Explain: it?\n\n## You\n\nExplain it\n\n## ChatGPT\n\nThe first part, and the rest of the answer.\n', 'utf8');
+  // Linux replaces a file without asking unless the dialog is told to confirm.
+  expect(electron.dialog.showSaveDialog.mock.calls[0]![0].properties).toContain('showOverwriteConfirmation');
+  expect(files.replaceFile).toHaveBeenCalledWith('/downloads/Explain it.md',
+    '# Explain: it?\n\n## You\n\nExplain it\n\n## ChatGPT\n\nThe first part, and the rest of the answer.\n', 'Markdown export');
 });
 
 it('writes nothing when the save dialog is cancelled, and refuses unfinished turns', async () => {
   electron.dialog.showSaveDialog.mockResolvedValue({ canceled: true });
   await expect(exportSessionMarkdown({ id: 'session-1', scope: 'answer', turnId: 't1', target: 'file' }, null)).resolves.toEqual({ done: 'cancelled' });
-  expect(files.writeFile).not.toHaveBeenCalled();
+  expect(files.replaceFile).not.toHaveBeenCalled();
   await expect(exportSessionMarkdown({ id: 'session-1', scope: 'answer', turnId: 'open-turn', target: 'clipboard' }, null)).rejects.toThrow('has not completed');
 });
 
@@ -93,27 +95,71 @@ it('copies an answer recorded without a turn by its message id, and only such an
 });
 
 // Copy as: the same answer, read whole from the log, as plain text or as formatted text.
-it('copies an answer as plain text, without its code, or as HTML with the plain text beside it', async () => {
+it('copies an answer as plain text, without its code, or as formatted text with the plain text beside it', async () => {
   const answer = 'Run **this** first:\n\n```sh\nnpm test\n```\n\n- one\n- two\n';
   store.readEvents.mockResolvedValue([events[0]!,
     { seq: 2, time: 2, source: 'extension', kind: 'assistant_message', turnId: 't1', messageId: 'a1', final: true, state: 'final',
       message: { text: answer, truncated: false, chars: answer.length } }, events[2]!] as SessionEvent[]);
-  const copy = (format: 'text' | 'text-no-code' | 'html') =>
+  const copy = (format: 'text' | 'text-no-code' | 'formatted') =>
     exportSessionMarkdown({ id: 'session-1', scope: 'answer', turnId: 't1', target: 'clipboard', format }, null);
   await expect(copy('text')).resolves.toEqual({ done: 'copied' });
   expect(electron.clipboard.writeText).toHaveBeenLastCalledWith('Run this first:\n\nnpm test\n\n- one\n- two');
   await copy('text-no-code');
   expect(electron.clipboard.writeText).toHaveBeenLastCalledWith('Run this first:\n\n- one\n- two');
-  await copy('html');
+  await copy('formatted');
   expect(electron.clipboard.write.mock.calls[0]![0].map((item: { items: unknown }) => item.items)).toEqual([{
     'text/plain': 'Run this first:\n\nnpm test\n\n- one\n- two',
     'text/html': '<p>Run <strong>this</strong> first:</p>\n<pre><code class="language-sh">npm test\n</code></pre>\n<ul>\n<li>one</li>\n<li>two</li>\n</ul>'
   }]);
 });
 
-it('saves only Markdown: a file asked for as plain text or HTML is refused', async () => {
-  await expect(exportSessionMarkdown({ id: 'session-1', scope: 'answer', turnId: 't1', target: 'file', format: 'html' }, null)).rejects.toThrow('Only a copy');
+it('saves an answer as Markdown only: a file asked for as plain text or formatted text is refused', async () => {
+  for (const format of ['text', 'text-no-code', 'formatted'] as const)
+    await expect(exportSessionMarkdown({ id: 'session-1', scope: 'answer', turnId: 't1', target: 'file', format }, null)).rejects.toThrow('Only a copy');
   expect(electron.dialog.showSaveDialog).not.toHaveBeenCalled();
+});
+
+it('saves the session as a self-contained HTML page with credential shapes masked', async () => {
+  store.readOverflowText.mockResolvedValue('Use the key sk-proj-abcdefghijklmnopqrstuvwx and <b>bold</b>.');
+  electron.dialog.showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/downloads/Explain it.html' });
+  await expect(exportSessionMarkdown({ id: 'session-1', scope: 'session', target: 'file', format: 'html' }, null))
+    .resolves.toEqual({ done: 'saved', name: 'Explain it.html' });
+  expect(electron.dialog.showSaveDialog.mock.calls[0]![0]).toMatchObject({
+    defaultPath: expect.stringContaining('Explain it.html'), filters: [{ name: 'HTML files', extensions: ['html'] }]
+  });
+  expect(electron.dialog.showSaveDialog.mock.calls[0]![0].properties).toContain('showOverwriteConfirmation');
+  const [file, page, label] = files.replaceFile.mock.calls[0] as unknown as [string, string, string];
+  expect([file, label]).toEqual(['/downloads/Explain it.html', 'HTML export']);
+  expect(page).toContain('<title>Explain: it?</title>');
+  expect(page).toContain('<p class="said" dir="auto">Explain it</p>');
+  expect(page).toContain('Use the key [redacted] and &lt;b&gt;bold&lt;/b&gt;.');
+  expect(page).not.toContain('sk-proj-');
+});
+
+it('names who wrote a message on the page in the interface language', async () => {
+  const { setMainTextTranslations } = await import('../src/main/main-texts.js');
+  setMainTextTranslations({ You: 'Du' });
+  try {
+    electron.dialog.showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/downloads/Explain it.html' });
+    await exportSessionMarkdown({ id: 'session-1', scope: 'session', target: 'file', format: 'html' }, null);
+    expect((files.replaceFile.mock.calls[0] as unknown as string[])[1]).toContain('<h2>Du</h2>');
+  } finally {
+    setMainTextTranslations({});
+  }
+});
+
+it('refuses an HTML export of one answer or to the clipboard', async () => {
+  await expect(exportSessionMarkdown({ id: 'session-1', scope: 'answer', turnId: 't1', target: 'file', format: 'html' }, null)).rejects.toThrow('whole session');
+  await expect(exportSessionMarkdown({ id: 'session-1', scope: 'session', target: 'clipboard', format: 'html' }, null)).rejects.toThrow('whole session');
+  expect(electron.dialog.showSaveDialog).not.toHaveBeenCalled();
+  expect(electron.clipboard.writeText).not.toHaveBeenCalled();
+});
+
+it('masks a credential in the chat title of an HTML page and of its suggested file name', async () => {
+  store.getSession.mockResolvedValue({ id: 'session-1', title: 'Rotate sk-proj-abcdefghijklmnopqrstuvwx' });
+  electron.dialog.showSaveDialog.mockResolvedValue({ canceled: true });
+  await expect(exportSessionMarkdown({ id: 'session-1', scope: 'session', target: 'file', format: 'html' }, null)).resolves.toEqual({ done: 'cancelled' });
+  expect(electron.dialog.showSaveDialog.mock.calls[0]![0].defaultPath).toMatch(/Rotate \[redacted\]\.html$/);
 });
 
 // /copy names no answer: it copies the chat's newest finished one, never a turn still being written.
