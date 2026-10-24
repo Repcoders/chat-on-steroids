@@ -1501,8 +1501,14 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
   const pendingAttachmentIds = async () => new Set((await listInputs()).filter(row => !['sent', 'failed', 'cancelled'].includes(row.state)).flatMap(row => row.attachments?.map(file => file.id) ?? []));
   handle('sessions:recentAttachments', async () => listRecentAttachments(await pendingAttachmentIds()));
   handle('sessions:reattach', async payload => {
-    const { ids } = z.object({ ids: z.array(z.string().uuid()).min(1).max(20) }).strict().parse(payload);
-    return reuseInputAttachments(ids, await pendingAttachmentIds());
+    const request = z.object({ ids: z.array(z.string().uuid()).min(1).max(20) }).strict().safeParse(payload);
+    if (!request.success) {
+      const issue = request.error.issues[0];
+      const reason = !issue ? 'the request is malformed' : issue.path.length > 1 ? 'a file id is not valid' : issue.code === 'too_big' ? 'more than 20 files' : issue.code === 'too_small' ? 'no files' : 'the request is malformed';
+      logWarn(`Recent files: refused a reattach request, ${reason}`);
+      throw request.error;
+    }
+    return reuseInputAttachments(request.data.ids, await pendingAttachmentIds());
   });
   handle('sessions:stopTurn', async payload => {
     const { id, expectedTurnId } = sessionIdArg.extend({ expectedTurnId: z.string().min(1).max(256) }).parse(payload);

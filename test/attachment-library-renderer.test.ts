@@ -138,3 +138,16 @@ it('puts Recent files in the composer + menu, keeping the menu open for the list
   expect(toggle.getAttribute('data-keep-menu')).toBe('true');
   expect(toggle.nextElementSibling?.id).toBe('attachmentLibrary');
 });
+
+it('translates the Recent files row and the label of its list with the rest of the page', async () => {
+  dom = new JSDOM(readFileSync('src/renderer/index.html', 'utf8'), { url: 'https://library.test/' });
+  for (const key of ['window', 'document', 'Node', 'Element', 'HTMLElement'] as const) vi.stubGlobal(key, key === 'window' ? dom.window : dom.window[key]);
+  const { initLanguage, setLanguage } = await import('../src/renderer/i18n.js');
+  initLanguage();
+  const row = dom.window.document.getElementById('attachRecent')!, list = dom.window.document.getElementById('attachmentLibrary')!;
+  expect(row.textContent).toContain('Recent files');
+  setLanguage('de');
+  expect(row.textContent).toContain('Zuletzt verwendete Dateien');
+  expect(row.textContent).not.toContain('Recent files');
+  expect(list.getAttribute('aria-label')).toBe('Zuletzt verwendete Dateien');
+});
