@@ -4507,7 +4507,7 @@ Catalog checks cover all source keys and numbered placeholders;
 and successful payloads stay literal.
 Settings search folds both query and labels with the selected locale, including Turkish İ/ı.
 `renderer/setting-defaults.ts` marks each listed preference row whose saved value differs from the
-fresh-install default and offers a reset there. IPC `settings:defaults` (preload
+fresh-install default and offers a reset there; a disabled control keeps the mark but shows no reset. IPC `settings:defaults` (preload
 `getSettingDefaults()`) returns `defaultConfig()` read-only, once per window; older configs that read
 other schema defaults (plugin auto-refresh Off, for example) are marked, and the button says "for new
 installs". Reset sets the control and fires its `change`, so the page's ordinary save owns the write.
