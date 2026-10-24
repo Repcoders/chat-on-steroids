@@ -671,6 +671,25 @@ it('moves the editor to the line of a terminal link that arrived while the edito
   expect(codeMount.jumps).toEqual([['main.ts', 2, 3]]);
 });
 
+it('drops a pending terminal link line when the project changes, so it never lands on the new project draft', async () => {
+  const panel = createFilePanel({ host, toggle, onAttach: () => undefined });
+  vi.mocked(window.api.previewProjectFile).mockImplementation((_projectId: string, path: string) =>
+    ok({ ...preview, path, name: 'main.ts', text: 'one\ntwo\n' }));
+  panel.update(projectB); toggle.click(); await tick();
+  host.querySelector<HTMLButtonElement>('[data-path="src"]')!.click(); await tick();
+  host.querySelector<HTMLButtonElement>('[data-path="src/main.ts"]')!.click(); await tick();
+  host.querySelector<HTMLButtonElement>('[title="Edit"]')!.click(); await tick();
+  typeEdit(host.querySelector<HTMLTextAreaElement>('.test-code-input')!, 'unsaved in beta');
+  panel.update(projectA); await tick();
+  // A binary file shows no lines, so the link's target stays pending.
+  vi.mocked(window.api.previewProjectFile).mockImplementationOnce(() => ok({ ...preview, path: 'src/main.ts', name: 'main.ts', binary: true, text: null }));
+  await panel.openFileAt(projectA.id, 'src/main.ts', 5, 1);
+  await tick();
+  panel.update(projectB); await tick(); await tick();
+  expect(host.querySelector<HTMLTextAreaElement>('.test-code-input')?.value).toBe('unsaved in beta');
+  expect(codeMount.jumps).toEqual([]);
+});
+
 it('leaves the Changes view for Files when a terminal file link opens a file', async () => {
   vi.mocked(window.api.previewProjectFile).mockImplementation((_projectId: string, path: string) =>
     ok({ ...preview, path, name: path.split('/').at(-1)!, text: 'one\ntwo\n' }));

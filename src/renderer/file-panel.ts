@@ -1733,6 +1733,7 @@ export function createFilePanel(options: FilePanelOptions) {
       project = next;
       if (changed) watchSignature = '';
       if (changed) { closeBranchMenu(); selectedBaseRef = null; }
+      if (changed) lineTarget = null;
       if (options.toggle) {
         options.toggle.hidden = next === null;
         ui(options.toggle, 'title', () => next ? t('Files · {0}', [next.name]) : t('Files'));
