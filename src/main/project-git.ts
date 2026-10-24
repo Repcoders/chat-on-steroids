@@ -466,7 +466,12 @@ export async function readProjectGitDiff(projectId: string, relativePath: string
   const context = await repositoryContext(projectId);
   if (!context) throw new Error('This folder is not a Git repository');
   const kind = projectPreviewKind(change.path);
-  const mediaKind = kind && projectPreviewKind(change.previousPath ?? change.path) === kind ? kind : null;
+  const previousKind = change.previousPath ? projectPreviewKind(change.previousPath) : kind;
+  const mediaKind = kind && previousKind === kind ? kind : null;
+  // A rename across kinds has no Before/After: a PNG and a PDF, or an image and a text file, cannot be set side by side.
+  if (!mediaKind && (kind || previousKind)) {
+    logInfo(`Review: no Before/After for a file renamed from ${previousKind ?? 'a non-media file'} to ${kind ?? 'a non-media file'}; the two sides are different kinds, so it falls back to the normal diff`);
+  }
   const limit = mediaKind ? MAX_MEDIA_SIDE_BYTES : MAX_DIFF_SIDE_BYTES;
   const baseSide = change.status === 'A' || change.status === 'U'
     ? { bytes: null, tooLarge: false }

@@ -136,6 +136,22 @@ it('shows a changed image or PDF as its base and current previews, not a binary 
     'Review: no Before/After for a changed image; a side is not an image the preview can decode, so it falls back to the normal diff');
 });
 
+it('logs why a rename between an image, a PDF and a text file has no Before/After', async () => {
+  const { root, id } = await committedProject();
+  const square = await sharp({ create: { width: 8, height: 8, channels: 3, background: { r: 255, g: 0, b: 0 } } }).png().toBuffer();
+  await fs.writeFile(path.join(root, 'logo.png'), square);
+  await fs.writeFile(path.join(root, 'notes.txt'), 'plain notes\n');
+  await git(root, 'add', '.'); await git(root, 'commit', '-m', 'media');
+  await git(root, 'mv', 'logo.png', 'logo.pdf');
+  await git(root, 'mv', 'notes.txt', 'notes.png');
+
+  expect((await readProjectGitDiff(id, 'logo.pdf')).media).toBeUndefined();
+  expect((await readProjectGitDiff(id, 'notes.png')).media).toBeUndefined();
+  const messages = getLog().map(entry => entry.message);
+  expect(messages).toContain('Review: no Before/After for a file renamed from image to pdf; the two sides are different kinds, so it falls back to the normal diff');
+  expect(messages).toContain('Review: no Before/After for a file renamed from a non-media file to image; the two sides are different kinds, so it falls back to the normal diff');
+});
+
 it('keeps the too-large note when a changed image or PDF side is over 5 MiB', async () => {
   const { root, id } = await committedProject();
   const square = await sharp({ create: { width: 8, height: 8, channels: 3, background: { r: 255, g: 0, b: 0 } } }).png().toBuffer();
