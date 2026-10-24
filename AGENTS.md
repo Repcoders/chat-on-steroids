@@ -4726,7 +4726,8 @@ A changed image (the Files raster formats) or PDF instead carries `ProjectGitDif
 and current side by side, Before and After, in the Files previews (the bounded 1600-pixel PNG
 thumbnail, or PDF bytes with a `%PDF-` header for the in-app viewer). A side absent there (added,
 deleted) is null and says so. Each side is read up to 5 MiB, not the 512 KiB text budget; a larger
-side, or one that does not decode, keeps the binary or too-large state.
+side, an image that does not decode, or a `.pdf` without a `%PDF-` header (PDFs are not decoded)
+keeps the binary or too-large state.
 
 An exact successful `apply_patch` may also retain a bounded immutable before/after review asset
 beside the session record. That historical review belongs to the recorded tool call, not to HEAD or

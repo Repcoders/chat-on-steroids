@@ -136,6 +136,29 @@ it('shows a changed image or PDF as its base and current previews, not a binary 
     'Review: no Before/After for a changed image; a side is not an image the preview can decode, so it keeps the binary or too-large note');
 });
 
+it('keeps the too-large note when a changed image or PDF side is over 5 MiB', async () => {
+  const { root, id } = await committedProject();
+  const square = await sharp({ create: { width: 8, height: 8, channels: 3, background: { r: 255, g: 0, b: 0 } } }).png().toBuffer();
+  const pdf = (padding: number) => Buffer.concat([Buffer.from('%PDF-1.4\n', 'latin1'), Buffer.alloc(padding, 0x20), Buffer.from('\n%%EOF\n', 'latin1')]);
+  await fs.writeFile(path.join(root, 'huge.png'), square);
+  await fs.writeFile(path.join(root, 'huge.pdf'), pdf(16));
+  await git(root, 'add', '.'); await git(root, 'commit', '-m', 'small media');
+  // Random pixels do not compress, so the PNG stays above the 5 MiB per-side cutoff.
+  const oversized = await sharp(randomBytes(1500 * 1500 * 3), { raw: { width: 1500, height: 1500, channels: 3 } }).png().toBuffer();
+  expect(oversized.length).toBeGreaterThan(5 * 1024 * 1024);
+  await fs.writeFile(path.join(root, 'huge.png'), oversized);
+  await fs.writeFile(path.join(root, 'huge.pdf'), pdf(5 * 1024 * 1024));
+
+  const image = await readProjectGitDiff(id, 'huge.png');
+  expect(image).toMatchObject({ tooLarge: true, baseText: null, currentText: null, note: 'This diff is too large to display.' });
+  expect(image.media).toBeUndefined();
+  const document = await readProjectGitDiff(id, 'huge.pdf');
+  expect(document).toMatchObject({ tooLarge: true, note: 'This diff is too large to display.' });
+  expect(document.media).toBeUndefined();
+  expect(getLog().map(entry => entry.message)).toContain(
+    'Review: no Before/After for a changed image; a side is over 5 MiB, so it keeps the binary or too-large note');
+});
+
 it('reports a clean repository and a non-repository without inventing changes', async () => {
   const clean = await committedProject();
   expect(await readProjectGitSnapshot(clean.id)).toMatchObject({ state: 'ready', changes: [], truncated: false });
