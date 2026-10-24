@@ -151,3 +151,12 @@ it('translates the Recent files row and the label of its list with the rest of t
   expect(row.textContent).not.toContain('Recent files');
   expect(list.getAttribute('aria-label')).toBe('Zuletzt verwendete Dateien');
 });
+
+it('adds a staged id to the draft once, however many paths bring it', async () => {
+  const { notInDraft } = await import('../src/renderer/attachment-library.js');
+  const image = { name: 'shot.png', dataUrl: 'data:image/png;base64,AAAA' };
+  // The + menu's slow attach lands after Recent files already put the same file in the draft.
+  expect(notInDraft([png, image], [png])).toEqual([]);
+  expect(notInDraft([image], [png, pdf, png])).toEqual([png, pdf]);
+  expect(notInDraft([], [png])).toEqual([png]);
+});

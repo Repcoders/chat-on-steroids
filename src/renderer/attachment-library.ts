@@ -1,4 +1,4 @@
-import type { InputAttachment } from '../shared/input.js';
+import type { InputAttachment, InputImage } from '../shared/input.js';
 import { el, icon } from './dom.js';
 import { currentLanguage, t, ui } from './i18n.js';
 
@@ -9,6 +9,18 @@ function sizeLabel(bytes: number): string {
   if (bytes < 1024) return format(bytes, 'byte', 0);
   if (bytes < 1024 * 1024) return format(bytes / 1024, 'kilobyte', bytes < 10 * 1024 ? 1 : 0);
   return format(bytes / (1024 * 1024), 'megabyte', bytes < 10 * 1024 * 1024 ? 1 : 0);
+}
+
+/** The files of a batch the draft does not hold yet, by staged id: adding the same file twice (a slow attach racing Recent files) changes nothing. */
+export function notInDraft(draft: ReadonlyArray<InputImage | InputAttachment>, chosen: InputAttachment[]): InputAttachment[] {
+  const held = new Set(draft.flatMap(file => 'id' in file ? [file.id] : []));
+  const fresh: InputAttachment[] = [];
+  for (const file of chosen) {
+    if (held.has(file.id)) continue;
+    held.add(file.id);
+    fresh.push(file);
+  }
+  return fresh;
 }
 
 type Reply<T> = { ok: true; data: T } | { ok: false; error: string };

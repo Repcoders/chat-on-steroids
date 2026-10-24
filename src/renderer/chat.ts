@@ -43,7 +43,7 @@ import { structureTimeline, type RoundPart } from './timeline-rounds.js';
 import type { TurnTrace } from '../shared/turn-trace.js';
 import { initContextMeter, paintContextMeter } from './context-meter.js';
 import { installComposerDockMotion, installComposerHeightMotion } from './composer-motion.js';
-import { initAttachmentLibrary } from './attachment-library.js';
+import { initAttachmentLibrary, notInDraft } from './attachment-library.js';
 import { sanitizeHtmlTree } from './sanitize-html.js';
 import { drawMath, mathExtensions, separateDisplayMath, type MathSlots } from './math.js';
 import { installFormulaMenu } from './formula-menu.js';
@@ -8779,9 +8779,12 @@ export function initChat(next: Deps): void {
       finally { button.disabled = false; if (selectedId === id) void refreshSessionControls(); }
     });
   }
-  const appendImages = (owner: ComposerDraftOwner, chosen: InputAttachment[] | null | undefined): boolean => {
-    if (!chosen?.length) return false;
+  const appendImages = (owner: ComposerDraftOwner, attached: InputAttachment[] | null | undefined): boolean => {
+    if (!attached?.length) return false;
     if (!ownsComposerDraft(owner)) { toast(t("Files were not added because the draft changed.")); return false; }
+    // A staged id is in the draft once, whichever path (the + menu, a drop or Recent files) brings it.
+    const chosen = notInDraft(imageDrafts.get(owner.key) ?? [], attached);
+    if (!chosen.length) return false;
     const combined = [...(imageDrafts.get(owner.key) ?? []), ...chosen];
     if (combined.length > 20 || combined.reduce((sum, file) => sum + ('size' in file ? file.size : 0), 0) > 512 * 1024 * 1024) { toast(t("Attach up to 20 files and 512 MB per message")); return false; }
     imageDrafts.set(owner.key, combined); paintComposerImages();

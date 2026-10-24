@@ -1715,7 +1715,9 @@ it('imports one physical file drop from the composer, timeline, or sidebar exact
   const { w } = await boot([], false);
   const api = (w as any).api;
   const image = { id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', name: 'dropped.md', size: 12, mimeType: 'text/markdown' };
-  api.dropFiles = vi.fn(async () => ({ ok: true, data: [image] }));
+  // Every drop stages a new copy under a new id, as the main process does.
+  let staged = 0;
+  api.dropFiles = vi.fn(async () => ({ ok: true, data: [{ ...image, id: `aaaaaaaa-bbbb-4ccc-8ddd-${String(++staged).padStart(12, '0')}` }] }));
   const drop = (target: Element, count: number) => {
     const event = new w.Event('drop', { bubbles: true, cancelable: true });
     Object.defineProperty(event, 'dataTransfer', { value: { types: ['Files'], files: Array.from({ length: count }, () => new w.File(['image'], 'image.png', { type: 'image/png' })) } });
