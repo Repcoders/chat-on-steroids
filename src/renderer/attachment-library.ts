@@ -65,10 +65,10 @@ export function initAttachmentLibrary(options: AttachmentLibraryOptions): void {
     host.classList.remove('is-above');
     const above = host.getBoundingClientRect().right > window.innerWidth - 8;
     if (above) host.classList.add('is-above');
-    // The flyout may not reach past the window edge it grows toward (up, whichever side it opens on).
+    // The flyout may not reach past the window edge it grows toward (up, whichever side it opens on); with less room than that the list scrolls.
     const popover = host.parentElement?.getBoundingClientRect();
     const room = popover ? (above ? popover.top - 6 : popover.bottom) - 8 : Infinity;
-    host.style.maxHeight = Number.isFinite(room) ? `${Math.max(72, Math.min(320, window.innerHeight * 0.6, room))}px` : '';
+    host.style.maxHeight = Number.isFinite(room) ? `${Math.max(0, Math.min(320, window.innerHeight * 0.6, room))}px` : '';
     const reply = await options.list();
     if (mine !== generation) return;
     if (!reply.ok) { host.replaceChildren(el('p', 'attachment-library-note', () => t('Recent files could not be loaded'))); return; }

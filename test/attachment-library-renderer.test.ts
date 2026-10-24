@@ -120,6 +120,16 @@ it('limits the list to the room above the menu when it opens there, and to the r
   toggle.click();
   expect(host.classList.contains('is-above')).toBe(false);
   expect(host.style.maxHeight).toBe('320px');
+  // Less than 72 px of room: the list gets that room and scrolls, it never reaches past the window edge.
+  toggle.click();
+  host.getBoundingClientRect = rect({ right: 5000 });
+  host.parentElement!.getBoundingClientRect = rect({ top: 50, bottom: 400 });
+  toggle.click();
+  expect(host.style.maxHeight).toBe('36px');
+  toggle.click();
+  host.parentElement!.getBoundingClientRect = rect({ top: 0, bottom: 400 });
+  toggle.click();
+  expect(host.style.maxHeight).toBe('0px');
 });
 
 it('puts Recent files in the composer + menu, keeping the menu open for the list', () => {
