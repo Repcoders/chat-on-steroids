@@ -76,7 +76,7 @@ import { CUSTOM_CONTINUE_MAX_CHARS } from '../shared/recovery.js';
 import { applySettings, connect, disconnect, getStatus, onStatusChange, rememberRunningSurfaceTokens } from './connection.js';
 import { effectiveCapabilities, getConfig, updateConfig, MAX_MCP_INSTRUCTIONS_CHARS, browserBridgePortSchema, settingsRecovered } from './config.js';
 import { UI_LANGUAGES } from '../shared/ui-language.js';
-import { PROJECT_COLORS } from '../shared/projects.js';
+import { PROJECT_CHAT_DEFAULTS_SKIPS, PROJECT_COLORS } from '../shared/projects.js';
 import { bridgePortSelection } from './bridge-ports.js';
 import { clearAllGoalSwitches, draftTaskPlan, listGoalModels, MODEL_PAGE_SIZE, retireGoalDrafts, goalBackendFor, goalSwitchFor, setGoalSwitchNow, setGoalReplyActiveNow, setGoalObjectiveNow } from './goal.js';
 import { forgetExposedSurface } from './mcp/server.js';
@@ -93,7 +93,7 @@ import type { WorkerWorktreeCleanupOffer } from '../shared/session.js';
 import { unifiedExecManager } from './codex/manager.js';
 import { inFlightToolCalls } from './mcp/call-context.js';
 import { RESERVED_ROOT_NAMES, uniqueRootName, validateNewRoot, SandboxError, resolvePath } from './sandbox.js';
-import { addProject, addRemoteProject, expireArmedProjectCreates, getSessionProject, listProjects, localProjectPath, onProjectLinkChange, projectWorkspace, removeProject, retryProjectCreate, setProjectColor, setProjectSecretsShieldOff } from './projects.js';
+import { addProject, addRemoteProject, expireArmedProjectCreates, getSessionProject, listProjects, localProjectPath, onProjectLinkChange, projectWorkspace, removeProject, retryProjectCreate, setProjectColor, setProjectSecretsShieldOff, setProjectChatDefaults, projectChatDefaultsSchema } from './projects.js';
 import { createProjectEntry, listProjectDirectory, previewProjectFile, projectFileTarget, renameProjectEntry, revalidateProjectFileTarget, saveProjectTextFile, serverFileSnapshot } from './project-files.js';
 import { ProjectFileWatchSet } from './project-file-watcher.js';
 import { ProjectGitWatchSet, readProjectGitDiff, readProjectGitSnapshot } from './project-git.js';
@@ -1061,6 +1061,19 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     push('session:changed');
     return project;
   });
+  handle('projects:chatDefaults', async payload => {
+    const { id, defaults } = z.object({ id: z.string().uuid(), defaults: projectChatDefaultsSchema.nullable() }).strict().parse(payload);
+    const project = await setProjectChatDefaults(id, defaults);
+    push('session:changed');
+    return project;
+  });
+  handle('projects:chatDefaultsSkipped', async payload => {
+    const { reason } = z.object({ reason: z.enum(PROJECT_CHAT_DEFAULTS_SKIPS) }).strict().parse(payload);
+    const why = reason === 'no-picker' ? 'this ChatGPT account shows no readable model picker'
+      : reason === 'model-gone' ? 'this ChatGPT account no longer offers its model' : 'this ChatGPT account no longer offers its reasoning effort for that model';
+    logInfo(`project new-chat model: skipped, ${why}; the new chat uses the Settings default`);
+    return null;
+  });
 
   // A folder dropped onto the Folders card. The renderer never sees a system path itself:
   // the preload turns the dropped File into one, and the same validation the dialog goes
@@ -1336,15 +1349,17 @@ export function registerIpc(getWindow: () => BrowserWindow | null, quitToInstall
     return saveCodeFile(text, name, getWindow());
   });
 
-  // Copy or save a completed turn's answer, or the session transcript, as Markdown. Main reads
-  // the full text of answers that were cut in the log, so neither comes out truncated.
+  // Copy or save a completed turn's answer, or the session transcript, as Markdown, or save the
+  // transcript as an HTML page. Main reads the full text of answers that were cut in the log, so
+  // none comes out truncated.
   handle('sessions:exportMarkdown', async (payload) => {
     const request = z.object({
       id: z.string().min(8).max(64).regex(/^[0-9a-z-]+$/i),
       scope: z.enum(['answer', 'latest', 'session']),
       turnId: z.string().min(1).max(200).optional(),
       messageId: z.string().min(1).max(200).optional(),
-      target: z.enum(['clipboard', 'file'])
+      target: z.enum(['clipboard', 'file']),
+      format: z.enum(['markdown', 'html']).optional()
     }).parse(payload);
     return exportSessionMarkdown(request, getWindow());
   });

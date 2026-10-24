@@ -259,7 +259,7 @@ Paths in this section are repository-relative. Most mechanisms have `main`, `sha
 | Models/usage | `src/main/chat-models.ts`, `session/usage.ts`, `provider-usage.ts`, `usage-tool.ts`; `src/shared/{chat-models,usage,provider-usage}.ts`; `src/renderer/{chat-models,context-meter,usage}.ts`: account observations vs local estimates. |
 | External plugins | `src/main/plugins/{catalog,installer,manager,exposure,oauth}.ts`, `plugins-ipc.ts`, `plugin-refresh.ts`, `src/shared/{plugins,plugin-refresh}.ts`, `src/renderer/plugins.ts`. |
 | Renderer boundary | `src/main/ipc.ts`, `edit-context-menu.ts`, `src/preload/index.ts`; `src/renderer/{main,chat,dom,tool-result,timeline-scroll,sidebar-resize,browser-preferences,i18n}.ts`, `locales/{es,zh-CN,zh-TW,ja,tr,fr,pt-PT}.json`, `index.html`, `styles.css`. |
-| Appearance | `src/shared/appearance.ts`, `src/main/appearance-schema.ts`, `src/renderer/appearance.ts`: bounded saved colors/typography (including line spacing and the bundled Atkinson Hyperlegible Next in `src/renderer/fonts/`), field-wise Settings merge, immediate semantic CSS projection. `window-layout.ts` shares native caption/backing colors. |
+| Appearance | `src/shared/appearance.ts`, `src/main/appearance-schema.ts`, `src/renderer/appearance.ts`: bounded saved colors/typography (including line spacing and the bundled Atkinson Hyperlegible Next in `src/renderer/fonts/`), field-wise Settings merge, immediate semantic CSS projection. `window-layout.ts` shares native caption/backing colors. Optional `highContrast` (missing = off): `effectivePalette()` swaps in a black or white page and `paletteTokens(…, high)` draws text at 7:1 and lines at 3:1 against the hovered surface; the chosen palette stays saved underneath. `ACCENT_PRESETS` are eight light/dark accent pairs (AA as text, 3:1 as a control); a preset writes both themes' `accent`. |
 | Native Desktop | `src/main/computer/{index,helper,browser-chords,windows-api,windows-capture,windows-apps,windows-keys}.ts`, `src/shared/windows-computer.ts`, `mcp/tools-desktop-{windows,macos}.ts`, `native/macos-desktop-helper/*`, `native/macos-desktop-addon/*`. |
 | Direct browser control | `src/main/browser-control.ts`, `mcp/tools-browser.ts`, `src/shared/browser-control.ts`, `extension/browser-control{,-page}.js`: short-lived RPCs, session-owned debugger tabs, bounded DOM/diagnostics and background input. |
 | Delivery/build | `src/main/{update,extension-path,version,logger,durable}.ts`, `electron.vite.config.ts`, `electron-builder.yml`, `scripts/*`, `.github/workflows/*`, `vitest.config.ts`. |
@@ -939,7 +939,8 @@ it; it finds its row's button again by owner (`data-row-menu`), stays inside the
 submenus beside their item, and is keyboard-driven (arrows, Right/Left for submenus, Escape gives
 focus back to the button). A project's menu: New chat in this project (`data-new-project`, which
 also shows the chat screen), Color (a submenu: None and the palette as radio items, each calling
-the same `projects:color` owner; choices wait while a save is pending), Hide secrets from ChatGPT
+the same `projects:color` owner; choices wait while a save is pending), New-chat model (a submenu,
+see the new-chat pair below), Hide secrets from ChatGPT
 (an on/off `menuitemcheckbox`, `toggle: true`, calling `projects:secrets-shield` { id, off }; it
 shows off and disabled while Settings turns the shield off everywhere) and Remove. A chat's
 menu: Rename and Open in browser, Block/Release and, in strict mode, Trust/Untrust, then Remove;
@@ -2658,6 +2659,22 @@ The ordinary-composer preference is a separate optional pair, `ui.defaultChatMod
 fresh New Chat scope with no per-conversation selection. Once a conversation or accepted opening
 input records a model/effort, that exact selection takes precedence. `multiAgent.default*` and
 `goal.helper*` continue to own worker and Goal/Loop/Plan helper defaults independently.
+
+A project may hold its own pair, `LocalProject.chatDefaults` (`{ model, reasoningEffort }`, both
+set or neither), which replaces the Settings pair for a new chat in that project and nowhere else.
+`projects:chatDefaults` (`{ id, defaults }`, null clears it) is its only writer
+(`setProjectChatDefaults`, the same catalog queue as color); a malformed stored pair is dropped
+on read, never a reason to reject the catalog. The project menu's New-chat model submenu offers
+Same as Settings, the saved pair, and the pair the composer shows now (`confirmedComposerModel`).
+`chat.ts` passes the selected new chat's project pair to `applyComposerSessionModel`; a different
+pair starts the new-chat composer over on it, so the same pair never discards a choice the person
+made in the composer.
+A pair this account cannot take is skipped, not sent: with no readable model picker, or when the
+catalog no longer offers its model or that effort, the new chat uses the Settings pair instead
+(still-loading catalogs are not judged). The composer reports each skip once per pair and reason
+through `projects:chatDefaultsSkipped` (`{ reason }`, one of `PROJECT_CHAT_DEFAULTS_SKIPS`), and
+main writes the log line. Saving a pair from the menu resets an open new chat only while the
+composer still shows what it showed when the person clicked.
 
 Model names and recovery policy checked against native picker metadata on **2026-09-17**; GPT-6 lanes observed on **2026-10-07**:
 
@@ -4457,6 +4474,7 @@ Captured ChatGPT HTML passes a strict allowlist; authored plain text stays text.
 citation ranges use Unicode code points and map to UTF-16 before slicing. Exact uploaded-file
 names render as plain chips; unresolved file citations do not gain invented local links.
 Plain text leaving the timeline (Markdown export, search index and snippets, turn notifications and `modelFacingText` for Goal/Loop and completed answers) passes `providerEntitiesAsMarkdown` first: the raw text's private-use entities (U+E200 name U+E202 field … U+E201) become `[label](address)` for `url` and are dropped otherwise, so a link card never reads as "urlLabelhttps://…".
+`sessions:exportMarkdown` takes an optional `format: 'markdown' | 'html'` (Markdown when left out). `html` is accepted only with `scope: 'session'` and `target: 'file'`: main saves the same transcript as one self-contained page (`shared/html-export.ts` `transcriptHtml`). What a person wrote is escaped plain text; answers are Markdown drawn with raw HTML escaped, images reduced to their alt text and only http(s)/mailto links kept. The page has inline styles only and a `default-src 'none'` policy, so it runs no script and loads nothing. Its title and texts pass `redactSecretText` first; the Markdown export stays exact.
 An assistant message may carry `references`: the sources behind its inline
 `:chatgpt-content-reference{index="N"}` citations. `extension/fiber.js` `citedSources` reads
 them from each citation pill's own props (the list its hover card pages through, plus the reply
@@ -4705,7 +4723,13 @@ read-only: it strips inherited Git repository/index redirects, uses optional-loc
 subprocesses and exposes no stage, commit, reset,
 checkout or push authority. Review projects `M/A/D/R/U`, plus `C` for every unmerged index state
 (`DD/AU/UD/UA/DU/AA/UU`) so an unfinished merge is never shown as an ordinary edit; a conflicted
-file missing from the worktree diffs as empty. It also projects ancestor-folder markers and
+file missing from the worktree diffs as empty. A working-tree conflict's diff also carries
+`conflict`: index stages 1-3 (base, ours/HEAD, theirs) through the same bounded `cat-file` reads,
+null only for a stage `ls-files -u` does not list, and absent (with a log line) when a side is
+binary, too large or listed but unreadable. Review shows them
+as three read-only panes with a toggle back to the diff; Ask chat to resolve only prefills the
+composer with a request naming the file (or, while a prepared Plan waits to be sent, only says to start or cancel it first), and nothing writes, stages or marks it resolved.
+It also projects ancestor-folder markers and
 bounded unified diffs; Files may open it from its toolbar. Files and Review are alternate right
 tabs; Review does not add a second file watcher or expose file-write actions, with one
 exception that is a Files write, not a Git one: an untracked (`U`) working-tree row's context
