@@ -259,7 +259,7 @@ Paths in this section are repository-relative. Most mechanisms have `main`, `sha
 | Models/usage | `src/main/chat-models.ts`, `session/usage.ts`, `provider-usage.ts`, `usage-tool.ts`; `src/shared/{chat-models,usage,provider-usage}.ts`; `src/renderer/{chat-models,context-meter,usage}.ts`: account observations vs local estimates. |
 | External plugins | `src/main/plugins/{catalog,installer,manager,exposure,oauth}.ts`, `plugins-ipc.ts`, `plugin-refresh.ts`, `src/shared/{plugins,plugin-refresh}.ts`, `src/renderer/plugins.ts`. |
 | Renderer boundary | `src/main/ipc.ts`, `edit-context-menu.ts`, `src/preload/index.ts`; `src/renderer/{main,chat,dom,tool-result,timeline-scroll,sidebar-resize,browser-preferences,i18n}.ts`, `locales/{es,zh-CN,zh-TW,ja,tr,fr,pt-PT}.json`, `index.html`, `styles.css`. |
-| Appearance | `src/shared/appearance.ts`, `src/main/appearance-schema.ts`, `src/renderer/appearance.ts`: bounded saved colors/typography (including line spacing and the bundled Atkinson Hyperlegible Next in `src/renderer/fonts/`), field-wise Settings merge, immediate semantic CSS projection. `window-layout.ts` shares native caption/backing colors. |
+| Appearance | `src/shared/appearance.ts`, `src/main/appearance-schema.ts`, `src/renderer/appearance.ts`: bounded saved colors/typography (including line spacing and the bundled Atkinson Hyperlegible Next in `src/renderer/fonts/`), field-wise Settings merge, immediate semantic CSS projection. `window-layout.ts` shares native caption/backing colors. Optional `highContrast` (missing = off): `effectivePalette()` swaps in a black or white page and `paletteTokens(…, high)` draws text at 7:1 and lines at 3:1 against the hovered surface; the chosen palette stays saved underneath. `ACCENT_PRESETS` are eight light/dark accent pairs (AA as text, 3:1 as a control); a preset writes both themes' `accent`. |
 | Native Desktop | `src/main/computer/{index,helper,browser-chords,windows-api,windows-capture,windows-apps,windows-keys}.ts`, `src/shared/windows-computer.ts`, `mcp/tools-desktop-{windows,macos}.ts`, `native/macos-desktop-helper/*`, `native/macos-desktop-addon/*`. |
 | Direct browser control | `src/main/browser-control.ts`, `mcp/tools-browser.ts`, `src/shared/browser-control.ts`, `extension/browser-control{,-page}.js`: short-lived RPCs, session-owned debugger tabs, bounded DOM/diagnostics and background input. |
 | Delivery/build | `src/main/{update,extension-path,version,logger,durable}.ts`, `electron.vite.config.ts`, `electron-builder.yml`, `scripts/*`, `.github/workflows/*`, `vitest.config.ts`. |
@@ -1154,6 +1154,15 @@ session; at most `MAX_BOOKMARKS` (200) per chat, excerpts one line of at most 16
 missing or damaged file reads as no bookmarks; damaged entries are dropped. Nothing is sent to
 ChatGPT. The header list jumps through `sessions:locate-message`; a reply no longer in the chat
 shows a notice instead of scrolling. Long row menus scroll inside the window (`row-menu.ts`). A file holding more than the limit keeps the ones bookmarked first. Tests: `test/session-bookmarks.test.ts` (storage, limit, damaged files), the "bookmarked answers" cases in `test/renderer-timeline.test.ts` (answer action, header list, jump), and `scripts/verify-bookmark-list.cjs` (200 bookmarks in a short window, real Electron).
+
+Copy as: besides `markdown` and the page `html` (see the HTML export below), the `format` of
+`sessions:exportMarkdown` can be `text`, `text-no-code` or `formatted` for a clipboard copy; a saved
+answer is always Markdown, and a file asked for as one of these three is refused. `shared/answer-copy.ts` builds the plain text with `markdownVisibleText(…, { layout:
+true, tidy: true })` (bullets, numbers, task boxes, tab-separated table cells; `tidy` collapses
+blank lines between blocks and leaves a code block as written; `codeBlocks: false` for
+`text-no-code`) and the HTML with `marked`, which escapes raw markup, draws an image as its
+parsed description (`tokensVisibleText`) and links only http(s) and mailto addresses. Both drop a writing block's `:::` fence and
+keep its words. The plain text also keeps the words of a block of raw HTML (`plainTextOfHtml`, as the timeline draws it, scripts and styles dropped); Find does not. `formatted` writes the plain text beside the HTML, for apps that paste no HTML.
 
 Edit & resubmit (#365): ChatGPT keeps an edited question as a new version beside the old one, under
 the same parent, and continues from the new one. The page reports each question's place in that tree
@@ -4457,6 +4466,7 @@ Captured ChatGPT HTML passes a strict allowlist; authored plain text stays text.
 citation ranges use Unicode code points and map to UTF-16 before slicing. Exact uploaded-file
 names render as plain chips; unresolved file citations do not gain invented local links.
 Plain text leaving the timeline (Markdown export, search index and snippets, turn notifications and `modelFacingText` for Goal/Loop and completed answers) passes `providerEntitiesAsMarkdown` first: the raw text's private-use entities (U+E200 name U+E202 field … U+E201) become `[label](address)` for `url` and are dropped otherwise, so a link card never reads as "urlLabelhttps://…".
+`sessions:exportMarkdown` takes an optional `format` (Markdown when left out; `html` here, `text`, `text-no-code` and `formatted` under Copy as). `html` is accepted only with `scope: 'session'` and `target: 'file'`: main saves the same transcript as one self-contained page (`shared/html-export.ts` `transcriptHtml`). What a person wrote is escaped plain text; answers are Markdown drawn with raw HTML escaped, images reduced to their alt text and only http(s)/mailto links kept. The page has inline styles only and a `default-src 'none'` policy, so it runs no script and loads nothing. Its title and texts pass `redactSecretText` first; the Markdown export stays exact.
 An assistant message may carry `references`: the sources behind its inline
 `:chatgpt-content-reference{index="N"}` citations. `extension/fiber.js` `citedSources` reads
 them from each citation pill's own props (the list its hover card pages through, plus the reply
@@ -4705,7 +4715,13 @@ read-only: it strips inherited Git repository/index redirects, uses optional-loc
 subprocesses and exposes no stage, commit, reset,
 checkout or push authority. Review projects `M/A/D/R/U`, plus `C` for every unmerged index state
 (`DD/AU/UD/UA/DU/AA/UU`) so an unfinished merge is never shown as an ordinary edit; a conflicted
-file missing from the worktree diffs as empty. It also projects ancestor-folder markers and
+file missing from the worktree diffs as empty. A working-tree conflict's diff also carries
+`conflict`: index stages 1-3 (base, ours/HEAD, theirs) through the same bounded `cat-file` reads,
+null only for a stage `ls-files -u` does not list, and absent (with a log line) when a side is
+binary, too large or listed but unreadable. Review shows them
+as three read-only panes with a toggle back to the diff; Ask chat to resolve only prefills the
+composer with a request naming the file (or, while a prepared Plan waits to be sent, only says to start or cancel it first), and nothing writes, stages or marks it resolved.
+It also projects ancestor-folder markers and
 bounded unified diffs; Files may open it from its toolbar. Files and Review are alternate right
 tabs; Review does not add a second file watcher or expose file-write actions, with one
 exception that is a Files write, not a Git one: an untracked (`U`) working-tree row's context

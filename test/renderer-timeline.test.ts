@@ -5754,7 +5754,7 @@ it('uses a playful work word when it is turned on in Settings', async () => {
   expect(w.document.getElementById('chatState')!.textContent).toMatch(PLAYFUL_WORDS);
 });
 
-it('offers copy and Markdown export under the answer of a completed turn only', async () => {
+it('offers copy and Markdown or HTML export under the answer of a completed turn only', async () => {
   const ask: SessionEvent = { kind: 'user_message', seq: 1, origin: 1, time: T0, source: 'extension', turnId: 'done-turn', messageId: 'ask', message: text('Write hello.txt') };
   const reply: SessionEvent = { kind: 'assistant_message', seq: 2, time: T0 + 1_000, source: 'extension', turnId: 'done-turn', messageId: 'reply', message: text('Created **hello.txt**.'), final: true, state: 'final' };
   const { w, append } = await boot([ask, reply]);
@@ -5774,9 +5774,36 @@ it('offers copy and Markdown export under the answer of a completed turn only', 
 
   api.exportMarkdown = vi.fn(async () => ({ ok: true, data: { done: 'saved', name: 'chat.md' } }));
   const choices = [...actions!.querySelectorAll<HTMLButtonElement>('.answer-export-choice')];
-  expect(choices.map(choice => choice.textContent)).toEqual(['This answer', 'Whole session']);
+  expect(choices.map(choice => choice.textContent)).toEqual(['This answer', 'Whole session', 'Whole session as HTML']);
+  // Choosing closes the menu and takes the choice off the screen; focus goes back to the Export button, not the page.
+  const exportMenu = choices[1]!.closest('details')!;
+  exportMenu.open = true;
+  choices[1]!.focus();
   choices[1]!.click(); await settle();
+  expect(exportMenu.open).toBe(false);
+  expect(w.document.activeElement).toBe(exportMenu.querySelector('summary'));
   expect(api.exportMarkdown).toHaveBeenCalledWith({ id: summary([]).id, scope: 'session', turnId: undefined, target: 'file' });
+  choices[2]!.click(); await settle();
+  expect(api.exportMarkdown).toHaveBeenLastCalledWith({ id: summary([]).id, scope: 'session', turnId: undefined, target: 'file', format: 'html' });
+});
+
+it('copies a completed answer as plain text, without code or formatted from its Copy as menu', async () => {
+  const reply: SessionEvent = { kind: 'assistant_message', seq: 1, time: T0, source: 'extension', turnId: 'done-turn', messageId: 'reply', message: text('Created **hello.txt**.'), final: true, state: 'final' };
+  const { w } = await boot([reply, { seq: 2, time: T0 + 1_000, source: 'extension', kind: 'turn_end', turnId: 'done-turn', outcome: 'completed' }]);
+  const api = (w as any).api;
+  api.exportMarkdown = vi.fn(async () => ({ ok: true, data: { done: 'copied' } }));
+  const trigger = w.document.querySelector<HTMLElement>('.answer-actions summary[aria-label="Copy as"]');
+  expect(trigger).not.toBeNull();
+  const menu = trigger!.parentElement as HTMLDetailsElement;
+  const choices = [...menu.querySelectorAll<HTMLButtonElement>('.answer-copy-choice')];
+  expect(choices.map(choice => choice.textContent)).toEqual(['Plain text', 'Plain text without code blocks', 'Formatted text']);
+  for (const [index, format] of (['text', 'text-no-code', 'formatted'] as const).entries()) {
+    menu.open = true;
+    choices[index]!.click(); await settle();
+    expect(menu.open).toBe(false);
+    expect(w.document.activeElement).toBe(trigger);
+    expect(api.exportMarkdown).toHaveBeenLastCalledWith({ id: summary([]).id, scope: 'answer', turnId: 'done-turn', messageId: undefined, target: 'clipboard', format });
+  }
 });
 
 it('does not offer copy or export after an interrupted turn', async () => {
@@ -7128,6 +7155,63 @@ describe('edit and resubmit (#365)', () => {
     expect(input.value).toBe('Unfinished');
     await submit(w as any, 'Just a follow-up');
     expect(live.sent.at(-1)).not.toHaveProperty('edit');
+  });
+
+  it('sends Review\'s conflict request as a new message, even from an edit and a narrow window', async () => {
+    // It went into the edit, so Send replaced the question and every message after it.
+    const project: LocalProject = { id: '55555555-5555-4555-8555-555555555555', name: 'Workspace', path: '/workspace', createdAt: T0 };
+    const { w, live } = await boot(exchange(), true, [], [project], { summary: { conversationId: chat } });
+    const ok = <T>(data: T) => Promise.resolve({ ok: true as const, data });
+    w.api.getProjectGitSnapshot = () => ok({ projectId: project.id, state: 'ready', truncated: false, revision: 'merging',
+      changes: [{ status: 'C', path: 'src/both.ts', additions: null, deletions: null, binary: false }] });
+    w.api.getProjectGitDiff = () => ok({ projectId: project.id, status: 'C', path: 'src/both.ts', additions: null, deletions: null,
+      binary: false, tooLarge: false, baseText: 'ours', currentText: '<<<<<<< HEAD' });
+    Object.defineProperty(w, 'matchMedia', { configurable: true,
+      value: (query: string) => ({ matches: query.includes('850px'), addEventListener: vi.fn(), removeEventListener: vi.fn() }) });
+    const input = w.document.getElementById('chatInput') as HTMLTextAreaElement;
+    input.value = 'Unfinished';
+    editButton(w, 'First question')!.click(); await settle();
+    w.document.querySelector<HTMLButtonElement>('.work-dock-quick[data-view="review"]')!.click(); await settle();
+    w.document.querySelector<HTMLButtonElement>('.review-panel .file-change-row[data-path="src/both.ts"]')!.click(); await settle();
+    [...w.document.querySelectorAll<HTMLButtonElement>('.review-panel .file-preview-actions button')].find(button => button.title === 'Ask chat to resolve')!.click();
+    await settle();
+    expect(w.document.getElementById('editDraft')!.hidden).toBe(true);
+    expect(input.value).toMatch(/^Help me resolve the merge conflict in src\/both\.ts\..*\n\nUnfinished$/s);
+    expect(w.document.querySelector('.has-work-dock')).toBeNull();
+    expect(w.document.activeElement).toBe(input);
+    await submit(w as any);
+    expect(live.sent.at(-1)).not.toHaveProperty('edit');
+    expect(live.sent.at(-1)?.text).toContain('Help me resolve the merge conflict in src/both.ts.');
+  });
+
+  it('does not put Review\'s conflict request in the composer while a prepared plan is waiting to be sent', async () => {
+    // Send starts the prepared plan, so the request the composer showed would never have been sent.
+    const project: LocalProject = { id: '55555555-5555-4555-8555-555555555555', name: 'Workspace', path: '/workspace', createdAt: T0 };
+    const { w, live } = await boot([], false, [], [project]);
+    const api = (w as any).api;
+    (w.document.querySelector(`.project-heading > [data-new-project="${project.id}"]`) as HTMLButtonElement).click(); await settle();
+    (await api.getState()).data.config.ui.finishTool = true;
+    const ok = <T>(data: T) => Promise.resolve({ ok: true as const, data });
+    api.draftTaskPlan = vi.fn(async () => ({ ok: true, data: ['Build foundation', 'Verify it'] }));
+    api.getProjectGitSnapshot = () => ok({ projectId: project.id, state: 'ready', truncated: false, revision: 'merging',
+      changes: [{ status: 'C', path: 'src/both.ts', additions: null, deletions: null, binary: false }] });
+    api.getProjectGitDiff = () => ok({ projectId: project.id, status: 'C', path: 'src/both.ts', additions: null, deletions: null,
+      binary: false, tooLarge: false, baseText: 'ours', currentText: '<<<<<<< HEAD' });
+    const input = w.document.getElementById('chatInput') as HTMLTextAreaElement;
+    input.value = 'Build the whole task';
+    input.dispatchEvent(new w.Event('input'));
+    w.document.getElementById('createPlan')!.click();
+    w.document.getElementById('composer')!.dispatchEvent(new w.Event('submit', { cancelable: true }));
+    await settle();
+    expect(w.document.getElementById('taskPlanPreview')!.textContent).toContain('Build foundation');
+    w.document.querySelector<HTMLButtonElement>('.work-dock-quick[data-view="review"]')!.click(); await settle();
+    w.document.querySelector<HTMLButtonElement>('.review-panel .file-change-row[data-path="src/both.ts"]')!.click(); await settle();
+    [...w.document.querySelectorAll<HTMLButtonElement>('.review-panel .file-preview-actions button')].find(button => button.title === 'Ask chat to resolve')!.click();
+    await settle();
+    expect(input.value).toBe('');
+    expect(w.document.querySelector('.toast')?.textContent).toBe('Start or cancel the prepared plan first, then ask again.');
+    expect(w.document.getElementById('taskPlanPreview')!.textContent).toContain('Build foundation');
+    expect(live.sent).toHaveLength(0);
   });
 
   it('offers no Edit in a worker chat', async () => {
