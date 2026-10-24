@@ -119,3 +119,19 @@ it('keeps the keyboard on the row when the reset it was on goes away', () => {
   expect(button.hidden).toBe(true);
   expect(view.doc.activeElement).toBe(view.control('followOutput'));
 });
+
+it('puts the reset before its control in the DOM, so Tab and reading order match what is drawn', () => {
+  const view = page();
+  paintSettingDefaults(withUi({ followOutput: false, keepAwake: false }), fresh(), view.doc);
+  for (const id of ['followOutput', 'keepAwake']) {
+    const row = view.row(id);
+    const children = [...row.children];
+    expect(children.indexOf(view.reset(id)!)).toBe(children.indexOf(view.control(id)) - 1);
+    expect(children.indexOf(row.querySelector('.setting-text')!)).toBeLessThan(children.indexOf(view.reset(id)!));
+    // The row's <label> still names the control, not the button that now comes first.
+    expect((row as HTMLLabelElement).control).toBe(view.control(id));
+  }
+  // A repaint keeps it there rather than adding a second button.
+  paintSettingDefaults(withUi({ followOutput: false }), fresh(), view.doc);
+  expect(view.row('followOutput').querySelectorAll('.setting-reset')).toHaveLength(1);
+});

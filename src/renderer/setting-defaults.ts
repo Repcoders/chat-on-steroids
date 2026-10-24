@@ -74,8 +74,10 @@ function resetButton(row: HTMLElement, control: Control, value: Shown): HTMLButt
     // the label is (re)written, after a language change has translated the row's own text.
     const name = row.querySelector('.setting-text > b');
     ui(button, 'aria-label', () => t('Reset {0} to the default for new installs', [name?.textContent?.replace(/\s+/g, ' ').trim() ?? '']));
-    // After the control: a row that is a <label> names its first labelable descendant.
-    row.append(button);
+    // Just before the control, so reading and Tab order match what is drawn. A row that is a <label>
+    // names its first labelable descendant, which would now be this button: point it at the control.
+    if (row.tagName === 'LABEL') row.setAttribute('for', control.id);
+    row.insertBefore(button, [...row.children].find(child => child === control || child.contains(control)) ?? null);
   }
   button.onclick = event => {
     // Inside a <label>, the click must not also reach the row's switch.
