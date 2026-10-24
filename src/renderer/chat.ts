@@ -11,7 +11,7 @@ import { createWorkspaceDocks } from './workspace-docks.js';
 import { currentLanguage, ui, t, tn } from './i18n.js';
 import { APP_COMMANDS, initSkills } from './skills.js';
 import { imageStorageButton } from './image-storage.js';
-import { applyChatModels, applyComposerSessionModel, initChatModels, confirmedComposerModel, composerSendModel, ensureComposerModel, chatModelName } from './chat-models.js';
+import { applyChatModels, applyComposerSessionModel, trackComposerProjectDefaults, initChatModels, confirmedComposerModel, composerSendModel, ensureComposerModel, chatModelName } from './chat-models.js';
 import { marked, Marked, type TokenizerAndRendererExtension } from 'marked';
 import { safeExternalLink } from '../shared/external-link.js';
 import { AGENT_STATE_WORDS, createAgentPanel, workerName, workerSlotLimit } from './agent-panel.js';
@@ -398,10 +398,12 @@ async function saveProjectChatDefaults(id: string, defaults: ProjectChatDefaults
     ++sessionsLoadGeneration;
     projects = projects.map(row => row.id === id ? updated : row);
     paintSessions();
-    // A new chat of this project on screen starts over on its new pair, unless a model was picked while the save ran.
+    // A new chat of this project on screen starts over on its new pair, unless a model was picked while the save ran;
+    // that choice stays, and the next repaint must not mistake the saved pair for a change.
     const now = confirmedComposerModel();
-    if (!selectedId && selectedProjectId === id && now?.model === shown?.model && now?.reasoningEffort === shown?.reasoningEffort) {
-      applyComposerSessionModel(null, null, newChatProjectDefaults());
+    if (!selectedId && selectedProjectId === id) {
+      if (now?.model === shown?.model && now?.reasoningEffort === shown?.reasoningEffort) applyComposerSessionModel(null, null, newChatProjectDefaults());
+      else trackComposerProjectDefaults(newChatProjectDefaults());
     }
   } finally { savingProjectChatDefaults.delete(id); }
 }

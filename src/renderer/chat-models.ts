@@ -116,6 +116,11 @@ export function applyComposerSessionModel(scope: string | null, observation: Obs
   paintComposerContext(); paintStatus();
 }
 
+/** The project's pair changed under a new chat whose composer the person already edited: track it, keep their choice. */
+export function trackComposerProjectDefaults(project: ProjectChatDefaults | null): void {
+  projectDefaults = project;
+}
+
 /** Provider order and available efforts define the slider, including newly released models. */
 function composerModels() {
   if (!catalog.models.length) return [];

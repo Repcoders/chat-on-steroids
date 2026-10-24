@@ -2001,6 +2001,39 @@ it('keeps a model picked while "Same as Settings" is saving, instead of resettin
   expect(label()).toContain('GPT-6 Pro');
 });
 
+it('keeps a model picked while a pair is saving through the next repaint, and still resets on another project', async () => {
+  const project = { id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', name: 'Workspace', path: 'C:\workspace\primary', createdAt: 1 };
+  const other = { id: 'bbbbbbbb-bbbb-4ccc-8ddd-eeeeeeeeeeee', name: 'Notes', path: 'C:\workspace\notes', createdAt: 2,
+    chatDefaults: { model: 'gpt-6-pro', reasoningEffort: 'pro' as const } };
+  const rows = [project, other];
+  const { w, live } = await boot([], false, [], rows, { astra: true, defaultChatModel: 'gpt-5.6-sol' });
+  const label = () => w.document.getElementById('composerModelLabel')!.textContent;
+  let answer!: () => void;
+  (w as any).api.setProjectChatDefaults = vi.fn(() => new Promise(resolve => {
+    // The catalog the next repaint reads has the saved pair.
+    answer = () => { rows[0] = { ...project, chatDefaults: { model: 'gpt-5.6-sol', reasoningEffort: 'none' } } as typeof project; resolve({ ok: true, data: rows[0] }); };
+  }));
+  (w.document.querySelector(`.project-heading > [data-new-project="${project.id}"]`) as HTMLButtonElement).click(); await settle();
+  const effort = w.document.getElementById('composerReasoning') as HTMLSelectElement;
+  effort.value = 'none'; effort.dispatchEvent(new w.Event('change', { bubbles: true }));
+  projectMenu(w, project.id); menuItem(w, 'chat-defaults').click();
+  menuItem(w, 'chat-defaults-composer').click(); await settle();
+  // High is picked in the composer while the save is still out.
+  effort.value = 'high'; effort.dispatchEvent(new w.Event('change', { bubbles: true }));
+  answer(); await settle();
+  expect(label()).toBe('GPT-5.6 Sol · High');
+  // The next repaint brings the saved pair; it must not take the choice back.
+  (w.document.getElementById('chatRefresh') as HTMLButtonElement).click(); await settle();
+  expect(label()).toBe('GPT-5.6 Sol · High');
+  const input = w.document.getElementById('chatInput') as HTMLTextAreaElement;
+  input.value = 'Hello from the project';
+  (w.document.getElementById('chatSend') as HTMLButtonElement).click(); await settle();
+  expect(live.sent.at(-1)).toMatchObject({ text: 'Hello from the project', projectId: project.id, model: 'gpt-5.6-sol', reasoningEffort: 'high' });
+  // Another project's new chat still starts over on that project's pair.
+  (w.document.querySelector(`.project-heading > [data-new-project="${other.id}"]`) as HTMLButtonElement).click(); await settle();
+  expect(label()).toContain('GPT-6 Pro');
+});
+
 it('starts the new chat on the Settings default once its project with its own pair is removed', async () => {
   const project = { id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', name: 'Workspace', path: 'C:\workspace\primary', createdAt: 1,
     chatDefaults: { model: 'gpt-5.6-sol', reasoningEffort: 'none' as const } };

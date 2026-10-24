@@ -774,6 +774,28 @@ it('starts a new chat of a project on its own pair, and every other new chat on 
   expect(composerSendModel()).toEqual({ model: 'sol', reasoningEffort: 'medium' });
 });
 
+it('keeps a composer choice once its project pair is tracked, and starts over on another pair', async () => {
+  dom = new JSDOM(await readFile('src/renderer/index.html', 'utf8'));
+  vi.stubGlobal('window', dom.window); vi.stubGlobal('document', dom.window.document);
+  const models = [{ id: 'gpt-6', label: 'GPT-6', efforts: ['low', 'high'] }, { id: 'sol', label: 'GPT-5.6 Sol', efforts: ['medium', 'high'] }];
+  Object.assign(dom.window, { api: { getChatModels: async () => ({ ok: true, data: { state: 'ready', observedAt: 2, models } }), requestChatModels: vi.fn() } });
+  const { initChatModels, applyChatModels, applyComposerSessionModel, trackComposerProjectDefaults, composerSendModel } = await import('../src/renderer/chat-models.js');
+  initChatModels(); applyChatModels({ ui: { defaultChatModel: 'gpt-6', defaultChatReasoning: 'low' }, multiAgent: {}, goal: {} } as Config); await Promise.resolve();
+  // A new chat of a project with no pair: the person picks High while a save of Medium is out.
+  applyComposerSessionModel(null, null, null);
+  const effort = dom.window.document.getElementById('composerReasoning') as HTMLSelectElement;
+  const model = dom.window.document.getElementById('composerModel') as HTMLSelectElement;
+  model.value = 'sol'; model.dispatchEvent(new dom.window.Event('change'));
+  effort.value = 'high'; effort.dispatchEvent(new dom.window.Event('change'));
+  const saved = { model: 'sol', reasoningEffort: 'medium' } as const;
+  trackComposerProjectDefaults(saved);
+  applyComposerSessionModel(null, null, { ...saved });
+  expect(composerSendModel()).toEqual({ model: 'sol', reasoningEffort: 'high' });
+  // Another project's pair still starts the composer over.
+  applyComposerSessionModel(null, null, { model: 'gpt-6', reasoningEffort: 'high' });
+  expect(composerSendModel()).toEqual({ model: 'gpt-6', reasoningEffort: 'high' });
+});
+
 const sol = { id: 'sol', label: 'GPT-5.6 Sol', efforts: ['medium', 'high'] };
 const gpt6 = { id: 'gpt-6', label: 'GPT-6', efforts: ['low', 'high'] };
 it.each([
