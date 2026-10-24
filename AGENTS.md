@@ -259,7 +259,7 @@ Paths in this section are repository-relative. Most mechanisms have `main`, `sha
 | Models/usage | `src/main/chat-models.ts`, `session/usage.ts`, `provider-usage.ts`, `usage-tool.ts`; `src/shared/{chat-models,usage,provider-usage}.ts`; `src/renderer/{chat-models,context-meter,usage}.ts`: account observations vs local estimates. |
 | External plugins | `src/main/plugins/{catalog,installer,manager,exposure,oauth}.ts`, `plugins-ipc.ts`, `plugin-refresh.ts`, `src/shared/{plugins,plugin-refresh}.ts`, `src/renderer/plugins.ts`. |
 | Renderer boundary | `src/main/ipc.ts`, `edit-context-menu.ts`, `src/preload/index.ts`; `src/renderer/{main,chat,dom,tool-result,timeline-scroll,sidebar-resize,browser-preferences,i18n}.ts`, `locales/{es,zh-CN,zh-TW,ja,tr,fr,pt-PT}.json`, `index.html`, `styles.css`. |
-| Appearance | `src/shared/appearance.ts`, `src/main/appearance-schema.ts`, `src/renderer/appearance.ts`: bounded saved colors/typography (including line spacing and the bundled Atkinson Hyperlegible Next in `src/renderer/fonts/`), field-wise Settings merge, immediate semantic CSS projection. `window-layout.ts` shares native caption/backing colors. |
+| Appearance | `src/shared/appearance.ts`, `src/main/appearance-schema.ts`, `src/renderer/appearance.ts`: bounded saved colors/typography (including line spacing and the bundled Atkinson Hyperlegible Next in `src/renderer/fonts/`), field-wise Settings merge, immediate semantic CSS projection. `window-layout.ts` shares native caption/backing colors. Optional `highContrast` (missing = off): `effectivePalette()` swaps in a black or white page and `paletteTokens(…, high)` draws text at 7:1 and lines at 3:1 against the hovered surface; the chosen palette stays saved underneath. `ACCENT_PRESETS` are eight light/dark accent pairs (AA as text, 3:1 as a control); a preset writes both themes' `accent`. |
 | Native Desktop | `src/main/computer/{index,helper,browser-chords,windows-api,windows-capture,windows-apps,windows-keys}.ts`, `src/shared/windows-computer.ts`, `mcp/tools-desktop-{windows,macos}.ts`, `native/macos-desktop-helper/*`, `native/macos-desktop-addon/*`. |
 | Direct browser control | `src/main/browser-control.ts`, `mcp/tools-browser.ts`, `src/shared/browser-control.ts`, `extension/browser-control{,-page}.js`: short-lived RPCs, session-owned debugger tabs, bounded DOM/diagnostics and background input. |
 | Delivery/build | `src/main/{update,extension-path,version,logger,durable}.ts`, `electron.vite.config.ts`, `electron-builder.yml`, `scripts/*`, `.github/workflows/*`, `vitest.config.ts`. |
@@ -2215,6 +2215,19 @@ model, feature and `codex` pools. Missing/expired values mean unreported, never 
 windows Codex's /status and ChatGPT's sidebar panel show), never a limit on ChatGPT chat messages;
 the Usage tab and the `usage` tool label them as Codex. An extension before 2.1.40 sends them as
 `shared`, which the app reads as `codex`.
+
+The same accepted snapshots feed a small local **limit history** (durable `usage-history`, version 1):
+one `[at, value, resetAt]` reading per limit, keyed by `shared/usage.ts::usageLimitKey()` (scope,
+model, window and measure, so a count and a percent never share a trend), written when the value or
+reset time changes or every 5 minutes, kept for 8 days and at most 600 readings per limit; a later snapshot with
+the same capture time replaces its reading. Usage overview rows carry `readings`: only those since the
+limit last went up or passed the reset its previous reading reported (`usageLimitSegment`). Snapshots
+carry no account identity, so an account switch is only separated by those two signals. The Usage tab
+draws the readings as a trend line and, from about the last hour of them (`usageLimitForecast`, at
+least 10 minutes and a real drop; a baseline more than two hours old is replaced by the oldest reading
+inside the hour), says when the limit runs out at that pace or that it lasts until the reset, always
+labeled an estimate. It is planning help, never a provider figure, and the `usage` tool does not
+report it.
 
 Daily work/cost charts use a **local estimate**: cap final frontend context, then / 2 per unique
 recorded tool call, with editable divisor, multiplier and per-model comparison rates. If the
@@ -4457,6 +4470,7 @@ Captured ChatGPT HTML passes a strict allowlist; authored plain text stays text.
 citation ranges use Unicode code points and map to UTF-16 before slicing. Exact uploaded-file
 names render as plain chips; unresolved file citations do not gain invented local links.
 Plain text leaving the timeline (Markdown export, search index and snippets, turn notifications and `modelFacingText` for Goal/Loop and completed answers) passes `providerEntitiesAsMarkdown` first: the raw text's private-use entities (U+E200 name U+E202 field … U+E201) become `[label](address)` for `url` and are dropped otherwise, so a link card never reads as "urlLabelhttps://…".
+`sessions:exportMarkdown` takes an optional `format: 'markdown' | 'html'` (Markdown when left out). `html` is accepted only with `scope: 'session'` and `target: 'file'`: main saves the same transcript as one self-contained page (`shared/html-export.ts` `transcriptHtml`). What a person wrote is escaped plain text; answers are Markdown drawn with raw HTML escaped, images reduced to their alt text and only http(s)/mailto links kept. The page has inline styles only and a `default-src 'none'` policy, so it runs no script and loads nothing. Its title and texts pass `redactSecretText` first; the Markdown export stays exact.
 An assistant message may carry `references`: the sources behind its inline
 `:chatgpt-content-reference{index="N"}` citations. `extension/fiber.js` `citedSources` reads
 them from each citation pill's own props (the list its hover card pages through, plus the reply
@@ -4705,7 +4719,13 @@ read-only: it strips inherited Git repository/index redirects, uses optional-loc
 subprocesses and exposes no stage, commit, reset,
 checkout or push authority. Review projects `M/A/D/R/U`, plus `C` for every unmerged index state
 (`DD/AU/UD/UA/DU/AA/UU`) so an unfinished merge is never shown as an ordinary edit; a conflicted
-file missing from the worktree diffs as empty. It also projects ancestor-folder markers and
+file missing from the worktree diffs as empty. A working-tree conflict's diff also carries
+`conflict`: index stages 1-3 (base, ours/HEAD, theirs) through the same bounded `cat-file` reads,
+null only for a stage `ls-files -u` does not list, and absent (with a log line) when a side is
+binary, too large or listed but unreadable. Review shows them
+as three read-only panes with a toggle back to the diff; Ask chat to resolve only prefills the
+composer with a request naming the file (or, while a prepared Plan waits to be sent, only says to start or cancel it first), and nothing writes, stages or marks it resolved.
+It also projects ancestor-folder markers and
 bounded unified diffs; Files may open it from its toolbar. Files and Review are alternate right
 tabs; Review does not add a second file watcher or expose file-write actions, with one
 exception that is a Files write, not a Git one: an untracked (`U`) working-tree row's context
