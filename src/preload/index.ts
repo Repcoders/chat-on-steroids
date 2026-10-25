@@ -29,7 +29,7 @@ import type { PluginSnapshot, PluginInstallRequest, PluginConfigPatch } from '..
  */
 
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
-import type { AppState, Capabilities, CompanionDiagnostics, Config, Diagnosis, LogEntry } from '../shared/types.js';
+import type { AppState, Capabilities, CompanionDiagnostics, Config, Diagnosis, LogEntry, SettingsBackupChoice } from '../shared/types.js';
 import type {
   Handoff,
   ImageStorageClearMode,
@@ -159,6 +159,15 @@ const api = {
   setMainTexts: (texts: Record<string, string>) => call<void>('ui:mainTexts', texts),
   /** The interface language, kept by the app for the browser extension. */
   setUiLanguage: (language: string) => call<void>('ui:language', language),
+  /** Settings backup. Saved keys go in only with a passphrase, and never come back to the page. */
+  exportSettings: (includeKeys: boolean, passphrase?: string) =>
+    call<{ file: string; keyCount: number } | null>('settings:export', { includeKeys, ...(passphrase !== undefined ? { passphrase } : {}) }),
+  pickSettingsBackup: () => call<SettingsBackupChoice | null>('settings:importPick', undefined),
+  importSettingsBackup: (token: string, includeKeys: boolean, passphrase?: string) =>
+    // `warnings`: what went wrong after the settings were written, each a sentence of its own.
+    call<{ state: AppState; changedCount: number; keyCount: number; warnings?: string[] }>('settings:importApply', { token, includeKeys, ...(passphrase !== undefined ? { passphrase } : {}) }),
+  testPhonePush: () => call<void>('phonePush:test', undefined),
+  setPhonePushToken: (token: string) => call<AppState>('phonePush:token', { token }),
   markWhatsNewSeen: () => call<void>('ui:whatsNewSeen'),
   /** The one-time automatic plugin refresh offer: true turns it on; either answer is kept. */
   answerPluginRefreshOffer: (turnOn: boolean) => call<AppState>('pluginRefresh:offer', { turnOn }),
@@ -228,6 +237,9 @@ const api = {
     } catch { return { ok: false, error: 'Could not read the attachment' }; }
   },
   attachText: (text: string) => call<InputAttachment>('sessions:attachText', { text }),
+  /** Files still in staging (the last 24 hours, or held by a pending message), most recently used first. */
+  recentAttachments: () => call<InputAttachment[]>('sessions:recentAttachments'),
+  reattachFiles: (ids: string[]) => call<InputAttachment[]>('sessions:reattach', { ids }),
   getUsage: () => call<UsageOverview>('usage:get'),
   /** Codex's and Claude Code's usage from their logs here; `fresh` skips the 30-second cache. */
   getProviderUsage: (fresh = false) => call<ProviderUsage>('usage:providers', { fresh }),
@@ -265,7 +277,7 @@ const api = {
   writeClipboard: (text: string) => call<boolean>('clipboard:write', { text }),
   // A code block's Save: main asks where, in a native dialog, and `name` is only its suggestion.
   saveCode: (request: { text: string; name: string }) => call<{ done: 'saved'; name: string } | { done: 'cancelled' }>('code:save', request),
-  exportMarkdown: (request: { id: string; scope: 'answer' | 'latest' | 'session'; turnId?: string; messageId?: string; target: 'clipboard' | 'file' }) =>
+  exportMarkdown: (request: { id: string; scope: 'answer' | 'latest' | 'session'; turnId?: string; messageId?: string; target: 'clipboard' | 'file'; format?: 'markdown' | 'html' }) =>
     call<{ done: 'copied' } | { done: 'saved'; name: string } | { done: 'cancelled' }>('sessions:exportMarkdown', request),
   // `external`: the system's own browser even for a page the CoS browser would open.
   openLink: (url: string, options: { external?: boolean } = {}) => call<boolean>('link:open', { url, ...(options.external ? { external: true } : {}) }),

@@ -1391,6 +1391,24 @@ it.each(['image', 'txt', 'mixed', 'new-chat', 'after-turn'])('routes the compose
   expect(app.live.sent[0]!.attachmentDelivery).toBe(kind === 'image' ? 'tool' : undefined);
 });
 
+it('attaches a file from Recent files again and sends it with the next message', async () => {
+  const app = await boot([]);
+  const report = { id: '33333333-2222-4333-8444-555555555555', name: 'report.pdf', mimeType: 'application/pdf', size: 4096 };
+  const reattach = vi.fn(async (ids: string[]) => ({ ok: true, data: ids.map(() => report) }));
+  Object.assign((app.w as any).api, { recentAttachments: async () => ({ ok: true, data: [report] }), reattachFiles: reattach });
+  app.w.document.getElementById('attachRecent')!.click(); await settle();
+  app.w.document.querySelector<HTMLButtonElement>(`#attachmentLibrary [data-attachment-id="${report.id}"]`)!.click(); await settle();
+  expect(reattach).toHaveBeenCalledWith([report.id]);
+  expect(app.w.document.querySelector('[aria-label="Remove report.pdf"]')).not.toBeNull();
+  // Already in this draft: the list does not offer it twice.
+  app.w.document.getElementById('attachRecent')!.click(); await settle();
+  expect(app.w.document.getElementById('attachmentLibrary')!.textContent).toBe('Recent files are already in this message');
+  app.w.document.getElementById('composer')!.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true }));
+  await settle();
+  expect(app.live.sent).toHaveLength(1);
+  expect(app.live.sent[0]).toMatchObject({ attachments: [report] });
+});
+
 it('restores the image draft after rejected injection and removes native-only delivery when the document is removed', async () => {
   const app = await boot([]);
   const image = { id: '11111111-2222-4333-8444-555555555555', name: 'image.png', mimeType: 'image/png', size: 42 };
@@ -1697,7 +1715,9 @@ it('imports one physical file drop from the composer, timeline, or sidebar exact
   const { w } = await boot([], false);
   const api = (w as any).api;
   const image = { id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', name: 'dropped.md', size: 12, mimeType: 'text/markdown' };
-  api.dropFiles = vi.fn(async () => ({ ok: true, data: [image] }));
+  // Every drop stages a new copy under a new id, as the main process does.
+  let staged = 0;
+  api.dropFiles = vi.fn(async () => ({ ok: true, data: [{ ...image, id: `aaaaaaaa-bbbb-4ccc-8ddd-${String(++staged).padStart(12, '0')}` }] }));
   const drop = (target: Element, count: number) => {
     const event = new w.Event('drop', { bubbles: true, cancelable: true });
     Object.defineProperty(event, 'dataTransfer', { value: { types: ['Files'], files: Array.from({ length: count }, () => new w.File(['image'], 'image.png', { type: 'image/png' })) } });
@@ -5754,7 +5774,7 @@ it('uses a playful work word when it is turned on in Settings', async () => {
   expect(w.document.getElementById('chatState')!.textContent).toMatch(PLAYFUL_WORDS);
 });
 
-it('offers copy and Markdown export under the answer of a completed turn only', async () => {
+it('offers copy and Markdown or HTML export under the answer of a completed turn only', async () => {
   const ask: SessionEvent = { kind: 'user_message', seq: 1, origin: 1, time: T0, source: 'extension', turnId: 'done-turn', messageId: 'ask', message: text('Write hello.txt') };
   const reply: SessionEvent = { kind: 'assistant_message', seq: 2, time: T0 + 1_000, source: 'extension', turnId: 'done-turn', messageId: 'reply', message: text('Created **hello.txt**.'), final: true, state: 'final' };
   const { w, append } = await boot([ask, reply]);
@@ -5774,9 +5794,16 @@ it('offers copy and Markdown export under the answer of a completed turn only', 
 
   api.exportMarkdown = vi.fn(async () => ({ ok: true, data: { done: 'saved', name: 'chat.md' } }));
   const choices = [...actions!.querySelectorAll<HTMLButtonElement>('.answer-export-choice')];
-  expect(choices.map(choice => choice.textContent)).toEqual(['This answer', 'Whole session']);
+  expect(choices.map(choice => choice.textContent)).toEqual(['This answer', 'Whole session', 'Whole session as HTML']);
+  // Choosing closes the menu and takes the choice off the screen; focus goes back to the Export button, not the page.
+  actions!.querySelector<HTMLDetailsElement>('details.answer-export')!.open = true;
+  choices[1]!.focus();
   choices[1]!.click(); await settle();
+  expect(actions!.querySelector<HTMLDetailsElement>('details.answer-export')!.open).toBe(false);
+  expect(w.document.activeElement).toBe(actions!.querySelector('details.answer-export > summary'));
   expect(api.exportMarkdown).toHaveBeenCalledWith({ id: summary([]).id, scope: 'session', turnId: undefined, target: 'file' });
+  choices[2]!.click(); await settle();
+  expect(api.exportMarkdown).toHaveBeenLastCalledWith({ id: summary([]).id, scope: 'session', turnId: undefined, target: 'file', format: 'html' });
 });
 
 it('does not offer copy or export after an interrupted turn', async () => {
@@ -7128,6 +7155,63 @@ describe('edit and resubmit (#365)', () => {
     expect(input.value).toBe('Unfinished');
     await submit(w as any, 'Just a follow-up');
     expect(live.sent.at(-1)).not.toHaveProperty('edit');
+  });
+
+  it('sends Review\'s conflict request as a new message, even from an edit and a narrow window', async () => {
+    // It went into the edit, so Send replaced the question and every message after it.
+    const project: LocalProject = { id: '55555555-5555-4555-8555-555555555555', name: 'Workspace', path: '/workspace', createdAt: T0 };
+    const { w, live } = await boot(exchange(), true, [], [project], { summary: { conversationId: chat } });
+    const ok = <T>(data: T) => Promise.resolve({ ok: true as const, data });
+    w.api.getProjectGitSnapshot = () => ok({ projectId: project.id, state: 'ready', truncated: false, revision: 'merging',
+      changes: [{ status: 'C', path: 'src/both.ts', additions: null, deletions: null, binary: false }] });
+    w.api.getProjectGitDiff = () => ok({ projectId: project.id, status: 'C', path: 'src/both.ts', additions: null, deletions: null,
+      binary: false, tooLarge: false, baseText: 'ours', currentText: '<<<<<<< HEAD' });
+    Object.defineProperty(w, 'matchMedia', { configurable: true,
+      value: (query: string) => ({ matches: query.includes('850px'), addEventListener: vi.fn(), removeEventListener: vi.fn() }) });
+    const input = w.document.getElementById('chatInput') as HTMLTextAreaElement;
+    input.value = 'Unfinished';
+    editButton(w, 'First question')!.click(); await settle();
+    w.document.querySelector<HTMLButtonElement>('.work-dock-quick[data-view="review"]')!.click(); await settle();
+    w.document.querySelector<HTMLButtonElement>('.review-panel .file-change-row[data-path="src/both.ts"]')!.click(); await settle();
+    [...w.document.querySelectorAll<HTMLButtonElement>('.review-panel .file-preview-actions button')].find(button => button.title === 'Ask chat to resolve')!.click();
+    await settle();
+    expect(w.document.getElementById('editDraft')!.hidden).toBe(true);
+    expect(input.value).toMatch(/^Help me resolve the merge conflict in src\/both\.ts\..*\n\nUnfinished$/s);
+    expect(w.document.querySelector('.has-work-dock')).toBeNull();
+    expect(w.document.activeElement).toBe(input);
+    await submit(w as any);
+    expect(live.sent.at(-1)).not.toHaveProperty('edit');
+    expect(live.sent.at(-1)?.text).toContain('Help me resolve the merge conflict in src/both.ts.');
+  });
+
+  it('does not put Review\'s conflict request in the composer while a prepared plan is waiting to be sent', async () => {
+    // Send starts the prepared plan, so the request the composer showed would never have been sent.
+    const project: LocalProject = { id: '55555555-5555-4555-8555-555555555555', name: 'Workspace', path: '/workspace', createdAt: T0 };
+    const { w, live } = await boot([], false, [], [project]);
+    const api = (w as any).api;
+    (w.document.querySelector(`.project-heading > [data-new-project="${project.id}"]`) as HTMLButtonElement).click(); await settle();
+    (await api.getState()).data.config.ui.finishTool = true;
+    const ok = <T>(data: T) => Promise.resolve({ ok: true as const, data });
+    api.draftTaskPlan = vi.fn(async () => ({ ok: true, data: ['Build foundation', 'Verify it'] }));
+    api.getProjectGitSnapshot = () => ok({ projectId: project.id, state: 'ready', truncated: false, revision: 'merging',
+      changes: [{ status: 'C', path: 'src/both.ts', additions: null, deletions: null, binary: false }] });
+    api.getProjectGitDiff = () => ok({ projectId: project.id, status: 'C', path: 'src/both.ts', additions: null, deletions: null,
+      binary: false, tooLarge: false, baseText: 'ours', currentText: '<<<<<<< HEAD' });
+    const input = w.document.getElementById('chatInput') as HTMLTextAreaElement;
+    input.value = 'Build the whole task';
+    input.dispatchEvent(new w.Event('input'));
+    w.document.getElementById('createPlan')!.click();
+    w.document.getElementById('composer')!.dispatchEvent(new w.Event('submit', { cancelable: true }));
+    await settle();
+    expect(w.document.getElementById('taskPlanPreview')!.textContent).toContain('Build foundation');
+    w.document.querySelector<HTMLButtonElement>('.work-dock-quick[data-view="review"]')!.click(); await settle();
+    w.document.querySelector<HTMLButtonElement>('.review-panel .file-change-row[data-path="src/both.ts"]')!.click(); await settle();
+    [...w.document.querySelectorAll<HTMLButtonElement>('.review-panel .file-preview-actions button')].find(button => button.title === 'Ask chat to resolve')!.click();
+    await settle();
+    expect(input.value).toBe('');
+    expect(w.document.querySelector('.toast')?.textContent).toBe('Start or cancel the prepared plan first, then ask again.');
+    expect(w.document.getElementById('taskPlanPreview')!.textContent).toContain('Build foundation');
+    expect(live.sent).toHaveLength(0);
   });
 
   it('offers no Edit in a worker chat', async () => {

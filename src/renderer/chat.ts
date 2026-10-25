@@ -43,6 +43,7 @@ import { structureTimeline, type RoundPart } from './timeline-rounds.js';
 import type { TurnTrace } from '../shared/turn-trace.js';
 import { initContextMeter, paintContextMeter } from './context-meter.js';
 import { installComposerDockMotion, installComposerHeightMotion } from './composer-motion.js';
+import { initAttachmentLibrary, notInDraft } from './attachment-library.js';
 import { sanitizeHtmlTree } from './sanitize-html.js';
 import { drawMath, mathExtensions, separateDisplayMath, type MathSlots } from './math.js';
 import { installFormulaMenu } from './formula-menu.js';
@@ -5138,18 +5139,19 @@ function eventBody(event: SessionEvent, context?: { id: string; current: () => b
 }
 
 /**
- * Copy and Markdown export under the answer of a turn the page reported as completed. Main
- * builds the text from the log, reading back answers that were cut there, so a long answer
- * copies and exports whole; the timeline only decides where the actions appear.
+ * Copy and export (Markdown, or the whole session as an HTML page) under the answer of a turn the
+ * page reported as completed. Main builds the text from the log, reading back answers that were
+ * cut there, so a long answer copies and exports whole; the timeline only decides where the
+ * actions appear.
  */
 function answerActions(turnId: string | null, messageId?: string, answer?: { text: string; time: number }): HTMLElement {
   const bar = el('div', 'answer-actions');
   const sessionId = selectedId;
   // A turn's answer is named by its turn; one recorded outside any turn by its message.
-  const exportTo = async (scope: 'answer' | 'session', target: 'clipboard' | 'file') => {
+  const exportTo = async (scope: 'answer' | 'session', target: 'clipboard' | 'file', format: 'markdown' | 'html' = 'markdown') => {
     if (!sessionId || selectedId !== sessionId) return null;
     return run(api.exportMarkdown({ id: sessionId, scope, turnId: scope === 'answer' && turnId ? turnId : undefined,
-      messageId: scope === 'answer' && !turnId ? messageId : undefined, target }));
+      messageId: scope === 'answer' && !turnId ? messageId : undefined, target, ...(format === 'html' ? { format } : {}) }));
   };
   const copy = el('button', 'answer-action') as HTMLButtonElement;
   copy.type = 'button';
@@ -5168,14 +5170,17 @@ function answerActions(turnId: string | null, messageId?: string, answer?: { tex
   menu.className = 'answer-export';
   const trigger = el('summary', 'answer-action');
   trigger.append(icon('i-export'));
-  ui(trigger, 'title', () => t('Export as Markdown')); ui(trigger, 'aria-label', () => t('Export as Markdown'));
+  ui(trigger, 'title', () => t('Export')); ui(trigger, 'aria-label', () => t('Export'));
   const choices = el('div', 'answer-export-menu');
-  for (const [scope, label] of [['answer', 'This answer'], ['session', 'Whole session']] as const) {
-    const choice = el('button', 'answer-export-choice', () => t(label)) as HTMLButtonElement;
+  for (const [scope, format, label] of [['answer', 'markdown', () => t('This answer')], ['session', 'markdown', () => t('Whole session')],
+    ['session', 'html', () => t('Whole session as HTML')]] as const) {
+    const choice = el('button', 'answer-export-choice', label) as HTMLButtonElement;
     choice.type = 'button';
     choice.addEventListener('click', async () => {
       menu.open = false;
-      const result = await exportTo(scope, 'file');
+      // The clicked choice leaves the screen with the menu; focus goes back to the menu's own button.
+      trigger.focus();
+      const result = await exportTo(scope, 'file', format);
       if (result?.done === 'saved') toast(t('Saved {0}', [result.name]));
     });
     choices.append(choice);
@@ -7761,8 +7766,10 @@ export function chatApply(state: AppState, previous?: Config): void {
   applyRouteSettling(state.status.routeSettlingUntil ?? 0);
   if (bridgePresent !== bridge.present) { bridgePresent = bridge.present; paintPendingInputs(); }
   if (visible && selectedId) void refreshSessionControls();
-  paintContextMeter(sessions.find(session => session.id === selectedId) ?? null, config, confirmedComposerModel());
   applyChatModels(config, previous);
+  // After the picker took this state: the meter's Pro rule reads the picker, and before it could
+  // still describe the previous model and fill a Pro chat toward a compaction point it never uses.
+  paintContextMeter(sessions.find(session => session.id === selectedId) ?? null, config, confirmedComposerModel());
 
   applyChatChecked($<HTMLInputElement>('autoCompact'), config.compaction.auto, previous?.compaction.auto);
   applyChatValue(
@@ -8774,9 +8781,12 @@ export function initChat(next: Deps): void {
       finally { button.disabled = false; if (selectedId === id) void refreshSessionControls(); }
     });
   }
-  const appendImages = (owner: ComposerDraftOwner, chosen: InputAttachment[] | null | undefined): boolean => {
-    if (!chosen?.length) return false;
+  const appendImages = (owner: ComposerDraftOwner, attached: InputAttachment[] | null | undefined): boolean => {
+    if (!attached?.length) return false;
     if (!ownsComposerDraft(owner)) { toast(t("Files were not added because the draft changed.")); return false; }
+    // A staged id is in the draft once, whichever path (the + menu, a drop or Recent files) brings it.
+    const chosen = notInDraft(imageDrafts.get(owner.key) ?? [], attached);
+    if (!chosen.length) return false;
     const combined = [...(imageDrafts.get(owner.key) ?? []), ...chosen];
     if (combined.length > 20 || combined.reduce((sum, file) => sum + ('size' in file ? file.size : 0), 0) > 512 * 1024 * 1024) { toast(t("Attach up to 20 files and 512 MB per message")); return false; }
     imageDrafts.set(owner.key, combined); paintComposerImages();
@@ -8796,6 +8806,15 @@ export function initChat(next: Deps): void {
   reviewPanel = createFilePanel({
     host: chatHost, mount: docks.body, reviewOnly: true,
     onShow: () => docks.adopt('review'),
+    // A new message: not an edit of an earlier question, which would replace the messages after it.
+    // A narrow window shows the dock instead of the chat; it closes so the composer is in view.
+    onAskChat: request => {
+      // Send submits a prepared plan, not what the composer shows, so the request would sit there unsent.
+      if (currentPreparedPlan()) { toast(t("Start or cancel the prepared plan first, then ask again.")); return; }
+      if (editingQuestion) endEditing(true);
+      if (window.matchMedia?.('(max-width: 850px)').matches) docks.setOpen(false);
+      prefillComposer(request);
+    },
     onEscape: () => { docks.setOpen(false); docks.rightToggle.focus(); }
   });
   reviewPanel.update(selectedLocalProject());
@@ -8828,6 +8847,16 @@ export function initChat(next: Deps): void {
     const owner = composerDraftOwner();
     appendImages(owner, await run(api.chooseFiles()));
   });
+  initAttachmentLibrary({ menu: $<HTMLDetailsElement>('attachmentMenu'), toggle: $<HTMLButtonElement>('attachRecent'), host: $('attachmentLibrary'),
+    list: () => api.recentAttachments(),
+    attached: () => new Set((imageDrafts.get(draftKey()) ?? []).flatMap(file => 'id' in file ? [file.id] : [])),
+    choose: async file => {
+      const owner = composerDraftOwner();
+      const added = appendImages(owner, await run(api.reattachFiles([file.id])));
+      // Focus follows the file into the composer, unless the person has already moved on to something else.
+      const at = document.activeElement;
+      if (added && (!at || at === document.body || at.closest('#attachmentMenu'))) $<HTMLTextAreaElement>('chatInput').focus();
+    } });
   skillPicker = initSkills({ input: $<HTMLTextAreaElement>('chatInput'), host: $('skillPicker'),
     openButton: $('composerSkills'), addButton: $('composerAddSkill'),
     selectedHost: $('composerSelectedSkills'), owner: () => `${draftKey()}:${composerDraftGeneration}`,
