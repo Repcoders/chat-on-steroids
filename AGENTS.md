@@ -4542,7 +4542,9 @@ reset. IPC `settings:defaults` (preload `getSettingDefaults()`) returns `default
 once per window; older configs that read other schema defaults (plugin auto-refresh Off, for
 example) are marked, and the button says "for new installs". Reset sets the control and fires its
 `change`, so the page's ordinary save owns the write.
-Paths, tunnel IDs, keys, profiles, account models and the language are not listed.
+Appearance keeps Reset appearance and the prompt editors keep Restore default; Goal, Loop, compaction,
+worker and recording rows save through the chat page and are not listed either. Paths, tunnel IDs,
+keys, profiles, account models and the language are never listed.
 `scripts/verify-setup-guide.cjs` exercises narrow/zoomed layouts and native keyboard selection.
 Bindings live only in a WeakMap keyed by their DOM node. Language changes walk the current
 document, including hidden panels and bound text nodes. Never retain or periodically dereference
