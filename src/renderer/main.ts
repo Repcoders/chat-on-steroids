@@ -1,5 +1,7 @@
+import { applyPhonePush, initPhonePushSettings, readPhonePush } from './phone-push-settings.js';
 import { initBrowserSetup } from './setup-browser.js';
-import { currentLanguage, ui, uiText, t, tn, initLanguage, onLanguageChange } from './i18n.js';
+import { currentLanguage, ui, uiText, t, tn, initLanguage, onLanguageChange, setLanguage, type Language } from './i18n.js';
+import { initSettingsBackup } from './settings-backup-dialog.js';
 import { initLayoutPreviews } from './layout-previews.js';
 import { workerName } from './agent-panel.js';
 import { primaryShiftShortcut, primaryShortcut } from './shortcuts.js';
@@ -27,6 +29,7 @@ import { initPets } from './pets.js';
 import { initSkillsLibrary } from './skills-library.js';
 import { initWhatsNew } from './whats-new.js';
 import { initSettingsSearch } from './settings-search.js';
+import { paintSettingDefaults } from './setting-defaults.js';
 import type { AppearanceSettings } from '../shared/appearance.js';
 import type { BrowserBridgePort } from '../shared/browser-bridge.js';
 import { parseCommandAllowlistText } from '../shared/command-allowlist.js';
@@ -113,6 +116,16 @@ const publishUiLanguage = (): void => { void Promise.resolve(api.setUiLanguage?.
 publishUiLanguage();
 onLanguageChange(publishUiLanguage);
 const pet = initPet(api, () => showTab('pets'));
+initSettingsBackup(api, {
+  imported: next => {
+    apply(next);
+    // The language lives in this page; a backup in another one switches it here too.
+    const language = next.config.ui.language;
+    if (language && language !== currentLanguage()) setLanguage(language as Language);
+  },
+  toast
+});
+initPhonePushSettings(api, { save: () => save(), applied: next => apply(next), toast });
 const settingsSearch = initSettingsSearch({
   open: tab => showTab(tab),
   shown: () => document.querySelector<HTMLElement>('.app')!.dataset.screen === 'settings'
@@ -171,6 +184,8 @@ const GROUPS: Group[] = [
 ];
 
 let state: AppState | null = null;
+/** What a new install starts with, read once; rows that differ from it are marked. */
+let settingDefaults: Config | null = null;
 let updateAllError: string | null = null;
 /** Guards against saving while we are writing values into the controls. */
 let applying = false;
@@ -697,14 +712,15 @@ function toolsOn(next: AppState): number {
 let settingsSaveQueue: Promise<void> = Promise.resolve();
 let requestedSettings: SettingsPatch | null = null;
 
-function save(over: { readOnly?: boolean; theme?: 'light' | 'dark'; appearance?: AppearanceSettings } = {}): Promise<void> {
-  if (applying || !state) return Promise.resolve();
+/** Resolves true once main saved the form, false when nothing was saved (an invalid field, a refusal). */
+function save(over: { readOnly?: boolean; theme?: 'light' | 'dark'; appearance?: AppearanceSettings } = {}): Promise<boolean> {
+  if (applying || !state) return Promise.resolve(false);
 
   const previous: AppState['config'] = requestedSettings
     ? { ...state.config, ...requestedSettings }
     : state.config;
   const commandAllowlist = readCommandAllowlist();
-  if (!commandAllowlist) return Promise.resolve();
+  if (!commandAllowlist) return Promise.resolve(false);
   const capabilities = { ...previous.capabilities };
   for (const input of document.querySelectorAll<HTMLInputElement>('[data-cap]')) {
     const capability = input.dataset.cap as Capability;
@@ -769,6 +785,7 @@ function save(over: { readOnly?: boolean; theme?: 'light' | 'dark'; appearance?:
       mentionCore: $<HTMLInputElement>('mentionCore').checked,
       mentionPlugins: $<HTMLInputElement>('mentionPlugins').checked,
       privacyScreenshots: $<HTMLInputElement>('privacyScreenshots').checked,
+      phonePush: readPhonePush(previous.ui.phonePush),
       secretsShield: $<HTMLInputElement>('secretsShield').checked,
       theme: over.theme ?? previous.ui.theme,
       appearance: over.appearance ?? previous.ui.appearance
@@ -791,7 +808,7 @@ function save(over: { readOnly?: boolean; theme?: 'light' | 'dark'; appearance?:
   return work;
 }
 
-async function saveSnapshot(patch: SettingsPatch, previous: AppState['config']): Promise<void> {
+async function saveSnapshot(patch: SettingsPatch, previous: AppState['config']): Promise<boolean> {
   const toolSurfaceChanged =
     previous.multiAgent.enabled !== patch.multiAgent.enabled ||
     (Object.keys(patch.capabilities) as Capability[]).some((cap) => {
@@ -825,6 +842,7 @@ async function saveSnapshot(patch: SettingsPatch, previous: AppState['config']):
     } else if (toolSurfaceChanged) {
       toast(t("Tools changed. Start a new ChatGPT conversation to guarantee the new tool list is loaded."));
     }
+    return true;
   } else {
     await refresh();
     // A rejected select remains focused. Restore it even though ordinary pushes protect dirty
@@ -845,6 +863,7 @@ async function saveSnapshot(patch: SettingsPatch, previous: AppState['config']):
     if (state && (!requestedSettings || requestedSettings.ui.secretsShield === patch.ui.secretsShield)) {
       $<HTMLInputElement>('secretsShield').checked = state.config.ui.secretsShield !== false;
     }
+    return false;
   }
 }
 
@@ -1741,6 +1760,7 @@ function apply(next: AppState): void {
     config.ui.privacyScreenshots,
     previousState?.config.ui.privacyScreenshots
   );
+  applyPhonePush(next);
   // Missing means on (#1797).
   applyChecked(
     $<HTMLInputElement>('secretsShield'),
@@ -1949,6 +1969,7 @@ function apply(next: AppState): void {
     : t("Recent activity only. File contents and credentials are never recorded."));
 
   chatApply(next, previousState?.config);
+  if (settingDefaults) paintSettingDefaults(config, settingDefaults);
 
   applying = false;
 }
@@ -2827,6 +2848,15 @@ for (const id of [
   'controlApiAllowActions',
   'mcpPersistentUrls',
   'privacyScreenshots',
+  'phonePushEnabled',
+  'phonePushTopic',
+  'phonePushServer',
+  'phonePushNeedsYou',
+  'phonePushFailures',
+  'phonePushFinished',
+  'phonePushAway',
+  'phonePushQuiet',
+  'phonePushDetails',
   'secretsShield',
   'tunnelKind',
   'tunnelId',
@@ -2888,10 +2918,15 @@ initPlugins(apply);
 initPets(api, pet);
 openSkillsLibrary = initSkillsLibrary(api);
 initBrowserPreferences();
-initChat({ save: () => save(), state: () => state });
+initChat({ save: async () => { await save(); }, state: () => state });
 
 void (async () => {
   await refresh();
+  // Not awaited: the rest of startup does not wait for the marks.
+  void run(api.getSettingDefaults()).then(defaults => {
+    settingDefaults = defaults;
+    if (state && defaults) paintSettingDefaults(state.config, defaults);
+  });
   // A first run has nothing set up, so open on the wizard rather than an empty Home.
   showTab(state && missingStep(state)?.step === 'folder' ? 'setup' : 'chat');
   // What's New after a real update (#1172); a first run on the Setup wizard has nothing new to show.
