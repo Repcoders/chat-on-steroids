@@ -1963,7 +1963,11 @@ it('starts a project\'s new chats on the model saved from its menu, and other ne
   const effort = w.document.getElementById('composerReasoning') as HTMLSelectElement;
   effort.value = 'none'; effort.dispatchEvent(new w.Event('change', { bubbles: true }));
   projectMenu(w, project.id); menuItem(w, 'chat-defaults').click();
-  expect(menuItem(w, 'chat-defaults-composer').textContent).toBe('Use GPT-5.6 Sol · Instant for new chats here');
+  // The pair alone, as a choice that is not checked yet; Same as Settings still is.
+  expect(menuItem(w, 'chat-defaults-composer').textContent).toBe('GPT-5.6 Sol · Instant');
+  expect(menuItem(w, 'chat-defaults-composer').getAttribute('role')).toBe('menuitemradio');
+  expect(menuItem(w, 'chat-defaults-composer').getAttribute('aria-checked')).toBe('false');
+  expect(menuItem(w, 'chat-defaults-settings').getAttribute('aria-checked')).toBe('true');
   menuItem(w, 'chat-defaults-composer').click(); await settle();
   expect(api.setProjectChatDefaults).toHaveBeenCalledWith(project.id, { model: 'gpt-5.6-sol', reasoningEffort: 'none' });
   // An unfiled new chat keeps the Settings default; the project's next new chat uses its own pair.
@@ -1977,7 +1981,17 @@ it('starts a project\'s new chats on the model saved from its menu, and other ne
   expect(live.sent.at(-1)).toMatchObject({ text: 'Hello from the project', projectId: project.id, model: 'gpt-5.6-sol', reasoningEffort: 'none' });
   // Same as Settings clears it.
   projectMenu(w, project.id); menuItem(w, 'chat-defaults').click();
+  // The composer shows the saved pair: one checked choice, and Same as Settings is not.
+  expect(menuItem(w, 'chat-defaults-saved').textContent).toBe('GPT-5.6 Sol · Instant');
   expect(menuItem(w, 'chat-defaults-saved').getAttribute('aria-checked')).toBe('true');
+  expect(menuItem(w, 'chat-defaults-settings').getAttribute('aria-checked')).toBe('false');
+  expect(w.document.querySelector('[data-row-action="chat-defaults-composer"]')).toBeNull();
+  // A different pair in the composer is offered next to the saved one, which stays checked.
+  w.document.body.dispatchEvent(new w.Event('pointerdown', { bubbles: true }));
+  effort.value = 'high'; effort.dispatchEvent(new w.Event('change', { bubbles: true }));
+  projectMenu(w, project.id); menuItem(w, 'chat-defaults').click();
+  expect([...w.document.querySelectorAll<HTMLElement>('.row-menu-item')].filter(item => item.dataset.rowAction?.startsWith('chat-defaults-')).map(item => [item.textContent, item.getAttribute('aria-checked')]))
+    .toEqual([['Same as Settings', 'false'], ['GPT-5.6 Sol · Instant', 'true'], ['GPT-5.6 Sol · High', 'false']]);
   menuItem(w, 'chat-defaults-settings').click(); await settle();
   expect(api.setProjectChatDefaults).toHaveBeenLastCalledWith(project.id, null);
 });

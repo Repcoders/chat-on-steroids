@@ -2691,7 +2691,9 @@ set or neither), which replaces the Settings pair for a new chat in that project
 `projects:chatDefaults` (`{ id, defaults }`, null clears it) is its only writer
 (`setProjectChatDefaults`, the same catalog queue as color); a malformed stored pair is dropped
 on read, never a reason to reject the catalog. The project menu's New-chat model submenu offers
-Same as Settings, the saved pair, and the pair the composer shows now (`confirmedComposerModel`).
+Same as Settings and the pairs as plain labels ("GPT-6 · High"), each a checkable choice: the saved
+pair is checked, and the pair the composer shows now (`confirmedComposerModel`) is offered beside it
+when it differs; a click saves it.
 `chat.ts` passes the selected new chat's project pair to `applyComposerSessionModel`; a different
 pair starts the new-chat composer over on it, so the same pair never discards a choice the person
 made in the composer.

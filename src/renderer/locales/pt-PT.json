@@ -3175,7 +3175,5 @@
   "New-chat model": "Modelo para novas conversas",
   "The model and effort a new chat in this project starts with": "O modelo e o esforço com que começa uma nova conversa neste projeto",
   "Same as Settings": "Igual às Definições",
-  "Use {0} for new chats here": "Usar {0} nas novas conversas daqui",
-  "Start new chats here with the model and effort the composer shows": "Começar as novas conversas daqui com o modelo e o esforço que a caixa de mensagem mostra",
   "Pick a model in the composer first": "Escolha primeiro um modelo na caixa de mensagem"
 }

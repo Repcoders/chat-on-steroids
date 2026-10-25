@@ -317,7 +317,7 @@ function projectMenuItems(id: string): RowMenuItem[] {
       action: 'chat-defaults', icon: 'i-sparkle', label: () => t('New-chat model'),
       title: () => t('The model and effort a new chat in this project starts with'),
       submenu: () => {
-        // What the composer shows now is the pair offered; Send would use exactly that one.
+        // The saved pair is checked; what the composer shows now is offered beside it, since Send would use exactly that one.
         const composer = confirmedComposerModel();
         const offered = composer && (composer.model !== chatDefaults?.model || composer.reasoningEffort !== chatDefaults.reasoningEffort) ? composer : null;
         const saving = savingProjectChatDefaults.has(id);
@@ -326,10 +326,9 @@ function projectMenuItems(id: string): RowMenuItem[] {
             run: () => void saveProjectChatDefaults(id, null) },
           ...(chatDefaults ? [{ action: 'chat-defaults-saved', checked: true, disabled: saving,
             label: () => chatModelName(chatDefaults.model, chatDefaults.reasoningEffort) } satisfies RowMenuItem] : []),
-          offered
-            ? { action: 'chat-defaults-composer', separated: true, disabled: saving, label: () => t('Use {0} for new chats here', [chatModelName(offered.model, offered.reasoningEffort)]),
-              title: () => t('Start new chats here with the model and effort the composer shows'), run: () => void saveProjectChatDefaults(id, offered) }
-            : { action: 'chat-defaults-composer', separated: true, disabled: true, label: () => t('Pick a model in the composer first') }
+          ...(offered ? [{ action: 'chat-defaults-composer', checked: false, disabled: saving,
+            label: () => chatModelName(offered.model, offered.reasoningEffort), run: () => void saveProjectChatDefaults(id, offered) } satisfies RowMenuItem] : []),
+          ...(composer ? [] : [{ action: 'chat-defaults-composer', disabled: true, label: () => t('Pick a model in the composer first') } satisfies RowMenuItem])
         ];
       }
     },
