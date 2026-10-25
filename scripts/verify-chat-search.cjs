@@ -92,17 +92,17 @@ app.whenReady().then(async () => {
       return {left:d.left,right:innerWidth-d.right,top:d.top,bottom:d.bottom,height:innerHeight,width:d.width,fieldTop:f.top-d.top,placeholder:document.getElementById('chatSearch').placeholder}})()`);
     assert.ok(Math.abs(box.left-box.right)<=2&&box.top>=40&&box.top<=box.height*0.25&&box.bottom<=box.height,'A centered dialog near the top: '+JSON.stringify(box));
     assert.ok(box.width>=480&&box.fieldTop<=24,'Wide enough, field on top: '+JSON.stringify(box));
-    assert.equal(box.placeholder,'Search chats');
+    assert.equal(box.placeholder,'Search chats, commands and settings');
     await capture(`${theme}-recent.png`);
     const fieldRow=await js(`(()=>{const f=document.querySelector('.search-dialog-field').getBoundingClientRect(),r=document.querySelector('#searchResults .search-result').getBoundingClientRect();return [Math.round(f.height),Math.round(f.bottom),Math.round(r.left),Math.round(r.width)]})()`);
     const steady=await js(`(()=>{const d=document.getElementById('searchDialog').getBoundingClientRect();return [Math.round(d.width),Math.round(d.height),Math.round(d.top)]})()`);
     win.webContents.insertText('bridge');
-    await until(`document.querySelectorAll('#searchResults .search-result').length===3&&!document.querySelector('#searchResults .search-heading')`);
+    await until(`document.querySelectorAll('#searchResults .search-result[data-search-id]').length===3&&document.querySelector('#searchResults .search-heading')?.textContent!=='Recent'`);
     assert.equal(await js(`document.getElementById('sessionList').hidden`),false,'The sidebar lists stay where they are');
     assert.equal(await js(`JSON.stringify(document.getElementById('sessionList').getBoundingClientRect())`),listsBefore,'The sidebar lists do not move');
     assert.equal(await js(`document.getElementById('chatSearchClear').hidden`),false,'The clear button shows');
     // A long title stays on one line; a snippet takes at most two.
-    const rows=await js(`[...document.querySelectorAll('#searchResults .search-result')].map(r=>{const b=r.querySelector('b'),s=r.querySelector('.search-snippet');return {title:b.getBoundingClientRect().height,titleClipped:b.scrollWidth>b.clientWidth,snippet:s?s.getBoundingClientRect().height:0,titleMarks:[...b.querySelectorAll('mark')].map(m=>m.textContent),marks:[...(s?s.querySelectorAll('mark'):[])].map(m=>m.textContent),overflow:r.scrollWidth>r.clientWidth+1}})`);
+    const rows=await js(`[...document.querySelectorAll('#searchResults .search-result[data-search-id]')].map(r=>{const b=r.querySelector('b'),s=r.querySelector('.search-snippet');return {title:b.getBoundingClientRect().height,titleClipped:b.scrollWidth>b.clientWidth,snippet:s?s.getBoundingClientRect().height:0,titleMarks:[...b.querySelectorAll('mark')].map(m=>m.textContent),marks:[...(s?s.querySelectorAll('mark'):[])].map(m=>m.textContent),overflow:r.scrollWidth>r.clientWidth+1}})`);
     assert.ok(rows.every(r=>r.title<=24),'Titles stay on one line: '+JSON.stringify(rows));
     assert.equal(rows[1].titleClipped,true,'A long title is cut with an ellipsis');
     assert.ok(rows.every(r=>r.snippet<=36),'Snippets take at most two lines: '+JSON.stringify(rows));
@@ -147,7 +147,7 @@ app.whenReady().then(async () => {
   // Keyboard: Down enters the results, Up returns to the field, Enter opens the first match.
   await js(`document.getElementById('chatSearch').select()`);
   win.webContents.insertText('bridge');
-  await until(`document.querySelectorAll('#searchResults .search-result').length===3`);
+  await until(`document.querySelectorAll('#searchResults .search-result[data-search-id]').length===3`);
   // The same query typed again repaints after the typing pause; wait it out before moving focus.
   await pause(400);
   await key('Down');
@@ -159,7 +159,7 @@ app.whenReady().then(async () => {
   // Words in any order, and nothing found says so.
   await js(`document.getElementById('chatSearch').select()`);
   win.webContents.insertText('windows macos');
-  await until(`document.querySelectorAll('#searchResults .search-result').length===1`);
+  await until(`document.querySelectorAll('#searchResults .search-result[data-search-id]').length===1`);
   await js(`document.getElementById('chatSearch').select()`);
   win.webContents.insertText('zebra');
   await until(`document.getElementById('searchResults').textContent.includes('No chats match')`);
@@ -168,7 +168,7 @@ app.whenReady().then(async () => {
   // Enter opens the first match: the dialog closes and the chat opens.
   await js(`document.getElementById('chatSearch').select()`);
   win.webContents.insertText('dashboard');
-  await until(`document.querySelectorAll('#searchResults .search-result').length===1`);
+  await until(`document.querySelectorAll('#searchResults .search-result[data-search-id]').length===1`);
   await key('Return');
   await until(`!document.getElementById('searchDialog').open`);
   await until(`document.querySelector('#sessionList [data-id="search-chat-2"]')?.classList.contains('is-sel')`);
@@ -177,7 +177,7 @@ app.whenReady().then(async () => {
   await until(`document.getElementById('searchDialog').open`);
   await js(`document.getElementById('chatSearch').select()`);
   win.webContents.insertText('installer');
-  await until(`document.querySelectorAll('#searchResults .search-result').length===1&&document.querySelector('#searchResults .search-result').dataset.searchId==='search-chat-1'`);
+  await until(`document.querySelectorAll('#searchResults .search-result[data-search-id]').length===1&&document.querySelector('#searchResults .search-result[data-search-id]').dataset.searchId==='search-chat-1'`);
   await pause(300);
   await key('Return');
   await until(`!!document.querySelector('#timeline .is-search-hit')`);
@@ -197,7 +197,33 @@ app.whenReady().then(async () => {
   await until(`document.getElementById('timeline').textContent.includes('Message number 240 ')`);
   await until(`(()=>{const p=document.getElementById('chatBody');return p.scrollHeight-p.clientHeight-p.scrollTop<=40})()`);
   assert.ok((await js('searches')).length<=12,'Typing is debounced into few searches: '+JSON.stringify(await js('searches')));
+  // The same field finds commands and settings below the chats (#1120's dialog, now a command palette).
+  await js(`setTheme('dark')`);
+  await js(`document.getElementById('searchChatsButton').click()`);
+  await until(`document.getElementById('searchDialog').open`);
+  await js(`document.getElementById('chatSearch').select()`);
+  win.webContents.insertText('usage');
+  await until(`[...document.querySelectorAll('#searchResults .search-heading')].some(h=>h.textContent==='Commands')`);
+  // Below the chats (none match here): the commands, then the settings.
+  const palette=await js(`[...document.getElementById('searchResults').children].map(n=>n.classList.contains('search-list')?[...n.querySelectorAll('b')].map(b=>b.textContent):n.textContent)`);
+  assert.deepEqual(palette.slice(0,4),[[],'No chats match','Commands',['Usage']],'The Usage command follows the chats: '+JSON.stringify(palette));
+  assert.ok(palette.indexOf('Settings')<0||palette.indexOf('Settings')>palette.indexOf('Commands'),'Settings come last: '+JSON.stringify(palette));
+  await capture('commands.png');
+  await js(`[...document.querySelectorAll('#searchResults .search-result')].find(r=>r.querySelector('b').textContent==='Usage').click()`);
+  await until(`!document.getElementById('searchDialog').open&&document.querySelector('[data-panel="usage"]').classList.contains('is-active')`);
+  await js(`document.getElementById('backToChat').click()`);
+  await until(`document.querySelector('.app').dataset.screen==='chat'`);
+  await js(`document.getElementById('searchChatsButton').click()`);
+  await until(`document.getElementById('searchDialog').open`);
+  await js(`document.getElementById('chatSearch').select()`);
+  win.webContents.insertText('bridge port');
+  await until(`[...document.querySelectorAll('#searchResults .search-result b')].some(b=>b.textContent==='Browser bridge port')`);
+  await capture('settings-results.png');
+  await js(`[...document.querySelectorAll('#searchResults .search-result')].find(r=>r.querySelector('b').textContent==='Browser bridge port').click()`);
+  // The setting opens at its place, marked, with its control focused once the dialog has closed.
+  await until(`document.querySelector('.app').dataset.screen==='settings'&&document.activeElement?.id==='browserBridgePort'&&document.getElementById('browserBridgePort').closest('.setting').classList.contains('is-found')`);
+  await capture('setting-opened.png');
   assert.deepEqual(errors,[]);
-  console.log('PASS: chat search dialog in both themes: icon beside the app name, recent chats, marked snippets, long titles, ⌘K/Ctrl+K and its labels, keyboard, Enter, word order, no match, Escape, a click outside, opening at the matching message, and Jump to latest from there');
+  console.log('PASS: chat search dialog in both themes: icon beside the app name, recent chats, marked snippets, long titles, ⌘K/Ctrl+K and its labels, keyboard, Enter, word order, no match, Escape, a click outside, opening at the matching message, Jump to latest from there, and commands and settings found and opened from the same field');
   win.destroy();await server.close();app.exit(0);
 }).catch(async error=>{fs.mkdirSync(output,{recursive:true});if(win&&!win.isDestroyed())fs.writeFileSync(path.join(output,'failure.png'),(await win.webContents.capturePage()).toPNG());console.error(error);await server?.close();app.exit(1);});
