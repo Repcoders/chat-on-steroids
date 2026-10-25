@@ -947,7 +947,8 @@ export function createFilePanel(options: FilePanelOptions) {
     if (markdown && editingPath !== relative && project?.id === projectId && previewPath === relative
       && previewValue?.path === relative && editablePreview(previewValue)) {
       await startEditing(previewValue);
-      if (editingPath !== relative) lineTarget = null;
+      // A later link may have set its own target while this editor mounted; leave that one.
+      if (editingPath !== relative && lineTarget?.path === relative) lineTarget = null;
     }
     revealLineTarget();
     return previewPath === relative && (!markdown || editingPath === relative);
