@@ -56,6 +56,7 @@ const ICONS: Readonly<Record<string, string>> = {
   'i-panel-right': 'fill:square-half',
   'i-palette': 'palette',
   'i-paw': 'paw-print',
+  'i-phone': 'device-mobile',
   'i-page-next': 'caret-right',
   'i-page-previous': 'caret-left',
   'i-pencil': 'pencil-simple',
@@ -115,6 +116,26 @@ export function disclosureChevron(className = ''): SVGSVGElement {
   const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
   path.setAttribute('d', 'M6 3.5 10.5 8 6 12.5');
   node.append(path);
+  return node;
+}
+
+/**
+ * A small authored chart, not an icon: a line through `points` (x 0–100, y 0–30, top down) over a
+ * faint area down to the bottom edge. It stretches to its box; the stroke keeps its width.
+ */
+export function trendLine(className: string, points: ReadonlyArray<readonly [number, number]>): SVGSVGElement {
+  const node = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  node.setAttribute('class', className);
+  node.setAttribute('viewBox', '0 0 100 30');
+  node.setAttribute('preserveAspectRatio', 'none');
+  node.setAttribute('role', 'img');
+  const list = points.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  const area = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+  area.setAttribute('points', `0,30 ${list} 100,30`);
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+  line.setAttribute('points', list);
+  line.setAttribute('vector-effect', 'non-scaling-stroke');
+  node.append(area, line);
   return node;
 }
 
