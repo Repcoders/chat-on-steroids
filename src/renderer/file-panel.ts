@@ -936,15 +936,21 @@ export function createFilePanel(options: FilePanelOptions) {
     if (options.reviewOnly || project?.id !== projectId) return false;
     if (mode === 'review') leaveReview();
     showFiles();
-    // A rendered Markdown preview has no lines, so the file opens but the jump cannot happen.
-    const rendered = /\.(?:md|markdown)$/i.test(relative) && editingPath !== relative;
     // The project id alone cannot tell a round trip A -> B -> A from no change at all.
     const epoch = generation;
     if (pane.hidden) await show(false);
     if (project?.id !== projectId || mode !== 'files' || generation !== epoch) return false;
-    await selectFile({ name: baseName(relative), path: relative, kind: 'file', bytes: null }, rendered ? null : { line, column });
+    await selectFile({ name: baseName(relative), path: relative, kind: 'file', bytes: null }, { line, column });
+    // A rendered Markdown preview has no lines, so its source opens in the editor, the panel's only view of that text.
+    // Nothing is remembered: the next file opens rendered again, and View goes back.
+    const markdown = /\.(?:md|markdown)$/i.test(relative);
+    if (markdown && editingPath !== relative && project?.id === projectId && previewPath === relative
+      && previewValue?.path === relative && editablePreview(previewValue)) {
+      await startEditing(previewValue);
+      if (editingPath !== relative) lineTarget = null;
+    }
     revealLineTarget();
-    return previewPath === relative && !rendered;
+    return previewPath === relative && (!markdown || editingPath === relative);
   }
 
   async function mountPdfViewer(value: ProjectFilePreview & { pdfDataBase64: string }, host: HTMLElement, revision: string): Promise<void> {

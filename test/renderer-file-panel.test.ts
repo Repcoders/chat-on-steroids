@@ -721,14 +721,34 @@ it('drops a terminal file link when the project changed and came back while File
   expect(codeMount.jumps).toEqual([]);
 });
 
-it('opens a Markdown file from a terminal link but reports that the line was not shown', async () => {
+it('opens a Markdown file from a terminal link as source at its line, and shows the next file rendered', async () => {
   vi.mocked(window.api.previewProjectFile).mockImplementation((_projectId: string, path: string) =>
     ok({ ...preview, path, name: path.split('/').at(-1)!, text: '# hello\n' }));
   const panel = createFilePanel({ host, mount: host });
   panel.update(projectA);
-  await expect(panel.openFileAt(projectA.id, 'docs/README.md', 12, 1)).resolves.toBe(false);
+  await expect(panel.openFileAt(projectA.id, 'docs/notes.md', 3, 5)).resolves.toBe(true);
   await tick();
-  expect(window.api.previewProjectFile).toHaveBeenCalledWith(projectA.id, 'docs/README.md');
+  expect(window.api.previewProjectFile).toHaveBeenCalledWith(projectA.id, 'docs/notes.md');
+  expect(host.querySelector<HTMLTextAreaElement>('.test-code-input')?.value).toBe('# hello\n');
+  expect(host.querySelector('.file-preview-markdown')).toBeNull();
+  expect(codeMount.jumps).toEqual([['notes.md', 3, 5]]);
+
+  // The same file again moves the open source to the new line.
+  await expect(panel.openFileAt(projectA.id, 'docs/notes.md', 1, 1)).resolves.toBe(true);
+  expect(codeMount.jumps).toEqual([['notes.md', 3, 5], ['notes.md', 1, 1]]);
+
+  // Nothing is remembered: a Markdown file opened from the tree is rendered.
+  host.querySelector<HTMLButtonElement>('[data-path="README.md"]')!.click(); await tick(); await tick();
+  expect(host.querySelector('.file-preview-markdown h1')?.textContent).toBe('hello');
+});
+
+it('keeps a Markdown file from a terminal link rendered and reports false when its source cannot be opened', async () => {
+  vi.mocked(window.api.previewProjectFile).mockImplementation((_projectId: string, path: string) =>
+    ok({ ...preview, path, name: path.split('/').at(-1)!, text: '# hello\n', truncated: true }));
+  const panel = createFilePanel({ host, mount: host });
+  panel.update(projectA);
+  await expect(panel.openFileAt(projectA.id, 'docs/big.md', 12, 1)).resolves.toBe(false);
+  await tick();
   expect(host.querySelector('.file-preview-markdown h1')?.textContent).toBe('hello');
   expect(codeMount.jumps).toEqual([]);
 });
