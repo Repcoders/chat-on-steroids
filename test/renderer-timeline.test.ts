@@ -1402,7 +1402,7 @@ it('attaches a file from Recent files again and sends it with the next message',
   expect(app.w.document.querySelector('[aria-label="Remove report.pdf"]')).not.toBeNull();
   // Already in this draft: the list does not offer it twice.
   app.w.document.getElementById('attachRecent')!.click(); await settle();
-  expect(app.w.document.getElementById('attachmentLibrary')!.textContent).toBe('No files attached in the last 24 hours');
+  expect(app.w.document.getElementById('attachmentLibrary')!.textContent).toBe('Recent files are already in this message');
   app.w.document.getElementById('composer')!.dispatchEvent(new app.w.Event('submit', { bubbles: true, cancelable: true }));
   await settle();
   expect(app.live.sent).toHaveLength(1);

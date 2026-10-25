@@ -3120,5 +3120,6 @@
   "Recent files": "Son dosyalar",
   "Attach {0} again": "{0} dosyasını yeniden ekle",
   "Recent files could not be loaded": "Son dosyalar yüklenemedi",
-  "No files attached in the last 24 hours": "Son 24 saatte eklenen dosya yok"
+  "No files attached in the last 24 hours": "Son 24 saatte eklenen dosya yok",
+  "Recent files are already in this message": "Son dosyalar zaten bu mesajda"
 }

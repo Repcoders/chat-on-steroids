@@ -3065,5 +3065,6 @@
   "Recent files": "최근 파일",
   "Attach {0} again": "{0} 다시 첨부",
   "Recent files could not be loaded": "최근 파일을 불러올 수 없습니다",
-  "No files attached in the last 24 hours": "지난 24시간 동안 첨부한 파일이 없습니다"
+  "No files attached in the last 24 hours": "지난 24시간 동안 첨부한 파일이 없습니다",
+  "Recent files are already in this message": "최근 파일이 이미 이 메시지에 추가되어 있습니다"
 }

@@ -3065,5 +3065,6 @@
   "Recent files": "最近的文件",
   "Attach {0} again": "再次附加 {0}",
   "Recent files could not be loaded": "无法加载最近的文件",
-  "No files attached in the last 24 hours": "过去 24 小时内没有附加文件"
+  "No files attached in the last 24 hours": "过去 24 小时内没有附加文件",
+  "Recent files are already in this message": "最近的文件已在此消息中"
 }

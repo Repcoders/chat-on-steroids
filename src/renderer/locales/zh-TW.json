@@ -3065,5 +3065,6 @@
   "Recent files": "最近的檔案",
   "Attach {0} again": "再次附加 {0}",
   "Recent files could not be loaded": "無法載入最近的檔案",
-  "No files attached in the last 24 hours": "過去 24 小時內沒有附加檔案"
+  "No files attached in the last 24 hours": "過去 24 小時內沒有附加檔案",
+  "Recent files are already in this message": "最近的檔案已在此訊息中"
 }

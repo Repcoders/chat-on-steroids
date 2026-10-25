@@ -58,6 +58,13 @@ it('shows the image preview, the empty state and a load failure', async () => {
   await vi.waitFor(() => expect(host.textContent).toBe('Recent files could not be loaded'), { timeout: 5000 });
 });
 
+it('says the recent files are already in the message when every one is, not that none were attached', async () => {
+  const { toggle, host } = await mount(async () => ({ ok: true as const, data: [png] }), new Set([png.id]));
+  toggle.click();
+  await vi.waitFor(() => expect(host.textContent).toBe('Recent files are already in this message'), { timeout: 5000 });
+  expect(host.querySelector('.attachment-library-item')).toBeNull();
+});
+
 it('shows the load failure note when the list call itself rejects, and ignores a rejection that arrives after the list closed', async () => {
   const rejects: Array<(error: Error) => void> = [];
   const { toggle, host } = await mount(() => new Promise((_resolve, reject) => { rejects.push(reject); }));
@@ -163,9 +170,9 @@ it('translates the Recent files row and the label of its list with the rest of t
   const row = dom.window.document.getElementById('attachRecent')!, list = dom.window.document.getElementById('attachmentLibrary')!;
   expect(row.textContent).toContain('Recent files');
   setLanguage('de');
-  expect(row.textContent).toContain('Zuletzt verwendete Dateien');
+  expect(row.textContent).toContain('Letzte Dateien');
   expect(row.textContent).not.toContain('Recent files');
-  expect(list.getAttribute('aria-label')).toBe('Zuletzt verwendete Dateien');
+  expect(list.getAttribute('aria-label')).toBe('Letzte Dateien');
 });
 
 it('adds a staged id to the draft once, however many paths bring it', async () => {

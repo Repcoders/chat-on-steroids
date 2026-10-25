@@ -3065,5 +3065,6 @@
   "Recent files": "Tệp gần đây",
   "Attach {0} again": "Đính kèm lại {0}",
   "Recent files could not be loaded": "Không thể tải các tệp gần đây",
-  "No files attached in the last 24 hours": "Không có tệp nào được đính kèm trong 24 giờ qua"
+  "No files attached in the last 24 hours": "Không có tệp nào được đính kèm trong 24 giờ qua",
+  "Recent files are already in this message": "Các tệp gần đây đã có trong tin nhắn này"
 }

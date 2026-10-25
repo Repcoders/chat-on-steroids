@@ -3065,5 +3065,6 @@
   "Recent files": "最近のファイル",
   "Attach {0} again": "{0} をもう一度添付",
   "Recent files could not be loaded": "最近のファイルを読み込めませんでした",
-  "No files attached in the last 24 hours": "過去 24 時間に添付したファイルはありません"
+  "No files attached in the last 24 hours": "過去 24 時間に添付したファイルはありません",
+  "Recent files are already in this message": "最近のファイルはすでにこのメッセージに追加されています"
 }

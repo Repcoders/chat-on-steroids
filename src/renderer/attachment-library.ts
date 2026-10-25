@@ -87,7 +87,9 @@ export function initAttachmentLibrary(options: AttachmentLibraryOptions): void {
     if (!reply.ok) { host.replaceChildren(el('p', 'attachment-library-note', () => t('Recent files could not be loaded'))); return; }
     const attached = options.attached();
     const files = reply.data.filter(file => !attached.has(file.id) && !picking.has(file.id));
-    host.replaceChildren(...(files.length ? files.map(row) : [el('p', 'attachment-library-note', () => t('No files attached in the last 24 hours'))]));
+    // Files that exist but are all in this draft already are not "none in the last 24 hours".
+    const empty = reply.data.length ? () => t('Recent files are already in this message') : () => t('No files attached in the last 24 hours');
+    host.replaceChildren(...(files.length ? files.map(row) : [el('p', 'attachment-library-note', empty)]));
   };
   toggle.setAttribute('aria-expanded', 'false');
   // Escape closes the menu with focus inside the list; it lands on the menu button, not the page.

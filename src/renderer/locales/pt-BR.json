@@ -3175,5 +3175,6 @@
   "Recent files": "Arquivos recentes",
   "Attach {0} again": "Anexar {0} novamente",
   "Recent files could not be loaded": "Não foi possível carregar os arquivos recentes",
-  "No files attached in the last 24 hours": "Nenhum arquivo anexado nas últimas 24 horas"
+  "No files attached in the last 24 hours": "Nenhum arquivo anexado nas últimas 24 horas",
+  "Recent files are already in this message": "Os arquivos recentes já estão nesta mensagem"
 }
