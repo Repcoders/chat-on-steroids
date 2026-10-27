@@ -4,6 +4,7 @@ import { markdownVisibleText } from '../shared/markdown-text.js';
 import { providerEntitiesAsMarkdown } from '../shared/content-reference.js';
 import { initChatSearch, type ChatSearch } from './chat-search.js';
 import { initChatFind } from './chat-find.js';
+import { initQuoteSelection, type QuoteSelection } from './quote-selection.js';
 import { initChatCycle } from './chat-cycle.js';
 import { createWorkspaceTerminal } from './workspace-terminal.js';
 import { sendTerminalSelection } from './terminal-selection.js';
@@ -20,6 +21,7 @@ import { chatGroupName, chatGroupOf } from '../shared/chat-groups.js';
 import { requestName } from './name-dialog.js';
 import { KIND_ICON } from './agent-activity.js';
 import { createFilePanel } from './file-panel.js';
+import { initCommitDialog } from './commit-dialog.js';
 import { renderAgentPlan } from './agent-plan.js';
 import { userPromptText } from '../shared/user-prompt.js';
 import { messageReaction, withoutMessageReaction } from '../shared/message-reaction.js';
@@ -108,12 +110,16 @@ import { APPROVAL_ANSWERED_TEXT, APPROVAL_PROGRESS_PREFIX, APPROVAL_WAITING_TEXT
 import { STRICT_REFUSAL_PROGRESS_PREFIX, UNPROVEN_WORKER_NOTICE, UNTRUSTED_NOTICE, UNTRUSTED_WORKER_NOTICE } from '../shared/trust-notices.js';
 import { closeRowMenu, onRowMenuChange, openRowMenu, rowMenuOpenFor, toggleRowMenu, type RowMenuItem, type RowMenuOptions } from './row-menu.js';
 import { createSearchPopup } from './search-popup.js';
-import { primaryShortcut } from './shortcuts.js';
+import { holdToTalkShortcut, holdToTalkSupported, primaryShortcut } from './shortcuts.js';
 import { initSshProjectDialog } from './ssh-project-dialog.js';
+import { initSharePage } from './share-page.js';
+import { initFeedbackDialog } from './feedback-dialog.js';
+import { createChatgptProjectPicker } from './chatgpt-project-picker.js';
 
 const api = window.api;
 let chatSearch: ChatSearch | null = null;
 let chatFind: ReturnType<typeof initChatFind> | null = null;
+let quoteSelection: QuoteSelection | null = null;
 
 
 /**
@@ -281,6 +287,25 @@ function projectMenuItems(id: string): RowMenuItem[] {
   return [
     { action: 'group-new', icon: 'i-group', label: () => t('New group'), title: () => t('Add a group to sort this project\'s chats'),
       run: () => void newChatGroup(id) },
+    // A project without a ChatGPT Project, or whose creation failed, can take a new or an existing one (#1756).
+    ...(!link || link.state === 'failed' || link.state === 'uncertain' ? [{
+      action: 'chatgpt-link', icon: 'i-folder',
+      label: () => t('Choose a ChatGPT Project…'),
+      title: () => t('Use a new or an existing ChatGPT Project for this project\'s chats'),
+      run: () => { const project = projects.find(row => row.id === id); if (project) void chatgptProjectPicker.offer(project, 'menu'); }
+    } satisfies RowMenuItem] : []),
+    // A linked one can be changed or let go (Haz on #1757); unlinking deletes nothing in ChatGPT.
+    ...(link?.state === 'linked' ? [{
+      action: 'chatgpt-change', icon: 'i-swap',
+      label: () => t('Change ChatGPT Project…'),
+      title: () => t('Use another or a new ChatGPT Project for this project\'s new chats'),
+      run: () => { const project = projects.find(row => row.id === id); if (project) void chatgptProjectPicker.offer(project, 'menu'); }
+    } satisfies RowMenuItem, {
+      action: 'chatgpt-unlink', icon: 'i-unlink',
+      label: () => t('Unlink ChatGPT Project'),
+      title: () => t('New chats start outside any ChatGPT Project. The Project and its chats stay in ChatGPT.'),
+      run: () => void unlinkChatgptProjectOf(id)
+    } satisfies RowMenuItem] : []),
     // Only when its native ChatGPT Project could not be created; otherwise nothing about it shows.
     ...(link?.state === 'failed' || link?.state === 'uncertain' ? [{
       action: 'chatgpt-retry', icon: 'i-retry', disabled: retryingChatgptProject.has(id),
@@ -317,6 +342,28 @@ function projectMenuItems(id: string): RowMenuItem[] {
       run: () => void removeProjectFromSidebar(id)
     }
   ];
+}
+
+const chatgptProjectPicker = createChatgptProjectPicker({
+  api,
+  anchor: id => rowMenuButton(`project:${id}`),
+  onUpdated: updated => {
+    ++sessionsLoadGeneration;
+    projects = projects.map(row => row.id === updated.id ? updated : row);
+    paintSessions();
+    void refreshInputQueue();
+  },
+  onError: message => toast(t(message)),
+  onNotice: message => toast(message)
+});
+
+async function unlinkChatgptProjectOf(id: string): Promise<void> {
+  const updated = await run(api.unlinkChatgptProject(id));
+  if (!updated) return;
+  ++sessionsLoadGeneration;
+  projects = projects.map(row => row.id === updated.id ? updated : row);
+  paintSessions();
+  toast(t('Unlinked. The ChatGPT Project stays in ChatGPT.'));
 }
 
 const retryingChatgptProject = new Set<string>();
@@ -456,6 +503,7 @@ let pendingNewInput: { id: string; generation: number } | null = null;
 let agentPanel: ReturnType<typeof createAgentPanel> | null = null;
 let filePanel: ReturnType<typeof createFilePanel> | null = null;
 let reviewPanel: ReturnType<typeof createFilePanel> | null = null;
+let commitDialog: ReturnType<typeof initCommitDialog> | null = null;
 const expandedWorkers = new Set<string>();
 const inputDrafts = createComposerDrafts({
   // A chat's row shows whether it holds a draft, so a draft that comes or goes in a chat other
@@ -524,18 +572,6 @@ let dictationStopGuard: number | null = null;
 // microphone button does, so the phrase in progress is kept and nothing is sent.
 let heldDictation: DictationSession | null = null;
 
-/**
- * Only Windows gets the chord, and only Windows names it. There Ctrl+Space toggles Chinese IMEs,
- * Shift+Space switches their character width and Alt+Space opens the window menu, while
- * Ctrl+Shift+Space is no Windows or IME default (pressing Space cancels a Ctrl+Shift layout switch,
- * as with the docks' Ctrl+Shift+1–4). macOS owns Ctrl+Space, Ctrl+Option+Space, Cmd+Space and
- * Ctrl+Cmd+Space, and IBus/Fcitx own Super+Space and Ctrl+Space on Linux; dictation is Windows-only
- * today, so those platforms would need their own pick.
- */
-function holdToTalkSupported(): boolean {
-  return /^Win/.test(navigator.platform);
-}
-
 function clearDictationStopGuard(): void {
   if (dictationStopGuard === null) return;
   window.clearTimeout(dictationStopGuard);
@@ -580,7 +616,7 @@ function paintDictation(): void {
   button.setAttribute('aria-pressed', String(active));
   button.setAttribute('aria-label', t(label));
   button.title = available && holdToTalkSupported() && (dictationPhase === 'idle' || dictationPhase === 'error')
-    ? `${t(label)} (${t('hold {0}', [`${t('Ctrl')}+${t('Shift')}+${t('Space')}`])})` : t(label);
+    ? `${t(label)} (${t('hold {0}', [holdToTalkShortcut()])})` : t(label);
   // Native Windows errors remain verbatim; known UI labels/statuses use the
   // existing locale catalog with English fallback until translations are merged.
   status.textContent = dictationNotice ? t(dictationNotice) : '';
@@ -1038,10 +1074,25 @@ function markAllSeen(projectId?: string): void {
 let sessionTooltipDismissed: string | null = null;
 
 function placeSessionTooltip(tip: HTMLElement, row: HTMLElement): void {
-  tip.textContent = row.title;
+  // While the app's tooltip shows, the row hands it its title (#1862): the browser shows no second one.
+  if (row.hasAttribute('title')) { row.dataset.tooltip = row.title; row.removeAttribute('title'); }
+  tip.textContent = row.dataset.tooltip ?? '';
   const bounds = row.getBoundingClientRect();
   tip.style.left = `${Math.min(bounds.right + 10, window.innerWidth - 290)}px`;
   tip.style.top = `${Math.min(bounds.top, window.innerHeight - 110)}px`;
+}
+
+/** The row's title again, once the app's tooltip is gone. */
+function giveBackTitle(row: HTMLElement): void {
+  if (row.dataset.tooltip === undefined) return;
+  if (!row.hasAttribute('title')) row.title = row.dataset.tooltip;
+  delete row.dataset.tooltip;
+}
+
+/** Puts the app's tooltip away, and every row that handed it its title gets it back. */
+function removeSessionTooltip(): void {
+  document.getElementById('sessionTooltip')?.remove();
+  for (const row of document.querySelectorAll<HTMLElement>('.sess[data-tooltip]')) giveBackTitle(row);
 }
 
 /** Unsent text waits in this chat's composer. The open chat shows its draft itself, so it never counts. */
@@ -1101,15 +1152,22 @@ function sessionRow(summary: SessionSummary): HTMLElement {
     document.body.append(tip);
   };
   row.addEventListener('pointerenter', showTip);
+  // Repainted under the pointer while this chat's tooltip shows: the new row hands it its title too.
+  if (document.getElementById('sessionTooltip')?.dataset.for === summary.id) requestAnimationFrame(() => {
+    const current = document.getElementById('sessionTooltip');
+    if (current?.dataset.for === summary.id && row.isConnected) placeSessionTooltip(current, row);
+  });
   row.addEventListener('pointerleave', () => {
     if (sessionTooltipDismissed === summary.id) sessionTooltipDismissed = null;
-    document.getElementById('sessionTooltip')?.remove();
+    removeSessionTooltip();
+    giveBackTitle(row);
   });
   // A pointer's click puts the tooltip away until the pointer leaves the row, through the repaint that
   // follows. A keyboard's click puts nothing away: no pointer would leave to bring the tooltip back.
   row.addEventListener('click', () => {
     if (row.matches(':hover')) sessionTooltipDismissed = summary.id;
-    document.getElementById('sessionTooltip')?.remove();
+    removeSessionTooltip();
+    giveBackTitle(row);
   });
   // Unseen is presentation only and is appended last, so every existing lifecycle tone keeps
   // its previous priority (blocked/active/worker finished/failed).
@@ -1181,7 +1239,9 @@ function sessionRow(summary: SessionSummary): HTMLElement {
       { action: 'open', icon: 'i-out', label: () => t('Open in browser'), title: () => t("Open this chat in your browser"), run: () => void run(api.openSessionChat(summary.id)) },
       // ChatGPT opens /c/<id> wherever the chat lives, a project included (#1107).
       { action: 'copy-link', icon: 'i-copy', label: () => t('Copy link'), title: () => t("Copy this chat's ChatGPT link"),
-        run: async () => { if (await run(api.writeClipboard(`https://chatgpt.com/c/${summary.conversationId}`))) toast(t('Link copied')); } }
+        run: async () => { if (await run(api.writeClipboard(`https://chatgpt.com/c/${summary.conversationId}`))) toast(t('Link copied')); } },
+      { action: 'share', icon: 'i-globe', label: () => t('Share as web page'),
+        title: () => t('Save this chat as one web page file to send to anyone. You see the page before it is saved.'), run: () => openSharePage(summary.id) }
     );
     items.push(...chatGroupMenuItems(summary));
     // The stop this app can actually make. It does not touch the running ChatGPT turn — nothing
@@ -1239,8 +1299,8 @@ function sessionRow(summary: SessionSummary): HTMLElement {
   const menu = (at?: { x: number; y: number }) => ({
     owner, at, label: () => shownSessionTitle(summary), anchor: () => rowMenuButton(owner), items: () => items
   });
-  more.addEventListener('click', (event) => { event.stopPropagation(); document.getElementById('sessionTooltip')?.remove(); toggleRowMenu(menu()); });
-  row.addEventListener('contextmenu', (event) => { event.preventDefault(); document.getElementById('sessionTooltip')?.remove(); openRowMenu(menu({ x: event.clientX, y: event.clientY })); });
+  more.addEventListener('click', (event) => { event.stopPropagation(); removeSessionTooltip(); toggleRowMenu(menu()); });
+  row.addEventListener('contextmenu', (event) => { event.preventDefault(); removeSessionTooltip(); openRowMenu(menu({ x: event.clientX, y: event.clientY })); });
   const actionBar = el('div', 'sess-actions');
   actionBar.append(more);
   row.append(top, actionBar);
@@ -1254,7 +1314,7 @@ function sessionRow(summary: SessionSummary): HTMLElement {
 let renaming: { id: string; original: string; value: string; start: number; end: number } | null = null;
 
 /** Slash commands that act on the open chat; New Chat does not offer them. */
-const CHAT_COMMANDS = new Set(['rename', 'pin', 'status', 'compact', 'copy', 'export', 'find']);
+const CHAT_COMMANDS = new Set(['rename', 'pin', 'status', 'compact', 'copy', 'export', 'share', 'find']);
 /** The commands that switch how the next message is sent; their rest is that message. */
 const MODE_COMMANDS = new Set(['plan', 'goal', 'loop']);
 /** The draft a typed /image is being sent from (#1701): that one message asks for a picture. */
@@ -1321,6 +1381,11 @@ function prefillComposer(text: string): void {
   input.dispatchEvent(new Event('input', { bubbles: true }));
   input.focus();
 }
+let feedbackDialog: ReturnType<typeof initFeedbackDialog> | null = null;
+/** Send feedback: from /feedback and from Activity's button. */
+export function openFeedback(): void {
+  (feedbackDialog ??= initFeedbackDialog(api, { update: () => deps.state()?.update ?? null, openActivity: () => openSettingsTab('activity') })).open();
+}
 function openSettingsTab(tab: string): void {
   $('workspaceSettings').click();
   document.querySelector<HTMLElement>(`[data-tab="${tab}"]`)?.click();
@@ -1355,20 +1420,26 @@ function runSlashCommand(name: string): void {
   else if (name === 'review') prefillComposer(t('Review the uncommitted changes in this project. Look for bugs, regressions and missing tests, and list what you find by severity with the file and line. Do not change any files.'));
   else if (name === 'init') prefillComposer(t('Create an AGENTS.md for this project. Read the project first, then describe how it is built, tested and run, how it is laid out, and the conventions a coding agent should follow. Keep it short and accurate.'));
   else if (name === 'usage') openSettingsTab('usage');
-  else if (name === 'feedback') openSettingsTab('activity');
+  else if (name === 'feedback') openFeedback();
   else if (name === 'plugins') $('sidebarPlugins').click();
   else if (name === 'pet') $('sidebarPets').click();
   else if (name === 'copy' && chat) void run(api.exportMarkdown({ id: chat.id, scope: 'latest', target: 'clipboard' }))
     .then(result => { if (result?.done === 'copied') toast(t('Answer copied')); });
   else if (name === 'export' && chat) void run(api.exportMarkdown({ id: chat.id, scope: 'session', target: 'file' }))
     .then(result => { if (result?.done === 'saved') toast(t('Saved {0}', [result.name])); });
+  else if (name === 'share' && chat) openSharePage(chat.id);
   else if (name === 'find' && chat) afterClick(() => chatFind?.open());
+}
+
+let sharePage: ReturnType<typeof initSharePage> | null = null;
+function openSharePage(sessionId: string): void {
+  (sharePage ??= initSharePage(api, name => toast(t('Saved {0}', [name])))).open(sessionId);
 }
 
 function startRename(summary: SessionSummary): void {
   const current = summary.title || '';
   renaming = { id: summary.id, original: current, value: current, start: 0, end: current.length };
-  document.getElementById('sessionTooltip')?.remove();
+  removeSessionTooltip();
   paintSessions();
 }
 
@@ -2390,7 +2461,7 @@ function paintSessions(): void {
   // any other tooltip goes with its row.
   const tooltip = document.getElementById('sessionTooltip');
   if (tooltip && pointed && tooltip.dataset.for === pointedId) placeSessionTooltip(tooltip, pointed);
-  else tooltip?.remove();
+  else if (tooltip) removeSessionTooltip();
   for (const list of [projectList, chatList]) {
     for (const toggle of list.querySelectorAll<HTMLElement>('.sess > .worker-toggle')) {
       const before = arrowsBefore.get(toggle.parentElement!.dataset.id);
@@ -5138,9 +5209,10 @@ function eventBody(event: SessionEvent, context?: { id: string; current: () => b
 }
 
 /**
- * Copy and Markdown export under the answer of a turn the page reported as completed. Main
- * builds the text from the log, reading back answers that were cut there, so a long answer
- * copies and exports whole; the timeline only decides where the actions appear.
+ * Copy and export (Markdown, or the whole session as an HTML page) under the answer of a turn the
+ * page reported as completed. Main builds the text from the log, reading back answers that were
+ * cut there, so a long answer copies and exports whole; the timeline only decides where the
+ * actions appear.
  */
 function answerActions(turnId: string | null, messageId?: string, answer?: { text: string; time: number }): HTMLElement {
   const bar = el('div', 'answer-actions');
@@ -5168,13 +5240,18 @@ function answerActions(turnId: string | null, messageId?: string, answer?: { tex
   menu.className = 'answer-export';
   const trigger = el('summary', 'answer-action');
   trigger.append(icon('i-export'));
-  ui(trigger, 'title', () => t('Export as Markdown')); ui(trigger, 'aria-label', () => t('Export as Markdown'));
+  ui(trigger, 'title', () => t('Export')); ui(trigger, 'aria-label', () => t('Export'));
   const choices = el('div', 'answer-export-menu');
-  for (const [scope, label] of [['answer', 'This answer'], ['session', 'Whole session']] as const) {
-    const choice = el('button', 'answer-export-choice', () => t(label)) as HTMLButtonElement;
+  for (const [scope, format, label] of [['answer', 'markdown', () => t('This answer')], ['session', 'markdown', () => t('Whole session')],
+    ['session', 'html', () => t('Whole session as HTML')]] as const) {
+    const choice = el('button', 'answer-export-choice', label) as HTMLButtonElement;
     choice.type = 'button';
     choice.addEventListener('click', async () => {
       menu.open = false;
+      // The clicked choice leaves the screen with the menu; focus goes back to the menu's own button.
+      trigger.focus();
+      // A web page is made to be passed on, so it is always previewed first (Share's dialog).
+      if (format === 'html') { if (sessionId && selectedId === sessionId) openSharePage(sessionId); return; }
       const result = await exportTo(scope, 'file');
       if (result?.done === 'saved') toast(t('Saved {0}', [result.name]));
     });
@@ -7761,8 +7838,10 @@ export function chatApply(state: AppState, previous?: Config): void {
   applyRouteSettling(state.status.routeSettlingUntil ?? 0);
   if (bridgePresent !== bridge.present) { bridgePresent = bridge.present; paintPendingInputs(); }
   if (visible && selectedId) void refreshSessionControls();
-  paintContextMeter(sessions.find(session => session.id === selectedId) ?? null, config, confirmedComposerModel());
   applyChatModels(config, previous);
+  // After the picker took this state: the meter's Pro rule reads the picker, and before it could
+  // still describe the previous model and fill a Pro chat toward a compaction point it never uses.
+  paintContextMeter(sessions.find(session => session.id === selectedId) ?? null, config, confirmedComposerModel());
 
   applyChatChecked($<HTMLInputElement>('autoCompact'), config.compaction.auto, previous?.compaction.auto);
   applyChatValue(
@@ -8465,6 +8544,7 @@ export function openChatView(name: string): void {
 }
 
 function showView(name: string): void {
+  quoteSelection?.reset();
   const pane = $('chatBody');
   if (name === 'settings') retireDictation();
   const leavingTimeline = timelineShown() && name !== 'timeline';
@@ -8490,6 +8570,7 @@ function showView(name: string): void {
 }
 
 function selectSession(id: string): void {
+  quoteSelection?.reset();
   newChatBranch = null;
   // An edit belongs to its chat: leaving it gives the composer back the draft it held before.
   if (editingQuestion) endEditing(true);
@@ -8538,6 +8619,7 @@ function selectSession(id: string): void {
 }
 
 function selectNewChat(projectId: string | null = null, branch: typeof newChatBranch = null): void {
+  quoteSelection?.reset();
   if (editingQuestion) endEditing(true);
   newChatBranch = branch;
   rememberDraft(); selectionGeneration++; chatFind?.selectionChanged(); replaceComposerDraft(); pendingNewInput = null;
@@ -8568,7 +8650,7 @@ export function initChat(next: Deps): void {
     ...chatGroups.groups.map(group => ({ id: group.id, scope: chatGroupsScope(group.projectId) })),
     ...sessions.filter(entry => !isUnattributedSession(entry) && entry.origin?.kind !== 'worker')
       .map(entry => ({ id: entry.id, scope: pinnedSortScope(chatSortList(entry), pinnedChat(entry)) }))
-  ], paintSessions);
+  ], paintSessions, removeSessionTooltip);
   void run(api.chatGroups()).then(state => { if (state) { chatGroups = state; paintSessions(); } });
   deps = next;
   initComposerDictation();
@@ -8795,7 +8877,21 @@ export function initChat(next: Deps): void {
   filePanel.update(selectedLocalProject());
   reviewPanel = createFilePanel({
     host: chatHost, mount: docks.body, reviewOnly: true,
+    onCommit: projectId => (commitDialog ??= initCommitDialog(api, {
+      flow: () => deps.state()?.config.ui.commitFlow,
+      // The chat Review belongs to; its task starts the message.
+      task: id => { const chat = openChatSummary(); return selectedLocalProject()?.id === id && chat?.title?.trim() ? chat.title : null; }
+    })).open(projectId),
     onShow: () => docks.adopt('review'),
+    // A new message: not an edit of an earlier question, which would replace the messages after it.
+    // A narrow window shows the dock instead of the chat; it closes so the composer is in view.
+    onAskChat: request => {
+      // Send submits a prepared plan, not what the composer shows, so the request would sit there unsent.
+      if (currentPreparedPlan()) { toast(t("Start or cancel the prepared plan first, then ask again.")); return; }
+      if (editingQuestion) endEditing(true);
+      if (window.matchMedia?.('(max-width: 850px)').matches) docks.setOpen(false);
+      prefillComposer(request);
+    },
     onEscape: () => { docks.setOpen(false); docks.rightToggle.focus(); }
   });
   reviewPanel.update(selectedLocalProject());
@@ -8895,18 +8991,27 @@ export function initChat(next: Deps): void {
     expandedProjects.add(project.id);
     if (generation === selectionGeneration) selectNewChat(project.id); else paintSessions();
   };
+  // With ChatGPT Projects to choose from, a new project's own is decided right after it is added (#1756).
+  const offerChatgptProject = (project: LocalProject, known: ReadonlySet<string>, asked: boolean) => {
+    if (asked && !known.has(project.id) && !project.chatgpt) setTimeout(() => void chatgptProjectPicker.offer(project, 'added'), 0);
+  };
   const addLocalProject = async () => {
     const button = $<HTMLButtonElement>('addProject'); button.disabled = true;
     const generation = selectionGeneration;
     try {
-      const project = await run(api.addProject());
-      if (project) showAddedProject(project, generation);
+      const asked = await chatgptProjectPicker.hasChoices();
+      const known = new Set(projects.map(row => row.id));
+      const project = await run(asked ? api.addProject({ chatgpt: 'later' }) : api.addProject());
+      if (project) { showAddedProject(project, generation); offerChatgptProject(project, known, asked); }
     } finally { button.disabled = false; }
   };
   // The composer's Share a folder means a folder on this computer: straight to the picker.
   $('composerFolder').addEventListener('click', () => void addLocalProject());
   let sshDialogGeneration = 0;
-  const sshProjectDialog = initSshProjectDialog(api, project => showAddedProject(project, sshDialogGeneration));
+  const sshProjectDialog = initSshProjectDialog(api, (project, known, asked) => {
+    showAddedProject(project, sshDialogGeneration);
+    offerChatgptProject(project, known, asked);
+  }, async () => ({ asked: await chatgptProjectPicker.hasChoices(), known: new Set(projects.map(row => row.id)) }));
   // A folder on this computer, or one on a server (#1469).
   $('addProject').addEventListener('click', event => {
     event.preventDefault();
@@ -9098,6 +9203,7 @@ export function initChat(next: Deps): void {
     reveal: revealChatLocation,
     row: rowForLocation
   });
+  quoteSelection = initQuoteSelection({ timeline: $('timeline'), input: $<HTMLTextAreaElement>('chatInput'), blocked: () => !!currentPreparedPlan() });
   chatSearch = initChatSearch({
     select: (id, match) => {
       if (id !== selectedId) { pendingNewInput = null; selectSession(id); }

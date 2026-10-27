@@ -126,6 +126,19 @@ describe('settings migration', () => {
       expect(loaded.readOnly).toBe(true);
     }
   });
+  it('loads the sounds switch saved before it existed, or damaged, as off, and keeps everything else', async () => {
+    const config = defaultConfig();
+    await saveConfig({ ...config, ui: { ...config.ui, sounds: true } });
+    expect((await loadConfig()).ui.sounds).toBe(true);
+    const { sounds: _, ...older } = config.ui;
+    for (const ui of [older, { ...older, sounds: 'yes' }, { ...older, sounds: 1 }, { ...older, sounds: null }]) {
+      await fs.writeFile(path.join(dir, 'config.json'), JSON.stringify({ ...config, readOnly: true, ui: { ...ui, theme: 'light' } }), 'utf8');
+      const loaded = await loadConfig();
+      expect(loaded.ui.sounds).toBe(false);
+      expect(loaded.ui.theme).toBe('light');
+      expect(loaded.readOnly).toBe(true);
+    }
+  });
   it('drops removed file-saving settings without changing other saved choices', async () => {
     const config = defaultConfig();
     config.readOnly = true;
@@ -181,6 +194,24 @@ describe('settings migration', () => {
     await saveConfig({ ...defaultConfig(), ui: { ...defaultConfig().ui, startAtLogin: true, autoConnect: false } });
     expect((await loadConfig()).ui).toMatchObject({ startAtLogin: true, autoConnect: false });
   });
+  it('turns phone notifications off, rather than pointing them at ntfy.sh, when the saved server is damaged', async () => {
+    const phone = { enabled: true, server: 'https://push.example.org', topic: 'cos-fixturetopic234567', needsYou: true, failures: true,
+      finishedAfterMinutes: 5, onlyWhenAway: true, quietHours: null, includeDetails: true };
+    for (const server of ['x'.repeat(3000), 42, null]) {
+      await fs.writeFile(path.join(dir, 'config.json'), JSON.stringify({ ...defaultConfig(), ui: { ...defaultConfig().ui, phonePush: { ...phone, server } } }), 'utf8');
+      // Chat details must never go to a server nobody chose: off, and no server at all.
+      expect((await loadConfig()).ui.phonePush, String(server).slice(0, 8)).toMatchObject({ enabled: false, server: '', topic: phone.topic, includeDetails: true });
+    }
+    // Said in the log, once, and never with the damaged value.
+    const { getLog } = await import('../src/main/logger.js');
+    const lines = getLog().filter(entry => entry.message.startsWith('phone notifications: the saved server setting was damaged'));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]!.message).not.toContain('xxxx');
+    // A missing server is the default, as before.
+    const { server: _server, ...withoutServer } = phone;
+    await fs.writeFile(path.join(dir, 'config.json'), JSON.stringify({ ...defaultConfig(), ui: { ...defaultConfig().ui, phonePush: withoutServer } }), 'utf8');
+    expect((await loadConfig()).ui.phonePush).toMatchObject({ enabled: true, server: 'https://ntfy.sh' });
+  });
   it('rotates long turns after 30 minutes for fresh, legacy and malformed settings, keeping saved choices', async () => {
     expect(defaultConfig().ui.rotateTurnMinutes).toBe(30);
     const legacy = defaultConfig(); delete legacy.ui.rotateTurnMinutes;
@@ -208,6 +239,25 @@ describe('settings migration', () => {
     expect((await loadConfig()).ui.localAppUsage).toBe(true);
     await saveConfig({ ...defaultConfig(), ui: { ...defaultConfig().ui, localAppUsage: false } });
     expect((await loadConfig()).ui.localAppUsage).toBe(false);
+  });
+  it('keeps Code checkpoints off for fresh, legacy and malformed configs while preserving explicit opt-in', async () => {
+    expect(defaultConfig().projects).toEqual({ codeCheckpoints: false });
+    const load = async (projects: unknown) => {
+      const stored = { ...defaultConfig(), readOnly: false } as Record<string, unknown>;
+      if (projects === undefined) delete stored.projects; else stored.projects = projects;
+      await fs.writeFile(path.join(dir, 'config.json'), JSON.stringify(stored), 'utf8');
+      return loadConfig();
+    };
+    expect((await load(undefined)).projects).toEqual({ codeCheckpoints: false });
+    expect((await load({})).projects).toEqual({ codeCheckpoints: false });
+    expect((await load({ codeCheckpoints: true })).projects).toEqual({ codeCheckpoints: true });
+    // A bad value repairs to off without sending the rest of the file through (read-only) recovery.
+    const loaded = await load({ codeCheckpoints: 'yes' });
+    expect(loaded.projects).toEqual({ codeCheckpoints: false });
+    expect(loaded.readOnly).toBe(false);
+    expect((await load('on')).projects).toEqual({ codeCheckpoints: false });
+    await saveConfig({ ...defaultConfig(), projects: { codeCheckpoints: true } });
+    expect((await loadConfig()).projects.codeCheckpoints).toBe(true);
   });
   it('keeps the local control API off for fresh, legacy and malformed configs while preserving explicit opt-in', async () => {
     expect(defaultConfig().controlApi).toEqual({ enabled: false, allowActions: false });

@@ -1897,7 +1897,9 @@ it('keeps the project visible when its removal fails, and lets the removal be tr
 });
 
 it('offers a new chat beside a project\'s menu, and its color as a submenu and removal inside it', async () => {
-  const project = { id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', name: 'Workspace', path: 'C:\\workspace\\primary', createdAt: 1 };
+  // Linked to its ChatGPT Project: a project without one also offers choosing it (#1756, tested on its own).
+  const project = { id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', name: 'Workspace', path: 'C:\\workspace\\primary', createdAt: 1,
+    chatgpt: { state: 'linked' as const, id: `g-p-${'d'.repeat(32)}`, updatedAt: 1 } };
   const { w } = await boot([], false, [], [project]);
   const group = w.document.querySelector<HTMLElement>(`.project-group[data-project-id="${project.id}"]`)!;
   // Two buttons on the row: the primary new chat, then one "⋯"; a right click opens the same menu.
@@ -1906,10 +1908,14 @@ it('offers a new chat beside a project\'s menu, and its color as a submenu and r
   expect(button.getAttribute('aria-expanded')).toBe('true');
   const menu = w.document.querySelector<HTMLElement>('.row-menu')!;
   expect(menu.getAttribute('role')).toBe('menu');
-  expect([...menu.querySelectorAll<HTMLElement>('.row-menu-item')].map(item => item.dataset.rowAction)).toEqual(['group-new', 'color', 'secrets-shield', 'remove']);
+  expect([...menu.querySelectorAll<HTMLElement>('.row-menu-item')].map(item => item.dataset.rowAction)).toEqual(['group-new', 'chatgpt-change', 'chatgpt-unlink', 'color', 'secrets-shield', 'remove']);
   expect(menuItem(w, 'remove').classList.contains('is-danger')).toBe(true);
   expect(w.document.activeElement).toBe(menuItem(w, 'group-new'));
   // Keyboard: Down and Up move, Right opens the color submenu on the current choice, Left comes back.
+  menu.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+  expect(w.document.activeElement).toBe(menuItem(w, 'chatgpt-change'));
+  menu.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+  expect(w.document.activeElement).toBe(menuItem(w, 'chatgpt-unlink'));
   menu.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
   expect(w.document.activeElement).toBe(menuItem(w, 'color'));
   menu.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
@@ -2130,6 +2136,92 @@ it('offers a local folder and a server folder from the sidebar +, and marks a se
   expect(badge?.getAttribute('title')).toBe('me@devbox');
 });
 
+// #1756: with ChatGPT Projects to choose from, a new project's own is picked right after adding it.
+describe('choosing a ChatGPT Project for a project', () => {
+  const existing = `g-p-${'a'.repeat(32)}`, taken = `g-p-${'b'.repeat(32)}`;
+  const local = { id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee3', name: 'Local', path: '/local', createdAt: 3 };
+  async function adding(choices: unknown[]) {
+    const { w } = await boot([], false);
+    const api = (w as any).api;
+    api.chatgptProjectChoices = vi.fn(async () => ({ ok: true, data: choices }));
+    api.addProject = vi.fn(async () => ({ ok: true, data: local }));
+    api.linkChatgptProject = vi.fn(async (id: string, chatgptId: string) => ({ ok: true, data: { ...local, id, chatgpt: { state: 'linked', id: chatgptId, updatedAt: 4 } } }));
+    api.createChatgptProject = vi.fn(async (id: string) => ({ ok: true, data: { ...local, id, chatgpt: { state: 'requested', requestId: 'cccccccc-bbbb-4ccc-8ddd-eeeeeeeeeeee', updatedAt: 4 } } }));
+    (w.document.getElementById('addProject') as HTMLButtonElement).click();
+    await settle();
+    w.document.querySelector<HTMLButtonElement>('[data-row-action="add-local-project"]')!.click();
+    await settle(); await settle();
+    const options = () => [...w.document.querySelectorAll<HTMLButtonElement>('.chatgpt-project-picker [role="option"]')];
+    return { w, api, options };
+  }
+  const listed = [{ id: existing, name: 'Existing', linkedTo: null }, { id: taken, name: 'Taken', linkedTo: { id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee9', name: 'Other' } }];
+
+  it('links the new project to a Project the account already has', async () => {
+    const { w, api, options } = await adding(listed);
+    expect(api.addProject).toHaveBeenCalledWith({ chatgpt: 'later' });
+    expect(options().map(option => option.textContent)).toEqual(['New ChatGPT Project “Local”', 'Existing', 'TakenLinked to Other']);
+    expect(options()[2]!.disabled).toBe(true);
+    expect(options().map(option => option.title)).toEqual(['New ChatGPT Project “Local”', 'Existing', 'Taken\nLinked to Other']);
+    options()[1]!.click();
+    await settle();
+    expect(api.linkChatgptProject).toHaveBeenCalledWith(local.id, existing);
+    expect(api.createChatgptProject).not.toHaveBeenCalled();
+    expect(w.document.querySelector('.chatgpt-project-picker')).toBeNull();
+  });
+
+  it('creates nothing when the choice is closed, and says it can be made later from the menu', async () => {
+    const { w, api } = await adding(listed);
+    expect(w.document.querySelector('.chatgpt-project-picker')!.textContent).toContain('Or choose later from the ⋯ menu.');
+    w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await settle();
+    expect(api.createChatgptProject).not.toHaveBeenCalled();
+    expect(api.linkChatgptProject).not.toHaveBeenCalled();
+  });
+
+  it('adds as before when ChatGPT listed nothing to choose', async () => {
+    const { w, api } = await adding([listed[1]]);
+    expect(api.addProject).toHaveBeenCalledWith();
+    expect(w.document.querySelector('.chatgpt-project-picker')).toBeNull();
+    expect(api.createChatgptProject).not.toHaveBeenCalled();
+  });
+
+  it('offers the choice from the menu of a project without one, and closing it there changes nothing', async () => {
+    const { w } = await boot([], false, [], [local]);
+    const api = (w as any).api;
+    api.chatgptProjectChoices = vi.fn(async () => ({ ok: true, data: listed }));
+    api.createChatgptProject = vi.fn();
+    const menuButton = w.document.querySelector<HTMLButtonElement>(`[data-row-menu="project:${local.id}"]`)!;
+    menuButton.click();
+    w.document.querySelector<HTMLButtonElement>('.row-menu [data-row-action="chatgpt-link"]')!.click();
+    await settle();
+    // A project with no ChatGPT Project can also start a new one from here.
+    expect([...w.document.querySelectorAll('.chatgpt-project-picker [role="option"]')].map(option => option.textContent))
+      .toEqual(['New ChatGPT Project “Local”', 'Existing', 'TakenLinked to Other']);
+    w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await settle();
+    expect(w.document.querySelector('.chatgpt-project-picker')).toBeNull();
+    expect(api.createChatgptProject).not.toHaveBeenCalled();
+  });
+
+  it('unlinks a linked project from its menu, and says the ChatGPT Project stays in ChatGPT', async () => {
+    const linked = { ...local, chatgpt: { state: 'linked' as const, id: existing, updatedAt: 4 } };
+    const { w } = await boot([], false, [], [linked]);
+    const api = (w as any).api;
+    api.unlinkChatgptProject = vi.fn(async () => ({ ok: true, data: local }));
+    const menuButton = w.document.querySelector<HTMLButtonElement>(`[data-row-menu="project:${local.id}"]`)!;
+    menuButton.click();
+    expect(w.document.querySelector('.row-menu [data-row-action="chatgpt-link"]')).toBeNull();
+    w.document.querySelector<HTMLButtonElement>('.row-menu [data-row-action="chatgpt-unlink"]')!.click();
+    await settle();
+    expect(api.unlinkChatgptProject).toHaveBeenCalledWith(local.id);
+    expect(w.document.body.textContent).toContain('Unlinked. The ChatGPT Project stays in ChatGPT.');
+    // Unlinked, the menu offers choosing one again instead of changing or unlinking.
+    menuButton.click();
+    expect(w.document.querySelector('.row-menu [data-row-action="chatgpt-unlink"]')).toBeNull();
+    expect(w.document.querySelector('.row-menu [data-row-action="chatgpt-link"]')).not.toBeNull();
+  });
+});
+
 it('sends a new chat at once with Automatic when no model list is readable and none was asked for (#864)', async () => {
   // ChatGPT Go and Free show no model picker, so Send used to wait two minutes for a list that never came.
   const { w, live } = await boot([], false, [], [], { noModels: true });
@@ -2304,7 +2396,9 @@ it('keeps working state per chat and marks only completed background chats as un
 });
 
 it("marks every New response seen from the header, or one project's from its menu, and leaves a working chat working", async () => {
-  const project = { id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', name: 'Workspace', path: '/workspace', createdAt: 1 };
+  // Linked to a ChatGPT Project, so its menu holds no "Choose a ChatGPT Project…" (#1756).
+  const project: LocalProject = { id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', name: 'Workspace', path: '/workspace', createdAt: 1,
+    chatgpt: { state: 'linked', id: `g-p-${'a'.repeat(32)}`, updatedAt: 1 } };
   const startedAt = Date.now();
   const chat = (id: string, projectId?: string): SessionSummary => ({ ...summary([]), id, title: id, conversationId: `conversation-${id}`, chatIds: [`conversation-${id}`],
     projectId, updatedAt: startedAt, lastToolCallAt: startedAt, activityExpiresAt: startedAt + 60_000 });
@@ -2317,7 +2411,7 @@ it("marks every New response seen from the header, or one project's from its men
   const refresh = async () => { (w.document.getElementById('chatRefresh') as HTMLButtonElement).click(); await settle(); };
   expect(header().hidden).toBe(true);
   projectMenu(w, project.id);
-  expect(actions()).toEqual(['group-new', 'color', 'secrets-shield', 'remove']);
+  expect(actions()).toEqual(['group-new', 'chatgpt-change', 'chatgpt-unlink', 'color', 'secrets-shield', 'remove']);
   w.document.querySelector<HTMLElement>('.row-menu')!.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
   // p1, p2 and u1 finish in the background; p3 is still running.
@@ -2331,13 +2425,13 @@ it("marks every New response seen from the header, or one project's from its men
   expect(header().hidden).toBe(false);
 
   projectMenu(w, project.id);
-  expect(actions()).toEqual(['group-new', 'mark-seen', 'color', 'secrets-shield', 'remove']);
+  expect(actions()).toEqual(['group-new', 'chatgpt-change', 'chatgpt-unlink', 'mark-seen', 'color', 'secrets-shield', 'remove']);
   menuItem(w, 'mark-seen').click();
   await settle();
   expect(unseen()).toEqual(['u1']);
   expect(row('p3').querySelector('.session-status.is-active')).not.toBeNull();
   projectMenu(w, project.id);
-  expect(actions()).toEqual(['group-new', 'color', 'secrets-shield', 'remove']);
+  expect(actions()).toEqual(['group-new', 'chatgpt-change', 'chatgpt-unlink', 'color', 'secrets-shield', 'remove']);
   w.document.querySelector<HTMLElement>('.row-menu')!.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
   header().focus();
@@ -5754,7 +5848,7 @@ it('uses a playful work word when it is turned on in Settings', async () => {
   expect(w.document.getElementById('chatState')!.textContent).toMatch(PLAYFUL_WORDS);
 });
 
-it('offers copy and Markdown export under the answer of a completed turn only', async () => {
+it('offers copy and Markdown or HTML export under the answer of a completed turn only', async () => {
   const ask: SessionEvent = { kind: 'user_message', seq: 1, origin: 1, time: T0, source: 'extension', turnId: 'done-turn', messageId: 'ask', message: text('Write hello.txt') };
   const reply: SessionEvent = { kind: 'assistant_message', seq: 2, time: T0 + 1_000, source: 'extension', turnId: 'done-turn', messageId: 'reply', message: text('Created **hello.txt**.'), final: true, state: 'final' };
   const { w, append } = await boot([ask, reply]);
@@ -5774,9 +5868,21 @@ it('offers copy and Markdown export under the answer of a completed turn only', 
 
   api.exportMarkdown = vi.fn(async () => ({ ok: true, data: { done: 'saved', name: 'chat.md' } }));
   const choices = [...actions!.querySelectorAll<HTMLButtonElement>('.answer-export-choice')];
-  expect(choices.map(choice => choice.textContent)).toEqual(['This answer', 'Whole session']);
+  expect(choices.map(choice => choice.textContent)).toEqual(['This answer', 'Whole session', 'Whole session as HTML']);
+  // Choosing closes the menu and takes the choice off the screen; focus goes back to the Export button, not the page.
+  actions!.querySelector<HTMLDetailsElement>('details.answer-export')!.open = true;
+  choices[1]!.focus();
   choices[1]!.click(); await settle();
+  expect(actions!.querySelector<HTMLDetailsElement>('details.answer-export')!.open).toBe(false);
+  expect(w.document.activeElement).toBe(actions!.querySelector('details.answer-export > summary'));
   expect(api.exportMarkdown).toHaveBeenCalledWith({ id: summary([]).id, scope: 'session', turnId: undefined, target: 'file' });
+  // A web page is always previewed first: the choice opens Share's dialog and saves nothing by itself.
+  const calls = api.exportMarkdown.mock.calls.length;
+  api.sharePage = vi.fn(async () => ({ ok: true, data: { done: 'preview', preview: '00000000-0000-4000-8000-000000000000', html: '<html><head></head></html>', hidden: 0 } }));
+  choices[2]!.click(); await settle();
+  expect(w.document.querySelector<HTMLDialogElement>('#sharePageDialog')!.open).toBe(true);
+  expect(api.sharePage).toHaveBeenCalledWith({ id: summary([]).id, target: 'preview', hide: true, lang: 'en' });
+  expect(api.exportMarkdown.mock.calls.length).toBe(calls);
 });
 
 it('does not offer copy or export after an interrupted turn', async () => {
@@ -7128,6 +7234,63 @@ describe('edit and resubmit (#365)', () => {
     expect(input.value).toBe('Unfinished');
     await submit(w as any, 'Just a follow-up');
     expect(live.sent.at(-1)).not.toHaveProperty('edit');
+  });
+
+  it('sends Review\'s conflict request as a new message, even from an edit and a narrow window', async () => {
+    // It went into the edit, so Send replaced the question and every message after it.
+    const project: LocalProject = { id: '55555555-5555-4555-8555-555555555555', name: 'Workspace', path: '/workspace', createdAt: T0 };
+    const { w, live } = await boot(exchange(), true, [], [project], { summary: { conversationId: chat } });
+    const ok = <T>(data: T) => Promise.resolve({ ok: true as const, data });
+    w.api.getProjectGitSnapshot = () => ok({ projectId: project.id, state: 'ready', truncated: false, revision: 'merging',
+      changes: [{ status: 'C', path: 'src/both.ts', additions: null, deletions: null, binary: false }] });
+    w.api.getProjectGitDiff = () => ok({ projectId: project.id, status: 'C', path: 'src/both.ts', additions: null, deletions: null,
+      binary: false, tooLarge: false, baseText: 'ours', currentText: '<<<<<<< HEAD' });
+    Object.defineProperty(w, 'matchMedia', { configurable: true,
+      value: (query: string) => ({ matches: query.includes('850px'), addEventListener: vi.fn(), removeEventListener: vi.fn() }) });
+    const input = w.document.getElementById('chatInput') as HTMLTextAreaElement;
+    input.value = 'Unfinished';
+    editButton(w, 'First question')!.click(); await settle();
+    w.document.querySelector<HTMLButtonElement>('.work-dock-quick[data-view="review"]')!.click(); await settle();
+    w.document.querySelector<HTMLButtonElement>('.review-panel .file-change-row[data-path="src/both.ts"]')!.click(); await settle();
+    [...w.document.querySelectorAll<HTMLButtonElement>('.review-panel .file-preview-actions button')].find(button => button.title === 'Ask chat to resolve')!.click();
+    await settle();
+    expect(w.document.getElementById('editDraft')!.hidden).toBe(true);
+    expect(input.value).toMatch(/^Help me resolve the merge conflict in src\/both\.ts\..*\n\nUnfinished$/s);
+    expect(w.document.querySelector('.has-work-dock')).toBeNull();
+    expect(w.document.activeElement).toBe(input);
+    await submit(w as any);
+    expect(live.sent.at(-1)).not.toHaveProperty('edit');
+    expect(live.sent.at(-1)?.text).toContain('Help me resolve the merge conflict in src/both.ts.');
+  });
+
+  it('does not put Review\'s conflict request in the composer while a prepared plan is waiting to be sent', async () => {
+    // Send starts the prepared plan, so the request the composer showed would never have been sent.
+    const project: LocalProject = { id: '55555555-5555-4555-8555-555555555555', name: 'Workspace', path: '/workspace', createdAt: T0 };
+    const { w, live } = await boot([], false, [], [project]);
+    const api = (w as any).api;
+    (w.document.querySelector(`.project-heading > [data-new-project="${project.id}"]`) as HTMLButtonElement).click(); await settle();
+    (await api.getState()).data.config.ui.finishTool = true;
+    const ok = <T>(data: T) => Promise.resolve({ ok: true as const, data });
+    api.draftTaskPlan = vi.fn(async () => ({ ok: true, data: ['Build foundation', 'Verify it'] }));
+    api.getProjectGitSnapshot = () => ok({ projectId: project.id, state: 'ready', truncated: false, revision: 'merging',
+      changes: [{ status: 'C', path: 'src/both.ts', additions: null, deletions: null, binary: false }] });
+    api.getProjectGitDiff = () => ok({ projectId: project.id, status: 'C', path: 'src/both.ts', additions: null, deletions: null,
+      binary: false, tooLarge: false, baseText: 'ours', currentText: '<<<<<<< HEAD' });
+    const input = w.document.getElementById('chatInput') as HTMLTextAreaElement;
+    input.value = 'Build the whole task';
+    input.dispatchEvent(new w.Event('input'));
+    w.document.getElementById('createPlan')!.click();
+    w.document.getElementById('composer')!.dispatchEvent(new w.Event('submit', { cancelable: true }));
+    await settle();
+    expect(w.document.getElementById('taskPlanPreview')!.textContent).toContain('Build foundation');
+    w.document.querySelector<HTMLButtonElement>('.work-dock-quick[data-view="review"]')!.click(); await settle();
+    w.document.querySelector<HTMLButtonElement>('.review-panel .file-change-row[data-path="src/both.ts"]')!.click(); await settle();
+    [...w.document.querySelectorAll<HTMLButtonElement>('.review-panel .file-preview-actions button')].find(button => button.title === 'Ask chat to resolve')!.click();
+    await settle();
+    expect(input.value).toBe('');
+    expect(w.document.querySelector('.toast')?.textContent).toBe('Start or cancel the prepared plan first, then ask again.');
+    expect(w.document.getElementById('taskPlanPreview')!.textContent).toContain('Build foundation');
+    expect(live.sent).toHaveLength(0);
   });
 
   it('offers no Edit in a worker chat', async () => {

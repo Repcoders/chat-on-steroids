@@ -74,7 +74,7 @@
                   <span class="acts"><button class="btn" id="addProject" type="button" title="Add a project folder" aria-label="Add a project folder"><i class="ico ph ph-plus" aria-hidden="true"></i></button></span>
                 </summary>
                 <div id="projectList"><p class="empty" role="status">Loading projects…</p></div>
-                <p class="empty sidebar-section-empty" id="projectsEmpty" hidden>No projects yet.</p>
+                <p class="empty sidebar-section-empty" id="projectsEmpty" hidden>No projects yet. Add a folder to get started.</p>
               </details>
               <details class="sidebar-session-section" id="chatsSection" open>
                 <summary class="sidebar-session-heading">
@@ -196,6 +196,7 @@
               <div class="settings-surface pane appearance-settings-card">
                 <label class="setting"><span class="setting-text"><b>Follow new output</b><em>Stay at the end of the chat while answers grow, here and on ChatGPT. Scrolling up pauses it.</em></span><input id="followOutput" type="checkbox" /></label>
                 <label class="setting"><span class="setting-text"><b>Notify when a chat finishes</b><em>A notification when a chat's answer is done while this window is in the background. Workers and chats with Goal or Loop on don't notify.</em></span><input id="turnNotifications" type="checkbox" /></label>
+                <label class="setting"><span class="setting-text"><b>Play sounds</b><em>For chats that need you, failures and finished chats. Follows the quiet hours below.</em></span><input id="soundCues" type="checkbox" /></label>
                 <label class="setting"><span class="setting-text"><b>Messages during a running turn</b><em id="followUpHint" translate="no"></em></span><select id="followUp"><option value="steer">Join the running turn</option><option value="queue">Wait until the turn ends</option></select></label>
                 <label class="setting"><span class="setting-text"><b>Send messages with</b><em id="enterSendsHint" translate="no"></em></span><select id="enterSends"><option value="enter">Enter</option><option value="modifier" id="enterSendsModifier" translate="no"></option></select></label>
                 <label class="setting"><span class="setting-text"><b>Keep awake while a chat works</b><em>Stops the computer from going to sleep, so long runs keep going. Some Windows laptops still sleep once the screen turns off; for those, choose “The computer and screen”.</em></span><select id="keepAwake"><option value="off">Off</option><option value="computer">The computer</option><option value="screen">The computer and screen</option></select></label>
@@ -205,11 +206,39 @@
                 <label class="setting"><span class="setting-text"><b>Mention Plugins instead of Core</b><em>Ordinary messages the app sends mention Chat On Steroids Plugins. Goal, Loop, workers and recovery always mention Core. Messages you send in ChatGPT itself are unchanged.</em></span><input id="mentionPlugins" type="checkbox" /></label>
               </div>
             </section>
+            <section class="appearance-section" id="phonePushSettings">
+              <header class="settings-section-head"><div><h2>Phone notifications</h2><p>Hear about your chats on your phone while you are away from this computer.</p></div></header>
+              <div class="settings-surface pane appearance-settings-card">
+                <label class="setting"><span class="setting-text"><b>Send notifications to your phone</b><em>Through ntfy, a free notification app.</em></span><input id="phonePushEnabled" type="checkbox" /></label>
+                <label class="setting"><span class="setting-text"><b>Quiet hours</b><em>No phone notifications and no sounds in these hours.</em></span><select id="phonePushQuiet"><option value="">Off</option><option value="21:00-06:00" translate="no"></option><option value="22:00-07:00" translate="no"></option><option value="23:00-07:00" translate="no"></option><option value="23:00-08:00" translate="no"></option><option value="00:00-08:00" translate="no"></option></select></label>
+                <div id="phonePushOptions" class="phone-push-options" hidden>
+                  <div class="setting phone-push-field"><label class="setting-text" for="phonePushTopic"><b>Topic</b><em>Subscribe to it in the ntfy app. Anyone who has it can read the messages.</em></label><div class="phone-push-control"><input id="phonePushTopic" type="text" maxlength="64" spellcheck="false" autocomplete="off" translate="no" /><button class="btn" id="phonePushCopyTopic" type="button">Copy</button></div></div>
+                  <div class="setting"><span class="setting-text"><b>Send a test</b><em id="phonePushTestStatus" role="status">A test never includes chat text.</em></span><button class="btn" id="phonePushTest" type="button">Send test</button></div>
+                  <label class="setting"><span class="setting-text"><b>When a chat needs you</b></span><input id="phonePushNeedsYou" type="checkbox" /></label>
+                  <label class="setting"><span class="setting-text"><b>When something fails</b></span><input id="phonePushFailures" type="checkbox" /></label>
+                  <label class="setting"><span class="setting-text"><b>When a chat finishes</b></span><select id="phonePushFinished"><option value="never">Never</option><option value="0">Always</option><option value="5">After 5 minutes of work</option><option value="15">After 15 minutes of work</option><option value="30">After 30 minutes of work</option><option value="60">After an hour of work</option></select></label>
+                  <label class="setting"><span class="setting-text"><b>Only when you are away</b><em>No input for 3 minutes, or a locked screen.</em></span><input id="phonePushAway" type="checkbox" /></label>
+                  <label class="setting"><span class="setting-text"><b>Include chat names and answers</b><em>They go through the ntfy server, and anyone with the topic can read them.</em></span><input id="phonePushDetails" type="checkbox" /></label>
+                  <details class="phone-push-advanced" id="phonePushAdvanced"><summary><svg class="disclosure-chevron sum-chev" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6 3.5 10.5 8 6 12.5"></path></svg>Advanced</summary>
+                    <div class="setting phone-push-field"><label class="setting-text" for="phonePushServer"><b>Server</b><em>ntfy.sh, or your own ntfy server.</em></label><div class="phone-push-control"><input id="phonePushServer" type="text" inputmode="url" maxlength="2048" spellcheck="false" autocomplete="off" translate="no" /><button class="btn" id="phonePushServerDefault" type="button" title="Use ntfy.sh">Default</button></div></div>
+                    <div class="setting phone-push-field"><label class="setting-text" for="phonePushToken"><b>Access token</b><em id="phonePushTokenStatus">Only if your server needs one. Kept in secure storage.</em></label><div class="phone-push-control"><input id="phonePushToken" type="password" maxlength="512" autocomplete="off" /><button class="btn" id="phonePushTokenSave" type="button">Save token</button></div></div>
+                    <div class="setting"><span class="setting-text"><b>New topic</b><em>The old topic stops getting messages.</em></span><button class="btn" id="phonePushNewTopic" type="button">New topic</button></div>
+                  </details>
+                </div>
+              </div>
+            </section>
             <section class="appearance-section" id="privacySettings">
               <header class="settings-section-head"><div><h2>Privacy</h2><p>What ChatGPT gets to see on this computer.</p></div></header>
               <div class="settings-surface pane appearance-settings-card">
                 <label class="setting"><span class="setting-text"><b>Hide secrets from ChatGPT</b><em>API keys, tokens, private keys and passwords in what tools return are replaced with a short note before ChatGPT sees them. Your files stay as they are. A project can turn this off in its menu.</em></span><input id="secretsShield" type="checkbox" /></label>
                 <label class="setting" id="privacyScreenshotsSetting"><span class="setting-text"><b>Screenshot only the active window</b><em>For privacy, ChatGPT's screenshots show the window in front instead of the whole screen.</em></span><input id="privacyScreenshots" type="checkbox" /></label>
+              </div>
+            </section>
+            <section class="appearance-section" id="backupSettings">
+              <header class="settings-section-head"><div><h2>Backup</h2><p>Keep a copy of your settings, or move them to another computer.</p></div></header>
+              <div class="settings-surface pane appearance-settings-card">
+                <div class="setting"><span class="setting-text"><b>Export settings</b><em>Saves your settings to a file. Folders and this computer's connection to ChatGPT stay out.</em></span><button class="btn" id="exportSettings" type="button">Export…</button></div>
+                <div class="setting"><span class="setting-text"><b>Import settings</b><em>Takes the settings from a backup file. You see how many change before anything does.</em></span><button class="btn" id="importSettings" type="button">Import…</button></div>
               </div>
             </section>
             <section class="appearance-section">
@@ -245,6 +274,8 @@
               <header class="settings-section-head"><div><h2>Colors</h2><p>Fine-tune background and accent colors for the selected theme.</p></div></header>
               <div class="settings-surface pane appearance-settings-card">
               <label class="setting"><span class="setting-text"><b>Theme</b><em>Light and dark keep their own colors.</em></span><select id="appearanceTheme"><option value="light">Light</option><option value="dark">Dark</option></select></label>
+              <label class="setting"><span class="setting-text"><b>High contrast</b><em>Black or white background with stronger text and lines. Your colors stay saved for when you turn it off.</em></span><input id="appearanceHighContrast" type="checkbox" /></label>
+              <div class="setting"><span class="setting-text"><b id="appearanceAccentPresetsLabel">Accent presets</b><em>Each is easy to read in light and dark.</em></span><div class="appearance-swatches" id="appearanceAccentPresets" role="radiogroup" aria-labelledby="appearanceAccentPresetsLabel"></div></div>
 
               <div class="setting"><label class="setting-text" for="appearance-accent"><b>Accent color</b></label><div class="appearance-color"><input id="appearance-accent" type="color" data-color="accent" aria-label="Accent color" /><input id="appearance-accent-hex" type="text" data-hex="accent" aria-label="Accent color HEX" pattern="#[0-9a-fA-F]{6}" maxlength="7" spellcheck="false" autocomplete="off" /></div></div>
               <div class="setting"><label class="setting-text" for="appearance-background"><b>Background color</b></label><div class="appearance-color"><input id="appearance-background" type="color" data-color="background" aria-label="Background color" /><input id="appearance-background-hex" type="text" data-hex="background" aria-label="Background color HEX" pattern="#[0-9a-fA-F]{6}" maxlength="7" spellcheck="false" autocomplete="off" /></div></div>
@@ -484,6 +515,7 @@
                       Nothing shared yet. Press Add or drop a folder here. ChatGPT sees short names
                       like <code>/project</code> — your real system paths are never sent.
                     </p>
+                    <label class="setting" id="codeCheckpointsSetting"><span class="setting-text"><b>Save a checkpoint before each turn's first edit</b><em>Checkpoints are temporary: Git may clean up old ones. Off: no new ones are taken.</em></span><input id="codeCheckpoints" type="checkbox" /></label>
                   </div>
                 </section>
 
@@ -1422,7 +1454,7 @@
                     <svg viewBox="0 0 16 16" aria-hidden="true"><circle class="context-track" cx="8" cy="8" r="6"/><circle id="contextMeterArc" cx="8" cy="8" r="6" stroke-dasharray="0 37.7"/></svg><span id="contextMeterCompact" aria-hidden="true"></span>
                   </button>
                   <div id="contextMeterInfo" role="dialog" aria-label="Session context · estimated">
-                    <dl class="context-data"><dt>This chat (estimate)</dt><dd id="contextTokens"></dd><dt>Context limit</dt><dd id="contextLimit"></dd><dt>Filled</dt><dd id="contextPercent"></dd><dt>Compacts automatically at</dt><dd id="contextThreshold"></dd></dl>
+                    <dl class="context-data"><dt>This chat (estimate)</dt><dd id="contextTokens"></dd><dt id="contextLimitLabel">Large-chat warning at</dt><dd id="contextLimit"></dd><dt>Filled</dt><dd id="contextPercent"></dd><dt>Compacts automatically at</dt><dd id="contextThreshold"></dd></dl>
                     <div class="context-progress" role="progressbar" aria-label="Estimated session context" aria-valuemin="0" aria-valuemax="100"><span></span></div>
                     <button type="button" class="context-action" id="contextDisplay"><i class="ico ph ph-arrows-clockwise" aria-hidden="true"></i><span>Show token values</span></button>
                     <button id="compactSession" class="context-action" type="button" hidden><i class="ico ph ph-copy" aria-hidden="true"></i><span>Compact &amp; resume</span></button>
@@ -1521,6 +1553,9 @@
                 <button class="btn" id="copyLogText" type="button">
                   <i class="ico ph ph-copy" aria-hidden="true"></i>Text
                 </button>
+                <button class="btn" id="sendFeedback" type="button" title="Report a problem or suggest an idea. GitHub opens with it filled in.">
+                  <i class="ico ph ph-chat-text" aria-hidden="true"></i>Send feedback
+                </button>
                 <button class="btn" id="saveDiagnosticsReport" type="button" title="Save one file with versions, settings, the connection state and the log, with personal details removed, to attach to a bug report.">
                   <i class="ico ph ph-file-text" aria-hidden="true"></i>Diagnostics report
                 </button>
@@ -1552,6 +1587,74 @@
         <div class="pet-delete-actions"><button class="btn" id="sshProjectCancel" type="button">Cancel</button><button class="btn btn-solid" id="sshProjectSubmit" type="submit">Test and add</button></div>
       </form>
     </dialog>
+    <dialog class="plugin-dialog commit-dialog" id="commitDialog" aria-labelledby="commitTitle">
+      <div class="plugin-dialog-head"><h2 id="commitTitle">Commit changes</h2><button class="btn" id="commitClose" type="button">Close</button></div>
+      <form id="commitForm" class="commit-form" novalidate>
+        <div class="plugin-dialog-body commit-fields">
+          <p class="commit-where" id="commitWhere"></p>
+          <label class="plugin-field" for="commitMessage"><span>Message</span><textarea id="commitMessage" rows="5" maxlength="10000"></textarea></label>
+          <div class="commit-files-head"><span id="commitFilesLabel"></span><button class="btn commit-files-all" id="commitFilesAll" type="button">Select none</button></div>
+          <div class="commit-files" id="commitFiles" role="group" aria-labelledby="commitFilesLabel"></div>
+          <fieldset class="commit-flow">
+            <legend>Then</legend>
+            <label><input type="radio" name="commitFlow" value="commit" /><span>Nothing else</span></label>
+            <label><input type="radio" name="commitFlow" value="ask-push" /><span>Ask whether to push</span></label>
+            <label><input type="radio" name="commitFlow" value="pr" /><span>Push and open a pull request</span></label>
+          </fieldset>
+          <p class="commit-flow-note" id="commitFlowNote" hidden></p>
+          <label class="plugin-field" for="commitBranch" id="commitBranchField" hidden><span>New branch</span><input id="commitBranch" maxlength="200" autocomplete="off" spellcheck="false" /></label>
+          <p id="commitError" class="plugin-error" role="alert" hidden></p>
+        </div>
+        <div class="pet-delete-actions"><button class="btn" id="commitCancel" type="button">Cancel</button><button class="btn btn-solid" id="commitSubmit" type="submit">Commit</button></div>
+      </form>
+      <div class="commit-done" id="commitDone" hidden>
+        <div class="plugin-dialog-body"><ol class="commit-steps" id="commitSteps"></ol><p id="commitStepError" class="plugin-error" role="alert" hidden></p></div>
+        <div class="pet-delete-actions"><button class="btn" id="commitNotNow" type="button" hidden>Not now</button><button class="btn btn-solid" id="commitStepAction" type="button" hidden></button><button class="btn btn-solid" id="commitDoneClose" type="button">Done</button></div>
+      </div>
+    </dialog>
+    <dialog class="plugin-dialog share-page-dialog" id="sharePageDialog" aria-labelledby="sharePageTitle">
+      <div class="plugin-dialog-head"><h2 id="sharePageTitle">Share as web page</h2><button class="btn" id="sharePageClose" type="button">Close</button></div>
+      <form id="sharePageForm" class="plugin-dialog-body">
+        <p>Saves this chat as one web page file that opens in any browser. Nothing is uploaded: you decide who gets the file.</p>
+        <div class="share-page-preview" id="sharePagePreview">
+          <iframe id="sharePageFrame" sandbox="" referrerpolicy="no-referrer" title="Preview"></iframe>
+          <p class="share-page-loading" id="sharePageLoading">Preparing the preview…</p>
+        </div>
+        <label class="setting share-page-hide"><span class="setting-text"><b>Hide email addresses and user names</b><em>Keys and tokens are always hidden. Check the preview: other personal details may remain.</em><em class="share-page-count" id="sharePageCount" aria-live="polite" hidden></em></span><input id="sharePageHide" type="checkbox" /></label>
+        <p id="sharePageError" class="plugin-error" role="alert" hidden></p>
+        <div class="pet-delete-actions"><button class="btn" id="sharePageCancel" type="button">Cancel</button><button class="btn btn-solid" id="sharePageSave" type="submit">Save…</button></div>
+      </form>
+    </dialog>
+    <dialog class="plugin-dialog feedback-dialog" id="feedbackDialog" aria-labelledby="feedbackTitle">
+      <div class="plugin-dialog-head"><h2 id="feedbackTitle">Send feedback</h2><button class="btn" id="feedbackClose" type="button">Close</button></div>
+      <form id="feedbackForm" class="feedback-form" novalidate>
+        <div class="plugin-dialog-body feedback-fields">
+        <div class="feedback-kind" role="radiogroup" aria-label="Kind of feedback">
+          <label><input type="radio" name="feedbackKind" value="bug" checked /><span>Report a problem</span></label>
+          <label><input type="radio" name="feedbackKind" value="idea" /><span>Suggest an idea</span></label>
+        </div>
+        <div class="feedback-update" id="feedbackUpdate" hidden><span id="feedbackUpdateText"></span><button class="btn" id="feedbackUpdateOpen" type="button">Open Activity</button></div>
+        <div id="feedbackBug">
+          <label class="plugin-field" for="feedbackWhat"><span>What happened</span><textarea id="feedbackWhat" rows="3" maxlength="4000" placeholder="What you did, what happened, and what you expected instead."></textarea></label>
+          <label class="plugin-field" for="feedbackSteps"><span>Steps to reproduce <small>(optional)</small></span><textarea id="feedbackSteps" rows="2" maxlength="4000" placeholder="One step per line."></textarea></label>
+          <label class="plugin-field" for="feedbackFrequency"><span>How often does it happen?</span><select id="feedbackFrequency"><option value="">Not sure</option><option value="Every time">Every time</option><option value="Sometimes">Sometimes</option><option value="It happened once">It happened once</option></select></label>
+          <div class="setting feedback-report"><span class="setting-text"><b>Diagnostics report</b><em id="feedbackReportNote">Needed for a problem report. Read it before you attach it.</em></span><button class="btn" id="feedbackSaveReport" type="button">Save report…</button></div>
+        </div>
+        <div id="feedbackIdea" hidden>
+          <label class="plugin-field" for="feedbackProblem"><span>What problem would it solve?</span><textarea id="feedbackProblem" rows="3" maxlength="4000" placeholder="What you are trying to do, and what gets in the way."></textarea></label>
+          <label class="plugin-field" for="feedbackProposal"><span>What should the app do?</span><textarea id="feedbackProposal" rows="3" maxlength="4000" placeholder="How it would work for you."></textarea></label>
+        </div>
+        <p class="feedback-note">GitHub opens with this filled in. You submit it there; the app sends nothing.</p>
+        <p id="feedbackError" class="plugin-error" role="alert" hidden></p>
+        </div>
+        <div class="pet-delete-actions"><button class="btn" id="feedbackCancel" type="button">Cancel</button><button class="btn btn-solid" id="feedbackSubmit" type="submit">Continue on GitHub</button></div>
+      </form>
+      <div class="plugin-dialog-body feedback-done" id="feedbackDone" hidden>
+        <p id="feedbackDoneText"></p>
+        <p id="feedbackDoneTrimmed" hidden>Part of your text did not fit in the link. The whole text is on the clipboard, so you can paste it there.</p>
+        <div class="pet-delete-actions"><button class="btn btn-solid" id="feedbackDoneClose" type="button">Done</button></div>
+      </div>
+    </dialog>
     <dialog class="search-dialog" id="searchDialog" aria-label="Search chats">
       <div class="search-dialog-field">
         <i class="ico ph ph-magnifying-glass" aria-hidden="true"></i>
@@ -1577,6 +1680,39 @@
         <button class="whats-new-link" id="whatsNewNotes" type="button"><i class="ico ph ph-arrow-square-out" aria-hidden="true"></i>Full release notes</button>
         <button class="whats-new-done" id="whatsNewDone" type="button">Got it</button>
       </footer>
+    </dialog>
+    <dialog class="search-dialog shortcuts-dialog" id="shortcutsDialog" aria-labelledby="shortcutsTitle">
+      <header class="shortcuts-head">
+        <h2 id="shortcutsTitle">Keyboard shortcuts</h2>
+        <button class="btn shortcuts-close" id="shortcutsClose" type="button" title="Close" aria-label="Close"><i class="ico ph ph-x" aria-hidden="true"></i></button>
+      </header>
+      <div class="shortcuts-list" id="shortcutsList"></div>
+    </dialog>
+    <dialog class="plugin-dialog backup-dialog" id="exportSettingsDialog" aria-labelledby="exportSettingsTitle">
+      <div class="plugin-dialog-head"><h2 id="exportSettingsTitle">Export settings</h2><button class="btn" id="exportSettingsClose" type="button">Close</button></div>
+      <form id="exportSettingsForm" class="plugin-dialog-body">
+        <p>Folders and this computer's connection to ChatGPT are left out.</p>
+        <label class="setting"><span class="setting-text"><b>Include saved keys</b><em>Locked with a passphrase you choose.</em></span><input id="exportSettingsKeys" type="checkbox" /></label>
+        <div id="exportSettingsPassphrase" hidden>
+          <label class="plugin-field" for="exportSettingsPass"><span>Passphrase</span><input id="exportSettingsPass" type="password" maxlength="1024" autocomplete="new-password" /><small>At least 8 characters. A lost passphrase cannot be recovered.</small></label>
+          <label class="plugin-field" for="exportSettingsPassAgain"><span>Passphrase again</span><input id="exportSettingsPassAgain" type="password" maxlength="1024" autocomplete="new-password" /></label>
+        </div>
+        <p id="exportSettingsError" class="plugin-error" role="alert" hidden></p>
+        <div class="pet-delete-actions"><button class="btn" id="exportSettingsCancel" type="button">Cancel</button><button class="btn btn-solid" id="exportSettingsSubmit" type="submit">Export</button></div>
+      </form>
+    </dialog>
+    <dialog class="plugin-dialog backup-dialog" id="importSettingsDialog" aria-labelledby="importSettingsTitle">
+      <div class="plugin-dialog-head"><h2 id="importSettingsTitle">Import settings</h2><button class="btn" id="importSettingsClose" type="button">Close</button></div>
+      <form id="importSettingsForm" class="plugin-dialog-body">
+        <p id="importSettingsSource"></p>
+        <p id="importSettingsSummary" role="status"></p>
+        <p class="backup-wider" id="importSettingsWider" hidden></p>
+        <details class="backup-review" id="importSettingsReview" hidden><summary><svg class="disclosure-chevron sum-chev" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6 3.5 10.5 8 6 12.5"></path></svg>Review changes</summary><ul id="importSettingsChanges"></ul></details>
+        <label class="setting" id="importSettingsKeysRow" hidden><span class="setting-text"><b id="importSettingsKeysLabel"></b><em>Needs the passphrase chosen when the backup was made.</em></span><input id="importSettingsKeys" type="checkbox" /></label>
+        <label class="plugin-field" for="importSettingsPass" id="importSettingsPassRow" hidden><span>Passphrase</span><input id="importSettingsPass" type="password" maxlength="1024" autocomplete="off" /></label>
+        <p id="importSettingsError" class="plugin-error" role="alert" hidden></p>
+        <div class="pet-delete-actions"><button class="btn" id="importSettingsCancel" type="button">Cancel</button><button class="btn btn-solid" id="importSettingsSubmit" type="submit">Import</button></div>
+      </form>
     </dialog>
     <dialog id="setupProfileDialog" class="setup-profile-dialog" aria-labelledby="setupProfileDialogTitle">
       <form id="setupProfileForm">
