@@ -11,9 +11,9 @@ import type { InputAttachment } from '../shared/input.js';
 import type { UsageOverview } from '../shared/usage.js';
 import type { ProviderUsage } from '../shared/provider-usage.js';
 import type { InputArgs, InputEntry } from '../main/session/input.js';
-import type { LocalProject, ProjectColor } from '../shared/projects.js';
+import type { ChatgptProjectChoice, LocalProject, ProjectChatDefaults, ProjectChatDefaultsSkip, ProjectColor } from '../shared/projects.js';
 import type { ProjectDirectoryListing, ProjectFileMutationResult, ProjectFilePreview, ProjectFileSaveResult, ProjectFilesChanged } from '../shared/project-files.js';
-import type { ProjectGitChanged, ProjectGitDiff, ProjectGitSnapshot } from '../shared/project-git.js';
+import type { CheckpointRestoreResult, ProjectGitChanged, ProjectGitDiff, ProjectGitSnapshot } from '../shared/project-git.js';
 import type { PetLibraryState, PetOverlayControlState, PetRuntimeAsset } from '../shared/pets.js';
 import type { SkillSummary, ManagedSkill, GitHubSkillUpdateCheck, SkillLibrary, SkillsDraftScope } from '../shared/skills.js';
 import type { RunningToolActivity, SessionChange, SessionSearchReply, SessionSearchLocation, SessionBookmark, ToolEditReview } from '../shared/session.js';
@@ -29,7 +29,9 @@ import type { PluginSnapshot, PluginInstallRequest, PluginConfigPatch } from '..
  */
 
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
-import type { AppState, Capabilities, CompanionDiagnostics, Config, Diagnosis, LogEntry } from '../shared/types.js';
+import type { AppState, Capabilities, CommitFlow, CompanionDiagnostics, Config, Diagnosis, LogEntry, SettingsBackupChoice } from '../shared/types.js';
+import type { SoundCue } from '../shared/sound-cues.js';
+import type { CommitState } from '../shared/project-git.js';
 import type {
   Handoff,
   ImageStorageClearMode,
@@ -62,6 +64,8 @@ export interface SettingsPatch {
   mcp: Config['mcp'];
   /** Optional so callers that save other sections never have to carry it. */
   controlApi?: Config['controlApi'];
+  /** Optional for the same reason. */
+  projects?: Config['projects'];
   /** This computer's connector name suffix; omitted by callers that do not edit it. */
   connectorSuffix?: string;
 }
@@ -159,6 +163,15 @@ const api = {
   setMainTexts: (texts: Record<string, string>) => call<void>('ui:mainTexts', texts),
   /** The interface language, kept by the app for the browser extension. */
   setUiLanguage: (language: string) => call<void>('ui:language', language),
+  /** Settings backup. Saved keys go in only with a passphrase, and never come back to the page. */
+  exportSettings: (includeKeys: boolean, passphrase?: string) =>
+    call<{ file: string; keyCount: number } | null>('settings:export', { includeKeys, ...(passphrase !== undefined ? { passphrase } : {}) }),
+  pickSettingsBackup: () => call<SettingsBackupChoice | null>('settings:importPick', undefined),
+  importSettingsBackup: (token: string, includeKeys: boolean, passphrase?: string) =>
+    // `warnings`: what went wrong after the settings were written, each a sentence of its own.
+    call<{ state: AppState; changedCount: number; keyCount: number; warnings?: string[] }>('settings:importApply', { token, includeKeys, ...(passphrase !== undefined ? { passphrase } : {}) }),
+  testPhonePush: () => call<void>('phonePush:test', undefined),
+  setPhonePushToken: (token: string) => call<AppState>('phonePush:token', { token }),
   markWhatsNewSeen: () => call<void>('ui:whatsNewSeen'),
   /** The one-time automatic plugin refresh offer: true turns it on; either answer is kept. */
   answerPluginRefreshOffer: (turnOn: boolean) => call<AppState>('pluginRefresh:offer', { turnOn }),
@@ -256,7 +269,17 @@ const api = {
   connect: () => call<AppState>('connection:connect'),
   disconnect: () => call<AppState>('connection:disconnect'),
   runDiagnostics: () => call<Diagnosis>('diagnostics:run'),
+  // Commit & PR from Review (project-commit.ts).
+  commitState: (projectId: string) => call<CommitState>('projectCommit:state', { projectId }),
+  commitProject: (request: { projectId: string; message: string; paths: string[]; newBranch?: string; expectedToken: string }) =>
+    call<{ commit: string; branch: string }>('projectCommit:commit', request),
+  pushProject: (projectId: string) => call<{ branch: string; remote: string; tracking: boolean }>('projectCommit:push', { projectId }),
+  createPullRequest: (projectId: string, title: string, body: string) =>
+    call<{ url: string; via: 'gh' | 'existing' | 'browser' }>('projectCommit:pullRequest', { projectId, title, body }),
+  setCommitFlow: (flow: CommitFlow) => call<boolean>('projectCommit:flow', { flow }),
   saveDiagnosticsReport: () => call<{ saved: false } | { saved: true; name: string }>('diagnostics:saveReport'),
+  openFeedbackIssue: (report: { kind: 'bug'; what: string; steps?: string; frequency?: 'Every time' | 'Sometimes' | 'It happened once' }
+    | { kind: 'idea'; problem: string; proposal: string }) => call<{ trimmed: boolean }>('feedback:openIssue', report),
   requestDesktopAccessibility: () => call<AppState>('desktop:requestAccessibility'),
   repairDesktopAccess: () => call<AppState>('desktop:repairPermissions'),
   getLog: () => call<LogEntry[]>('log:get'),
@@ -267,6 +290,8 @@ const api = {
   saveCode: (request: { text: string; name: string }) => call<{ done: 'saved'; name: string } | { done: 'cancelled' }>('code:save', request),
   exportMarkdown: (request: { id: string; scope: 'answer' | 'latest' | 'session'; turnId?: string; messageId?: string; target: 'clipboard' | 'file' }) =>
     call<{ done: 'copied' } | { done: 'saved'; name: string } | { done: 'cancelled' }>('sessions:exportMarkdown', request),
+  sharePage: (request: { id: string; target: 'preview'; hide: boolean; lang: string } | { id: string; target: 'file'; preview: string }) =>
+    call<{ done: 'preview'; preview: string; html: string; hidden: number } | { done: 'saved'; name: string } | { done: 'cancelled' }>('sessions:sharePage', request),
   // `external`: the system's own browser even for a page the CoS browser would open.
   openLink: (url: string, options: { external?: boolean } = {}) => call<boolean>('link:open', { url, ...(options.external ? { external: true } : {}) }),
   showCosBrowser: () => call<boolean>('cosBrowser:show'),
@@ -288,11 +313,19 @@ const api = {
   listSessions: (options?: { cursor?: SessionListCursor; limit?: number; projectId?: string }) =>
     call<SessionList>('sessions:list', options ?? {}),
   listProjects: () => call<LocalProject[]>('projects:list'),
-  addProject: () => call<LocalProject | null>('projects:add'),
-  addRemoteProject: (address: string, folder: string) => call<LocalProject>('projects:addRemote', { address, folder }),
+  // `chatgpt: 'later'`: the person picks a new or an existing ChatGPT Project next (#1756).
+  addProject: (options?: { chatgpt?: 'later' }) => call<LocalProject | null>('projects:add', options ?? {}),
+  addRemoteProject: (address: string, folder: string, options?: { chatgpt?: 'later' }) => call<LocalProject>('projects:addRemote', { address, folder, ...(options ?? {}) }),
   retryChatgptProject: (id: string) => call<LocalProject | null>('projects:chatgpt-retry', { id }),
+  chatgptProjectChoices: () => call<ChatgptProjectChoice[]>('projects:chatgpt-choices'),
+  linkChatgptProject: (id: string, chatgptId: string) => call<LocalProject>('projects:chatgpt-link', { id, chatgptId }),
+  createChatgptProject: (id: string, options: { replace?: boolean } = {}) => call<LocalProject>('projects:chatgpt-create', { id, ...(options.replace ? { replace: true } : {}) }),
+  unlinkChatgptProject: (id: string) => call<LocalProject>('projects:chatgpt-unlink', { id }),
   removeProject: (id: string) => call<LocalProject>('projects:remove', { id }),
   setProjectColor: (id: string, color: ProjectColor | null) => call<LocalProject>('projects:color', { id, color }),
+  setProjectChatDefaults: (id: string, defaults: ProjectChatDefaults | null) => call<LocalProject>('projects:chatDefaults', { id, defaults }),
+  /** The composer found a project's own pair unusable on this account and started on the Settings default; main logs it. */
+  noteProjectChatDefaultsSkipped: (reason: ProjectChatDefaultsSkip) => call<null>('projects:chatDefaultsSkipped', { reason }),
   setProjectSecretsShieldOff: (id: string, off: boolean) => call<LocalProject>('projects:secrets-shield', { id, off }),
   listProjectFiles: (projectId: string, directory = '') => call<ProjectDirectoryListing>('projectFiles:list', { projectId, directory }),
   watchProjectFiles: (projectId: string | null, directories: string[]) => call<boolean>('projectFiles:watch', { projectId, directories }),
@@ -314,6 +347,8 @@ const api = {
   getProjectGitDiff: (projectId: string, path: string, baseRef?: string, expectedRevision?: string) => call<ProjectGitDiff>('projectGit:diff', {
     projectId, path, ...(baseRef ? { baseRef } : {}), ...(expectedRevision ? { expectedRevision } : {})
   }),
+  restoreCheckpoint: (projectId: string, checkpointId: string, paths: string[] | null, expectedRevision: string) =>
+    call<CheckpointRestoreResult>('checkpoints:restore', { projectId, checkpointId, paths, expectedRevision }),
   getToolEditReview: (sessionId: string, callId: string, changeIndex: number) =>
     call<ToolEditReview | null>('sessions:toolEditReview', { sessionId, callId, changeIndex }),
   onProjectGitChanged: (listener: (event: ProjectGitChanged) => void): (() => void) => {
@@ -433,6 +468,14 @@ const api = {
     const wrapped = (_event: unknown, change?: SessionChange): void => listener(change);
     ipcRenderer.on('session:changed', wrapped);
     return () => ipcRenderer.removeListener('session:changed', wrapped);
+  },
+  /** #1802: the main process decided a sound plays now. */
+  onSoundCue: (listener: (kind: SoundCue) => void): (() => void) => {
+    const wrapped = (_event: unknown, kind: SoundCue): void => listener(kind);
+    ipcRenderer.on('sound:cue', wrapped);
+    // From now on a cue reaches this page; until then main does not count one as played.
+    ipcRenderer.send('sound:ready');
+    return () => ipcRenderer.removeListener('sound:cue', wrapped);
   },
   onWriteSession: (listener: (id: string) => void): (() => void) => {
     const wrapped = (_event: unknown, id: string): void => listener(id);

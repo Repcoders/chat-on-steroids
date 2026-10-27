@@ -20,6 +20,21 @@ export interface LocalProject {
    * this existed have one; it grants no filesystem permission.
    */
   chatgpt?: ChatgptProjectLink;
+  /**
+   * The model and effort a new chat in this project starts with, in place of the Settings
+   * new-chat default (`ui.defaultChatModel`). A chat that has its own selection keeps it.
+   */
+  chatDefaults?: ProjectChatDefaults;
+}
+
+/** Why a new chat did not start on its project's own pair (the Settings default is used instead). */
+export const PROJECT_CHAT_DEFAULTS_SKIPS = ['no-picker', 'model-gone', 'effort-gone'] as const;
+export type ProjectChatDefaultsSkip = typeof PROJECT_CHAT_DEFAULTS_SKIPS[number];
+
+/** A project's own new-chat model and effort; both are always set together. */
+export interface ProjectChatDefaults {
+  model: string;
+  reasoningEffort: import('./session.js').ReasoningEffort;
 }
 
 /**
@@ -40,3 +55,12 @@ export type ChatgptProjectLink =
 
 /** ChatGPT addresses a Project as `g-p-` and 32 hex digits; nothing else is one. */
 export const CHATGPT_PROJECT_ID = /^g-p-[0-9a-f]{32}$/;
+
+/** A ChatGPT Project the account already has, offered to link a CoS project to (#1756). */
+export interface ChatgptProjectChoice {
+  id: string;
+  /** As ChatGPT's sidebar showed it; a label only, never used to link. */
+  name: string;
+  /** The CoS project already linked to it; a ChatGPT Project belongs to one CoS project. */
+  linkedTo: { id: string; name: string } | null;
+}
