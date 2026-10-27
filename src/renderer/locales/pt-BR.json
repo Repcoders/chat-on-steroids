@@ -3397,6 +3397,8 @@
   "API keys and tokens in what tools return are hidden before ChatGPT sees them.": "Chaves de API e tokens no que as ferramentas retornam são escondidos antes de o ChatGPT vê-los.",
   "Easier to read": "Mais fácil de ler",
   "High contrast, eight accent colors, line spacing and a more legible font.": "Alto contraste, oito cores de destaque, espaçamento entre linhas e uma fonte mais legível.",
+  "Quote": "Citar",
+  "Start or cancel the prepared plan first, then quote again.": "Inicie ou cancele primeiro o plano preparado e cite de novo.",
   "New-chat model": "Modelo para novos chats",
   "The model and effort a new chat in this project starts with": "O modelo e o esforço com que um novo chat neste projeto começa",
   "Same as Settings": "Igual às Configurações",
